@@ -24,6 +24,7 @@ import {
 import { createOrderRequest, uploadOriginalPhotoToSupabase, fetchUserProfile, getEffectiveTier } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from '../components/AuthModal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface ShopPageProps {
   onGoHome: () => void;
@@ -62,6 +63,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
   // Modal state for Assisted Kit Request & Custom Stitched Product Request
   const [activeModal, setActiveModal] = useState<'assisted-kit' | 'custom-stitched' | null>(null);
+
+  // Lock body scroll when modal is active
+  useBodyScrollLock(!!activeModal);
 
   // Form State
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -455,11 +459,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
       {/* Quote Request Modal */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
-          <div className="bg-[#FAF6EE] rounded-3xl max-w-xl w-full shadow-2xl border border-[#E8E1D2] relative my-8 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-[#FAF6EE] rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#E8E1D2] relative overflow-hidden">
             
             {/* Modal Header */}
-            <div className="p-6 border-b border-[#E8E1D2] bg-white flex items-center justify-between">
+            <div className="p-5 sm:p-6 border-b border-[#E8E1D2] bg-white flex items-center justify-between shrink-0 sticky top-0 z-20">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
                   activeModal === 'assisted-kit' ? 'bg-[#E06C38]/10 text-[#E06C38]' : 'bg-[#3D5239]/10 text-[#3D5239]'
@@ -487,7 +491,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 sm:p-8">
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain">
               {isSuccess ? (
                 <div className="text-center py-6 space-y-4">
                   <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">

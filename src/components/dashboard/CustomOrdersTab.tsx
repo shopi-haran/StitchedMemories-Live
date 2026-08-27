@@ -45,6 +45,7 @@ import {
   ArchivedQuote
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 interface UserProfile {
   id?: string;
@@ -128,6 +129,9 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Lock body scroll when any modal is open in CustomOrdersTab
+  useBodyScrollLock(Boolean(selectedDetailOrder || revisionModalOrder || cancelModalOrder));
 
   // Customer View-Only Stitch Tracker state
   const [viewOnlyTrackerOrder, setViewOnlyTrackerOrder] = useState<SupabaseStitchOrderRow | null>(null);
@@ -1077,14 +1081,14 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         const totalAmount = Number(quote.total_amount) || Number(order.quoted_price) || Number(order.total_amount) || (discountableAmount - discountAmount + deliveryCharge);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
             <div 
-              className="bg-white rounded-3xl border border-[#E8E1D2] max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 my-8 max-h-[90vh] overflow-y-auto animate-scaleUp"
+              className="bg-white rounded-3xl border border-[#E8E1D2] max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleUp"
               onClick={(e) => e.stopPropagation()}
             >
               
               {/* Modal Header */}
-              <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#E8E1D2]">
+              <div className="flex items-start justify-between gap-4 p-5 sm:p-6 border-b border-[#E8E1D2] bg-white shrink-0 sticky top-0 z-20">
                 <div className="flex items-center gap-3.5">
                   {order.image_url ? (
                     <img
@@ -1134,6 +1138,9 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                   </button>
                 </div>
               </div>
+
+              {/* Modal Body */}
+              <div className="p-5 sm:p-7 space-y-6 overflow-y-auto flex-1 overscroll-contain">
 
               {/* Revision Requested State Banner */}
               {isRevisionRequested && (
@@ -1577,14 +1584,15 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
             </div>
           </div>
+        </div>
         );
       })()}
 
       {/* Request Revision Modal Dialog */}
       {revisionModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-[#E8E1D2] max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scaleUp">
-            <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D2] pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-[#E8E1D2] max-w-lg w-full max-h-[90vh] flex flex-col p-6 sm:p-7 shadow-2xl space-y-5 animate-scaleUp overflow-y-auto overscroll-contain">
+            <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D2] pb-4 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0">
                   <RotateCcw className="w-5 h-5" />
@@ -1623,7 +1631,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8E1D2]">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8E1D2] shrink-0">
               <button
                 type="button"
                 onClick={() => setRevisionModalOrder(null)}
@@ -1657,9 +1665,9 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
       {/* Cancel Order Confirmation Dialog */}
       {cancelModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-rose-200 max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-scaleUp">
-            <div className="flex items-start gap-3.5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-rose-200 max-w-md w-full max-h-[90vh] flex flex-col p-6 sm:p-7 shadow-2xl space-y-5 animate-scaleUp overflow-y-auto overscroll-contain">
+            <div className="flex items-start gap-3.5 shrink-0">
               <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-6 h-6" />
               </div>
@@ -1675,7 +1683,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
               Cancelling will permanently close this custom order request and no further quotes or production will take place.
             </p>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8E1D2]">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8E1D2] shrink-0">
               <button
                 type="button"
                 onClick={() => setCancelModalOrder(null)}

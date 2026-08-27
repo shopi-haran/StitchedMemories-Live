@@ -8,6 +8,7 @@ import {
 } from '../../utils/blogParser';
 import { uploadBlogImageToSupabase, upsertBlogPost } from '../../lib/supabase';
 import { ArticleContentRenderer } from '../ArticleContentRenderer';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   X,
   Save,
@@ -58,6 +59,9 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
   currentUserAvatar = '',
 }) => {
   const isEditing = Boolean(post && post.id);
+
+  // Lock body scroll when modal is open
+  useBodyScrollLock(isOpen);
 
   // Form State
   const [title, setTitle] = useState('');

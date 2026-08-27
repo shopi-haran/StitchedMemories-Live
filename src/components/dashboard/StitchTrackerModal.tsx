@@ -34,6 +34,7 @@ import {
   getDefaultOrderPatternConfig 
 } from '../../utils/patternEngine';
 import { exportPatternToPDF, downloadFileFromUrl } from '../../utils/pdfExporter';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import dogImg from '../../assets/images/hoop_dog.png';
 
 export interface StitchTrackerModalProps {
@@ -58,6 +59,9 @@ export const StitchTrackerModal: React.FC<StitchTrackerModalProps> = ({
   const isOrderMode = Boolean(order);
   const isViewOnly = mode === 'view-only';
   const isAdminEditable = mode === 'admin-editable';
+
+  // Lock body scroll when tracker modal is open
+  useBodyScrollLock(isOpen);
 
   const [pattern, setPattern] = useState<GeneratedPattern | null>(null);
   const [loadingPattern, setLoadingPattern] = useState<boolean>(true);
@@ -730,11 +734,11 @@ export const StitchTrackerModal: React.FC<StitchTrackerModalProps> = ({
     : (viewMode === 'tracker' && !isViewOnly ? 'cursor-pointer' : 'cursor-default');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
-      <div className="bg-[#FAF6EE] rounded-3xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-[#E8E1D2] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
+      <div className="bg-[#FAF6EE] rounded-3xl max-w-5xl w-full max-h-[92vh] shadow-2xl border border-[#E8E1D2] flex flex-col overflow-hidden">
         
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[#E8E1D2] bg-white/90 sticky top-0 z-20 backdrop-blur-md flex items-center justify-between gap-4">
+        <div className="px-6 py-4 border-b border-[#E8E1D2] bg-white/90 shrink-0 sticky top-0 z-20 backdrop-blur-md flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xs shrink-0 ${
               isAdminEditable ? 'bg-[#2D5A43] text-white' : isViewOnly ? 'bg-[#556653] text-white' : 'bg-[#3D5239] text-white'
@@ -836,7 +840,7 @@ export const StitchTrackerModal: React.FC<StitchTrackerModalProps> = ({
         </div>
 
         {/* Progress Summary Bar */}
-        <div className={`px-6 py-3 border-b flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-[#1D231E] ${
+        <div className={`px-6 py-3 border-b shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-[#1D231E] ${
           isAdminEditable ? 'bg-[#E8EFE5] border-[#C5D3C2]' : isViewOnly ? 'bg-[#F2ECE1] border-[#E0D8C8]' : 'bg-[#E8EFE5] border-[#C5D3C2]'
         }`}>
           <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -980,7 +984,7 @@ export const StitchTrackerModal: React.FC<StitchTrackerModalProps> = ({
           </div>
         ) : (
           /* Main Content Grid */
-          <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+          <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 overflow-y-auto overscroll-contain">
           
           {/* Left Canvas Column */}
           <div className="lg:col-span-8 flex flex-col space-y-4">

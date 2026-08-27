@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User as UserIcon, Sparkles, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase, fetchUserProfile } from '../lib/supabase';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   customSubtitle,
   onLoginSuccess,
 }) => {
+  useBodyScrollLock(isOpen);
   const [tab, setTab] = useState<'login' | 'signup'>(defaultTab);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -154,7 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
       <div 
-        className="relative w-full max-w-md bg-[#FAF6EE] border border-[#E8E1D2] rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8"
+        className="relative w-full max-w-md bg-[#FAF6EE] border border-[#E8E1D2] rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] p-6 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

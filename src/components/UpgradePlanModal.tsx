@@ -14,6 +14,7 @@ import {
   ArrowRight,
   HeartHandshake
 } from 'lucide-react';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -31,6 +32,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   mode = 'upgrade',
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+
+  // Lock body scroll when modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -55,7 +59,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn"
       onClick={() => {
         // Only allow closing via backdrop in upgrade mode
         if (!isOnboarding && onClose) {
@@ -64,11 +68,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       }}
     >
       <div 
-        className={`relative w-full ${modalMaxWidth} bg-[#FAF6EE] rounded-3xl shadow-2xl border border-[#E8E1D2] overflow-hidden my-auto`}
+        className={`relative w-full ${modalMaxWidth} max-h-[90vh] bg-[#FAF6EE] rounded-3xl shadow-2xl border border-[#E8E1D2] overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-[#E8E1D2] flex items-center justify-between bg-white sticky top-0 z-20">
+        <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-[#E8E1D2] flex items-center justify-between bg-white shrink-0 sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center shadow-xs">
               {isOnboarding ? <Sparkles className="w-5 h-5" /> : <Crown className="w-5 h-5" />}
@@ -112,7 +116,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-6 sm:p-8 max-h-[calc(85vh-90px)] overflow-y-auto space-y-6">
+        <div className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain space-y-6">
           
           {/* Billing Cycle Toggle */}
           <div className="flex justify-center">

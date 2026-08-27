@@ -32,6 +32,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from './AuthModal';
 import { StudioImageEditorModal } from './StudioImageEditorModal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import dogImg from '../assets/images/hoop_dog.png';
 
 interface PhotoConverterModalProps {
@@ -54,6 +55,9 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
   const { session, isLoggedIn: isAuthLoggedIn, user: authUser } = useAuth();
   const effectiveUser = authUser || propUser;
   const isAdminOrderMode = Boolean(adminOrder);
+
+  // Lock body scroll when converter modal is open
+  useBodyScrollLock(isOpen);
 
   // Admin order mode save state
   const [isSavingToAdminOrder, setIsSavingToAdminOrder] = useState<boolean>(false);
@@ -902,11 +906,11 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
   };
 
   return (
-    <div id="photo-converter-modal" data-converter-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
-      <div className="bg-[#FAF6EE] rounded-3xl max-w-6xl w-full max-h-[94vh] overflow-y-auto shadow-2xl border border-[#E8E1D2] flex flex-col">
+    <div id="photo-converter-modal" data-converter-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
+      <div className="bg-[#FAF6EE] rounded-3xl max-w-6xl w-full max-h-[92vh] shadow-2xl border border-[#E8E1D2] flex flex-col overflow-hidden">
         
         {/* Modal Top Header with Plan Switcher */}
-        <div className="px-6 py-4 border-b border-[#E8E1D2] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/70 sticky top-0 z-20 backdrop-blur-md">
+        <div className="px-6 py-4 border-b border-[#E8E1D2] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/70 shrink-0 sticky top-0 z-20 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl ${isAdminOrderMode ? 'bg-[#2D5A43]' : 'bg-[#E06C38]'} text-white flex items-center justify-center shadow-sm shrink-0`}>
               <Sparkles className="w-5 h-5" />
@@ -968,7 +972,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
 
         {/* Free Plan Limit Notice Banner if in Free Mode */}
         {!isAdminOrderMode && planTier === 'free' && (
-          <div className="bg-[#FFF8EC] border-b border-[#E8D0B0] px-6 py-2.5 flex items-center justify-between text-xs text-[#8A511B]">
+          <div className="bg-[#FFF8EC] border-b border-[#E8D0B0] px-6 py-2.5 flex items-center justify-between text-xs text-[#8A511B] shrink-0">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-[#E06C38] shrink-0" />
               <span>
@@ -986,7 +990,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
         )}
 
         {/* Modal Content Body */}
-        <div className="p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 overflow-y-auto flex-1 overscroll-contain">
           
           {/* Controls Panel Left (5 Cols) */}
           <div className="lg:col-span-5 space-y-6">
@@ -1597,11 +1601,11 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
 
       {/* Converter Order Kit & Supplies Modal */}
       {isOrderKitModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
-          <div className="bg-[#FAF6EE] rounded-3xl max-w-xl w-full shadow-2xl border border-[#E8E1D2] relative my-8 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-[#FAF6EE] rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#E8E1D2] relative overflow-hidden">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-[#E8E1D2]">
+            <div className="flex items-center justify-between p-5 sm:p-6 border-b border-[#E8E1D2] bg-white shrink-0 sticky top-0 z-20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center">
                   <Package className="w-5 h-5" />
@@ -1622,7 +1626,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div className="p-6">
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 overscroll-contain">
               {orderSuccess ? (
                 <div className="text-center py-6 space-y-4">
                   <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">

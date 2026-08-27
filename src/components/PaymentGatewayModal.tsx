@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, CreditCard, Lock, Sparkles, Check, ArrowRight, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { supabase, updateUserTier } from '../lib/supabase';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface PaymentGatewayModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   user,
   onPaymentSuccess,
 }) => {
+  useBodyScrollLock(isOpen);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(initialBillingCycle);
   const [cardName, setCardName] = useState(user?.name || '');
   const [cardNumber, setCardNumber] = useState('•••• •••• •••• 4242');

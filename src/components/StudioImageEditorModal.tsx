@@ -4,6 +4,7 @@ import {
   Crop, Sliders, Sun, Sparkles, RefreshCw, Layers, Scissors,
   Circle, Square, Maximize, Eye, Move
 } from 'lucide-react';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface StudioImageEditorModalProps {
   isOpen: boolean;
@@ -20,6 +21,9 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
   originalImageUrl,
   onApplyEdits,
 }) => {
+  // Lock body scroll when editor modal is open
+  useBodyScrollLock(isOpen);
+
   // Active Editing Tab
   const [activeTab, setActiveTab] = useState<'crop' | 'rotate' | 'resize' | 'adjust'>('crop');
 
@@ -210,11 +214,11 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md animate-fade-in">
-      <div className="bg-[#FAF6EE] rounded-3xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-[#E8E1D2] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+      <div className="bg-[#FAF6EE] rounded-3xl max-w-5xl w-full max-h-[92vh] shadow-2xl border border-[#E8E1D2] flex flex-col overflow-hidden">
         
         {/* Editor Modal Header */}
-        <div className="px-6 py-4 border-b border-[#E8E1D2] flex items-center justify-between bg-white/80 sticky top-0 z-20 backdrop-blur-md">
+        <div className="px-6 py-4 border-b border-[#E8E1D2] flex items-center justify-between bg-white/80 shrink-0 sticky top-0 z-20 backdrop-blur-md">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#3D5239] text-white flex items-center justify-center shadow-xs">
               <Scissors className="w-5 h-5 text-[#E06C38]" />
@@ -240,7 +244,7 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
         </div>
 
         {/* Modal Main Body */}
-        <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start overflow-y-auto flex-1 overscroll-contain">
           
           {/* Controls Navigation Tabs & Options (Left 5 Cols) */}
           <div className="lg:col-span-5 space-y-4">

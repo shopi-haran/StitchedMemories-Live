@@ -66,6 +66,7 @@ import { JobsTab } from '../components/admin/JobsTab';
 import { CustomersTab } from '../components/admin/CustomersTab';
 import { StitchTrackerModal } from '../components/dashboard/StitchTrackerModal';
 import { PhotoConverterModal } from '../components/PhotoConverterModal';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 export type AdminTopLevelTab = 'jobs' | 'blogs' | 'customers';
 export type AdminJobsSubTab =
@@ -173,6 +174,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
   // Customer filter triggered from customer table click
   const [customerOrdersFilterEmail, setCustomerOrdersFilterEmail] = useState<string | null>(null);
+
+  // Lock body scroll when any admin modal is open
+  useBodyScrollLock(Boolean(selectedQuoteOrder || selectedOrderForEdit || previewImageModal || declineModalOrder));
 
   const showToast = (msg: string) => {
     setSuccessToast(msg);
@@ -1047,9 +1051,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       {/* MODAL 1: SET ITEMIZE PRICING QUOTE FORM */}
       {/* ========================================================================= */}
       {selectedQuoteOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-[#1D231E]/10 my-8 animate-scale-up">
-            <div className="flex items-center justify-between border-b border-[#1D231E]/10 pb-4 mb-6">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#1D231E]/10 overflow-hidden animate-scale-up">
+            <div className="flex items-center justify-between border-b border-[#1D231E]/10 p-5 sm:p-6 bg-white shrink-0 sticky top-0 z-20">
               <div>
                 <h3 className="text-xl font-bold text-[#1D231E] font-serif flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-[#E06C38]" /> Set Itemized Pricing Quote
@@ -1066,7 +1070,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveQuote} className="space-y-6">
+            <form onSubmit={handleSaveQuote} className="p-5 sm:p-7 space-y-6 overflow-y-auto flex-1 overscroll-contain">
               {/* Customer Revision Feedback Prompt if revision requested */}
               {(selectedQuoteOrder.fulfillment_status === 'revision_requested' || selectedQuoteOrder.customer_feedback) && (
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-300 text-amber-950 space-y-1.5 shadow-2xs">
@@ -1401,9 +1405,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       {/* MODAL 2: ORDER MANAGEMENT / STAGE ADVANCEMENT PANEL */}
       {/* ========================================================================= */}
       {selectedOrderForEdit && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-[#1D231E]/10 my-8 animate-scale-up">
-            <div className="flex items-center justify-between border-b border-[#1D231E]/10 pb-4 mb-6">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#1D231E]/10 overflow-hidden animate-scale-up">
+            <div className="flex items-center justify-between border-b border-[#1D231E]/10 p-5 sm:p-6 bg-white shrink-0 sticky top-0 z-20">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-xl font-bold text-[#1D231E] font-serif">
@@ -1427,6 +1431,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               </button>
             </div>
 
+            <div className="p-5 sm:p-7 space-y-5 overflow-y-auto flex-1 overscroll-contain">
             {/* Customer & Order Details Summary */}
             {(() => {
               const editDetails = selectedOrderForEdit.request_details || {};
@@ -1931,6 +1936,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
@@ -1983,8 +1989,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       {/* MODAL 5: DECLINE ORDER MODAL */}
       {/* ========================================================================= */}
       {declineModalOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-[#1D231E]/10 animate-scale-up">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col p-6 sm:p-7 shadow-2xl border border-[#1D231E]/10 animate-scale-up overflow-y-auto overscroll-contain">
             <div className="flex items-center justify-between border-b border-[#1D231E]/10 pb-4 mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600">
