@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, CreditCard, Lock, Sparkles, Check, ArrowRight, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { supabase, updateUserTier, updateUserPlanSelection } from '../lib/supabase';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useModalStack } from '../hooks/useModalStack';
 
 interface PaymentGatewayModalProps {
   isOpen: boolean;
@@ -20,7 +20,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   user,
   onPaymentSuccess,
 }) => {
-  useBodyScrollLock(isOpen);
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'payment-gateway-modal' });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(initialBillingCycle);
   const [cardName, setCardName] = useState(user?.name || '');
   const [cardNumber, setCardNumber] = useState('•••• •••• •••• 4242');
@@ -74,7 +74,9 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   return (
     <div 
       data-modal-overlay="true"
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
       onClick={() => {
         if (!isProcessing && onClose) onClose();
       }}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User as UserIcon, Sparkles, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase, fetchUserProfile } from '../lib/supabase';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useModalStack } from '../hooks/useModalStack';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -20,7 +20,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   customSubtitle,
   onLoginSuccess,
 }) => {
-  useBodyScrollLock(isOpen);
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'auth-modal' });
   const [tab, setTab] = useState<'login' | 'signup'>(defaultTab);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -156,7 +156,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div 
       data-modal-overlay="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
       onClick={() => {
         if (!isLoading && onClose) onClose();
       }}

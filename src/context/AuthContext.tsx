@@ -78,8 +78,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           appMeta.role ||
           'user';
 
+        const localPlanSelected =
+          localStorage.getItem(`plan_selected_${sess.user.id}`) === 'true' ||
+          (sess.user.email ? localStorage.getItem(`plan_selected_${sess.user.email}`) === 'true' : false);
+
         const hasSelectedPlan =
-          profile?.has_selected_plan !== undefined
+          localPlanSelected
+            ? true
+            : profile?.has_selected_plan !== undefined
             ? profile.has_selected_plan
             : userMeta.has_selected_plan !== undefined
             ? userMeta.has_selected_plan
@@ -100,8 +106,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[AuthContext] Notice during profile sync, using session metadata:', err);
         const userMeta = sess.user.user_metadata || {};
         const appMeta = sess.user.app_metadata || {};
+        const localPlanSelected =
+          localStorage.getItem(`plan_selected_${sess.user.id}`) === 'true' ||
+          (sess.user.email ? localStorage.getItem(`plan_selected_${sess.user.email}`) === 'true' : false);
+
         const fallbackHasSelected =
-          userMeta.has_selected_plan !== undefined
+          localPlanSelected
+            ? true
+            : userMeta.has_selected_plan !== undefined
             ? userMeta.has_selected_plan
             : true;
 

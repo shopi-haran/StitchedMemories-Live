@@ -32,7 +32,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from './AuthModal';
 import { StudioImageEditorModal } from './StudioImageEditorModal';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useModalStack } from '../hooks/useModalStack';
 import dogImg from '../assets/images/hoop_dog.png';
 
 interface PhotoConverterModalProps {
@@ -56,8 +56,8 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
   const effectiveUser = authUser || propUser;
   const isAdminOrderMode = Boolean(adminOrder);
 
-  // Lock body scroll when converter modal is open
-  useBodyScrollLock(isOpen);
+  // Modal stacking z-index and body scroll lock
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'photo-converter-modal' });
 
   // Admin order mode save state
   const [isSavingToAdminOrder, setIsSavingToAdminOrder] = useState<boolean>(false);
@@ -906,7 +906,14 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
   };
 
   return (
-    <div id="photo-converter-modal" data-converter-modal="true" data-modal-overlay="true" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
+    <div 
+      id="photo-converter-modal" 
+      data-converter-modal="true" 
+      data-modal-overlay="true"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in"
+    >
       <div className="bg-[#FAF6EE] rounded-3xl max-w-6xl w-full max-h-[92vh] shadow-2xl border border-[#E8E1D2] flex flex-col overflow-hidden">
         
         {/* Modal Top Header with Plan Switcher */}

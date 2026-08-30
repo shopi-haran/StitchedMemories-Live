@@ -14,7 +14,7 @@ import {
   ArrowRight,
   HeartHandshake
 } from 'lucide-react';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useModalStack } from '../hooks/useModalStack';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -35,8 +35,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
-  // Lock body scroll when modal is open
-  useBodyScrollLock(isOpen);
+  // Stacking z-index and body scroll lock
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'upgrade-plan-modal' });
 
   if (!isOpen) return null;
 
@@ -64,10 +64,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   return (
     <div 
       data-modal-overlay="true"
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn"
       onClick={() => {
-        // Only allow closing via backdrop in upgrade mode
-        if (!isOnboarding && onClose) {
+        if (onClose) {
           onClose();
         }
       }}
@@ -119,8 +120,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             </div>
           </div>
 
-          {/* Close button: ONLY visible in upgrade mode */}
-          {!isOnboarding && onClose && (
+          {/* Close button: Available in all modes */}
+          {onClose && (
             <button
               onClick={onClose}
               className="p-2 text-[#6B7869] hover:text-[#1D231E] hover:bg-[#E8E1D2]/60 rounded-full transition-colors cursor-pointer"

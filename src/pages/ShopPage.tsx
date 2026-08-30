@@ -24,7 +24,7 @@ import {
 import { createOrderRequest, uploadOriginalPhotoToSupabase, fetchUserProfile, getEffectiveTier } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from '../components/AuthModal';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useModalStack } from '../hooks/useModalStack';
 
 interface ShopPageProps {
   onGoHome: () => void;
@@ -47,6 +47,14 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const effectiveUser = authUser || propUser;
 
   const [profile, setProfile] = useState<any>(null);
+  // Modal state for Assisted Kit Request & Custom Stitched Product Request
+  const [activeModal, setActiveModal] = useState<'assisted-kit' | 'custom-stitched' | null>(null);
+
+  // Stacking z-index and scroll lock for shop custom order modal
+  const { zIndex: quoteModalZIndex, modalId: quoteModalId } = useModalStack(activeModal !== null, {
+    onClose: () => setActiveModal(null),
+    id: 'shop-quote-modal'
+  });
 
   useEffect(() => {
     if (effectiveUser?.id) {
@@ -62,12 +70,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   // Visible for guest visitors (not logged in) and logged-in users who are free or pro;
   // Hidden ONLY for logged-in users with active studio tier
   const showStudioPromo = !isLoggedIn || !effectiveUser || userTier !== 'studio';
-
-  // Modal state for Assisted Kit Request & Custom Stitched Product Request
-  const [activeModal, setActiveModal] = useState<'assisted-kit' | 'custom-stitched' | null>(null);
-
-  // Lock body scroll when modal is active
-  useBodyScrollLock(!!activeModal);
 
   // Form State
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -461,7 +463,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
       {/* Quote Request Modal */}
       {activeModal && (
-        <div data-modal-overlay="true" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
+        <div 
+          data-modal-overlay="true" 
+          data-modal-id={quoteModalId}
+          style={{ zIndex: quoteModalZIndex }}
+          className="fixed inset-0 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn"
+        >
           <div className="bg-[#FAF6EE] rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#E8E1D2] relative overflow-hidden">
             
             {/* Modal Header */}

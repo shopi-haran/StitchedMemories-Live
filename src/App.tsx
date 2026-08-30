@@ -87,19 +87,44 @@ export default function App() {
     return () => window.removeEventListener('popstate', handleUrlSync);
   }, [isLoggedIn, isLoading, user?.role, user?.has_selected_plan]);
 
+  const handleConfirmFreePlanAndDismiss = async () => {
+    setHasDismissedOnboarding(true);
+    setIsUpgradeModalOpen(false);
+    setUpgradeModalTargetPlan(null);
+    setIsPaymentModalOpen(false);
+
+    if (user?.id || user?.email) {
+      await updateUserPlanSelection(user.id, user.email, true);
+      await refreshProfile();
+    }
+  };
+
+  const handleCloseUpgradePlanModal = async () => {
+    const isOnboarding = isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding;
+    if (isOnboarding) {
+      await handleConfirmFreePlanAndDismiss();
+    } else {
+      setIsUpgradeModalOpen(false);
+      setUpgradeModalTargetPlan(null);
+    }
+  };
+
+  const handleClosePaymentModal = async () => {
+    const isOnboarding = isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding;
+    if (isOnboarding) {
+      await handleConfirmFreePlanAndDismiss();
+    } else {
+      setIsPaymentModalOpen(false);
+    }
+  };
+
   const handleSelectPlanFromPricing = async (plan: 'free' | 'pro' | 'studio', cycle: 'monthly' | 'annual') => {
     setPricingPlan(plan);
     setPricingCycle(cycle);
 
     if (isLoggedIn) {
       if (plan === 'free') {
-        setHasDismissedOnboarding(true);
-        if (user?.id || user?.email) {
-          await updateUserPlanSelection(user.id, user.email, true);
-          await refreshProfile();
-        }
-        setIsUpgradeModalOpen(false);
-        setUpgradeModalTargetPlan(null);
+        await handleConfirmFreePlanAndDismiss();
         setDashboardTab('overview');
         setCurrentPage('dashboard');
         window.history.pushState({}, '', '/dashboard');
@@ -407,7 +432,7 @@ export default function App() {
       {/* Payment Gateway Modal for Pro & Studio Plans */}
       <PaymentGatewayModal
         isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
+        onClose={handleClosePaymentModal}
         plan={pricingPlan === 'studio' ? 'studio' : 'pro'}
         billingCycle={pricingCycle}
         user={user}
@@ -419,10 +444,7 @@ export default function App() {
         isOpen={isUpgradeModalOpen || (isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding)}
         mode={(isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding) ? 'onboarding' : 'upgrade'}
         targetPlan={upgradeModalTargetPlan}
-        onClose={() => {
-          setIsUpgradeModalOpen(false);
-          setUpgradeModalTargetPlan(null);
-        }}
+        onClose={handleCloseUpgradePlanModal}
         currentTier={getEffectiveTier(user)}
         onSelectPlan={(plan, cycle) => {
           handleSelectPlanFromPricing(plan, cycle);

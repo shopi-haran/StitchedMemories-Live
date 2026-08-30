@@ -4,7 +4,7 @@ import {
   Crop, Sliders, Sun, Sparkles, RefreshCw, Layers, Scissors,
   Circle, Square, Maximize, Eye, Move
 } from 'lucide-react';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useModalStack } from '../hooks/useModalStack';
 
 interface StudioImageEditorModalProps {
   isOpen: boolean;
@@ -21,8 +21,8 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
   originalImageUrl,
   onApplyEdits,
 }) => {
-  // Lock body scroll when editor modal is open
-  useBodyScrollLock(isOpen);
+  // Stacking z-index and body scroll lock
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'studio-image-editor-modal' });
 
   // Active Editing Tab
   const [activeTab, setActiveTab] = useState<'crop' | 'rotate' | 'resize' | 'adjust'>('crop');
@@ -214,7 +214,12 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+    <div 
+      data-modal-overlay="true"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+    >
       <div className="bg-[#FAF6EE] rounded-3xl max-w-5xl w-full max-h-[92vh] shadow-2xl border border-[#E8E1D2] flex flex-col overflow-hidden">
         
         {/* Editor Modal Header */}

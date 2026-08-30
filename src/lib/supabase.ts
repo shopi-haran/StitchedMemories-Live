@@ -2211,12 +2211,21 @@ export async function updateUserProfile(
 
 /**
  * Updates the user's plan selection status in Supabase profiles and auth metadata.
+ * Ensures subscription_status is set to 'active' once a plan (even Free) is confirmed.
  */
 export async function updateUserPlanSelection(
   userId?: string,
   userEmail?: string,
   hasSelected: boolean = true
 ): Promise<boolean> {
+  // Save to localStorage immediately as reliable local fallback
+  try {
+    if (userId) localStorage.setItem(`plan_selected_${userId}`, String(hasSelected));
+    if (userEmail) localStorage.setItem(`plan_selected_${userEmail}`, String(hasSelected));
+  } catch {
+    // ignore localStorage errors in private mode
+  }
+
   // Fire local event so UI reacts immediately without waiting on network
   window.dispatchEvent(new CustomEvent('plan-selection-changed', { detail: { hasSelected } }));
 
@@ -2225,14 +2234,19 @@ export async function updateUserPlanSelection(
 
     const existing = await fetchUserProfile(userId, userEmail);
     const targetId = existing?.id || userId;
+    const tier = existing?.subscription_tier || 'free';
+
+    const updatePayload: Record<string, any> = {
+      has_selected_plan: hasSelected,
+      subscription_tier: tier,
+      subscription_status: 'active',
+      updated_at: new Date().toISOString(),
+    };
 
     if (existing && existing.id) {
       await supabase
         .from('profiles')
-        .update({
-          has_selected_plan: hasSelected,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', existing.id);
     } else if (targetId) {
       await supabase
@@ -2241,11 +2255,27 @@ export async function updateUserPlanSelection(
           id: targetId,
           user_id: targetId,
           email: userEmail || existing?.email,
-          has_selected_plan: hasSelected,
-          subscription_tier: existing?.subscription_tier || 'free',
-          subscription_status: existing?.subscription_status || 'active',
-          updated_at: new Date().toISOString(),
+          display_name: existing?.display_name || userEmail?.split('@')[0] || 'Crafter',
+          role: existing?.role || 'user',
+          ...updatePayload,
         });
+    }
+
+    // Also sync user_profiles table if present
+    if (targetId || userEmail) {
+      try {
+        await supabase.from('user_profiles').upsert([
+          {
+            id: targetId || userEmail,
+            has_selected_plan: hasSelected,
+            subscription_tier: tier,
+            subscription_status: 'active',
+            updated_at: new Date().toISOString(),
+          }
+        ]);
+      } catch {
+        // ignore
+      }
     }
 
     // Also update auth user metadata if active session matches
@@ -2253,6 +2283,8 @@ export async function updateUserPlanSelection(
       await supabase.auth.updateUser({
         data: {
           has_selected_plan: hasSelected,
+          subscription_status: 'active',
+          subscription_tier: tier,
         },
       });
     } catch (e) {
