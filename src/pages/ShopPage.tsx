@@ -32,7 +32,7 @@ interface ShopPageProps {
   onNavigateToSection?: (sectionId: string) => void;
   user?: { id?: string; name: string; email: string; avatar_url?: string; subscription_tier?: string; subscription_status?: string } | null;
   onLoginSuccess?: (user: { id?: string; name: string; email: string; avatar_url?: string }) => void;
-  onOpenUpgradeModal?: () => void;
+  onOpenUpgradeModal?: (targetPlan?: 'studio' | null) => void;
 }
 
 export const ShopPage: React.FC<ShopPageProps> = ({ 
@@ -59,7 +59,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   }, [effectiveUser?.id, effectiveUser?.email]);
 
   const userTier = getEffectiveTier(profile || effectiveUser);
-  const showStudioPromo = isLoggedIn && !!effectiveUser && (userTier === 'free' || userTier === 'pro');
+  // Visible for guest visitors (not logged in) and logged-in users who are free or pro;
+  // Hidden ONLY for logged-in users with active studio tier
+  const showStudioPromo = !isLoggedIn || !effectiveUser || userTier !== 'studio';
 
   // Modal state for Assisted Kit Request & Custom Stitched Product Request
   const [activeModal, setActiveModal] = useState<'assisted-kit' | 'custom-stitched' | null>(null);
@@ -419,7 +421,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                     Studio Member Benefit
                   </span>
                   <span className="text-xs text-[#C8D7C5] font-medium">
-                    Current Plan: <strong className="text-white capitalize">{userTier === 'pro' ? 'Pro Crafter' : 'Free Crafter'}</strong>
+                    Current Plan: <strong className="text-white capitalize">{!isLoggedIn ? 'Guest / Starter' : userTier === 'pro' ? 'Pro Crafter' : 'Free Crafter'}</strong>
                   </span>
                 </div>
 
@@ -437,7 +439,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                   type="button"
                   onClick={() => {
                     if (onOpenUpgradeModal) {
-                      onOpenUpgradeModal();
+                      onOpenUpgradeModal('studio');
                     } else if (onNavigateToSection) {
                       onNavigateToSection('pricing-section');
                     } else {
@@ -459,7 +461,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
       {/* Quote Request Modal */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
+        <div data-modal-overlay="true" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-[#FAF6EE] rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#E8E1D2] relative overflow-hidden">
             
             {/* Modal Header */}
@@ -491,7 +493,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain">
+            <div data-modal-scroll="true" className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain">
               {isSuccess ? (
                 <div className="text-center py-6 space-y-4">
                   <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">

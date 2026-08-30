@@ -10,6 +10,7 @@ export interface UserProfile {
   role?: string;
   subscription_tier?: string;
   subscription_status?: string;
+  subscription_period_end?: string | null;
   has_selected_plan?: boolean;
 }
 
@@ -92,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: role,
           subscription_tier: tier,
           subscription_status: status,
+          subscription_period_end: profile?.subscription_period_end || userMeta.subscription_period_end || null,
           has_selected_plan: hasSelectedPlan,
         });
       } catch (err) {
@@ -111,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: userMeta.role || appMeta.role || 'user',
           subscription_tier: userMeta.subscription_tier || appMeta.subscription_tier || 'free',
           subscription_status: userMeta.subscription_status || appMeta.subscription_status || 'active',
+          subscription_period_end: userMeta.subscription_period_end || null,
           has_selected_plan: fallbackHasSelected,
         });
       }
@@ -201,9 +204,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isMounted) setIsLoading(false);
     });
 
+    const handleLocalPlanChanged = (e: CustomEvent) => {
+      if (!isMounted) return;
+      const hasSelected = e.detail?.hasSelected ?? true;
+      setUser((prev) => prev ? { ...prev, has_selected_plan: hasSelected } : null);
+    };
+
+    const handleLocalTierChanged = (e: CustomEvent) => {
+      if (!isMounted) return;
+      const tier = e.detail || 'free';
+      setUser((prev) => prev ? { ...prev, subscription_tier: tier, subscription_status: 'active', has_selected_plan: true } : null);
+    };
+
+    window.addEventListener('plan-selection-changed', handleLocalPlanChanged as EventListener);
+    window.addEventListener('dev-tier-changed', handleLocalTierChanged as EventListener);
+
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      window.removeEventListener('plan-selection-changed', handleLocalPlanChanged as EventListener);
+      window.removeEventListener('dev-tier-changed', handleLocalTierChanged as EventListener);
     };
   }, []);
 

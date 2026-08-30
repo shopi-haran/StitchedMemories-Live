@@ -37,6 +37,8 @@ export default function App() {
   const [isPricingAuthModalOpen, setIsPricingAuthModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeModalTargetPlan, setUpgradeModalTargetPlan] = useState<'studio' | null>(null);
+  const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
 
   // Sync initial URL pathname and popstate history
   useEffect(() => {
@@ -91,17 +93,20 @@ export default function App() {
 
     if (isLoggedIn) {
       if (plan === 'free') {
+        setHasDismissedOnboarding(true);
         if (user?.id || user?.email) {
           await updateUserPlanSelection(user.id, user.email, true);
           await refreshProfile();
         }
         setIsUpgradeModalOpen(false);
+        setUpgradeModalTargetPlan(null);
         setDashboardTab('overview');
         setCurrentPage('dashboard');
         window.history.pushState({}, '', '/dashboard');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         setIsUpgradeModalOpen(false);
+        setUpgradeModalTargetPlan(null);
         setIsPaymentModalOpen(true);
       }
     } else {
@@ -126,11 +131,14 @@ export default function App() {
   };
 
   const handlePaymentSuccess = async () => {
+    setHasDismissedOnboarding(true);
     if (user?.id || user?.email) {
       await updateUserPlanSelection(user.id, user.email, true);
       await refreshProfile();
     }
     setIsPaymentModalOpen(false);
+    setIsUpgradeModalOpen(false);
+    setUpgradeModalTargetPlan(null);
     setDashboardTab('overview');
     setCurrentPage('dashboard');
     window.history.pushState({}, '', '/dashboard');
@@ -321,7 +329,10 @@ export default function App() {
             onNavigateToSection={handleNavigateToSection}
             user={user}
             onLoginSuccess={handleLoginSuccess}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={(targetPlan) => {
+              setUpgradeModalTargetPlan(targetPlan || null);
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
@@ -333,7 +344,10 @@ export default function App() {
             onOpenConverter={() => setIsConverterOpen(true)}
             onNavigateToSection={handleNavigateToSection}
             initialTab={dashboardTab}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={(targetPlan) => {
+              setUpgradeModalTargetPlan(targetPlan || null);
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
@@ -402,9 +416,13 @@ export default function App() {
 
       {/* Upgrade & Onboarding Plan Selection Modal */}
       <UpgradePlanModal
-        isOpen={isUpgradeModalOpen || (isLoggedIn && user?.has_selected_plan === false)}
-        mode={(isLoggedIn && user?.has_selected_plan === false) ? 'onboarding' : 'upgrade'}
-        onClose={() => setIsUpgradeModalOpen(false)}
+        isOpen={isUpgradeModalOpen || (isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding)}
+        mode={(isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding) ? 'onboarding' : 'upgrade'}
+        targetPlan={upgradeModalTargetPlan}
+        onClose={() => {
+          setIsUpgradeModalOpen(false);
+          setUpgradeModalTargetPlan(null);
+        }}
         currentTier={getEffectiveTier(user)}
         onSelectPlan={(plan, cycle) => {
           handleSelectPlanFromPricing(plan, cycle);

@@ -906,7 +906,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
   };
 
   return (
-    <div id="photo-converter-modal" data-converter-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
+    <div id="photo-converter-modal" data-converter-modal="true" data-modal-overlay="true" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-md animate-fade-in">
       <div className="bg-[#FAF6EE] rounded-3xl max-w-6xl w-full max-h-[92vh] shadow-2xl border border-[#E8E1D2] flex flex-col overflow-hidden">
         
         {/* Modal Top Header with Plan Switcher */}
@@ -990,7 +990,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
         )}
 
         {/* Modal Content Body */}
-        <div className="p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 overflow-y-auto flex-1 overscroll-contain">
+        <div data-modal-scroll="true" className="p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 overflow-y-auto flex-1 overscroll-contain">
           
           {/* Controls Panel Left (5 Cols) */}
           <div className="lg:col-span-5 space-y-6">

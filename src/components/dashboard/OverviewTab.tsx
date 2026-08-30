@@ -38,7 +38,7 @@ interface OverviewTabProps {
   onOpenConverter: () => void;
   onNavigateToShop: () => void;
   onNavigateToTab: (tab: 'patterns' | 'purchases' | 'orders' | 'profile') => void;
-  onOpenUpgradeModal?: () => void;
+  onOpenUpgradeModal?: (targetPlan?: 'studio' | null) => void;
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -215,7 +215,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             {(effectiveTier === 'free' || effectiveTier === 'pro') && onOpenUpgradeModal && (
               <button
                 type="button"
-                onClick={onOpenUpgradeModal}
+                onClick={() => onOpenUpgradeModal()}
                 className="px-5 py-2.5 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-[1.02] active:scale-[0.98]"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-200" />

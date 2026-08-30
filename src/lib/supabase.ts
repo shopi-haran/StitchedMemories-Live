@@ -1702,6 +1702,7 @@ export interface SupabaseProfileRow {
   payment_last4?: string;
   subscription_tier?: string;
   subscription_status?: string;
+  subscription_period_end?: string | null;
   access_until?: string;
   email?: string;
   created_at?: string;
@@ -1734,12 +1735,18 @@ export type EffectiveTier = 'free' | 'pro' | 'studio';
  * Access to paid features requires BOTH:
  *  1. subscription_tier matching 'pro' or 'studio'
  *  2. subscription_status === 'active'
+ *  3. subscription_period_end (if set) is not in the past
  *
- * If subscription_status is 'inactive', 'canceled', 'canceling', 'past_due', or missing,
- * the function returns 'free' so all pro/studio features remain locked.
+ * If subscription_status is 'inactive', 'canceled', 'canceling', 'past_due', missing,
+ * or the subscription period has expired without renewal, this returns 'free'
+ * so all paid pro/studio features remain securely locked.
  */
 export function getEffectiveTier(
-  profile?: { subscription_tier?: string | null; subscription_status?: string | null } | null
+  profile?: { 
+    subscription_tier?: string | null; 
+    subscription_status?: string | null;
+    subscription_period_end?: string | null;
+  } | null
 ): EffectiveTier {
   if (!profile) return 'free';
 
@@ -1751,9 +1758,22 @@ export function getEffectiveTier(
     return 'free';
   }
 
-  // Paid tier requires subscription_status === 'active'
+  // Paid tier strictly requires subscription_status === 'active'
   if (rawStatus !== 'active') {
     return 'free';
+  }
+
+  // If a subscription_period_end timestamp is populated (e.g. via PayHere webhooks) and has expired,
+  // automatically downgrade effective tier to 'free'.
+  if (profile.subscription_period_end) {
+    try {
+      const periodEnd = new Date(profile.subscription_period_end);
+      if (!isNaN(periodEnd.getTime()) && periodEnd.getTime() < Date.now()) {
+        return 'free';
+      }
+    } catch {
+      // Ignore invalid date format and proceed
+    }
   }
 
   if (rawTier.includes('studio')) {
@@ -2197,13 +2217,24 @@ export async function updateUserPlanSelection(
   userEmail?: string,
   hasSelected: boolean = true
 ): Promise<boolean> {
+  // Fire local event so UI reacts immediately without waiting on network
+  window.dispatchEvent(new CustomEvent('plan-selection-changed', { detail: { hasSelected } }));
+
   try {
     if (!userId && !userEmail) return false;
 
     const existing = await fetchUserProfile(userId, userEmail);
     const targetId = existing?.id || userId;
 
-    if (targetId) {
+    if (existing && existing.id) {
+      await supabase
+        .from('profiles')
+        .update({
+          has_selected_plan: hasSelected,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+    } else if (targetId) {
       await supabase
         .from('profiles')
         .upsert({
@@ -2211,6 +2242,8 @@ export async function updateUserPlanSelection(
           user_id: targetId,
           email: userEmail || existing?.email,
           has_selected_plan: hasSelected,
+          subscription_tier: existing?.subscription_tier || 'free',
+          subscription_status: existing?.subscription_status || 'active',
           updated_at: new Date().toISOString(),
         });
     }
@@ -2236,23 +2269,31 @@ export async function updateUserPlanSelection(
 export async function updateUserTier(
   userId: string,
   userEmail: string,
-  tier: 'free' | 'pro' | 'studio'
+  tier: 'free' | 'pro' | 'studio',
+  periodEnd?: string | null
 ): Promise<boolean> {
   window.dispatchEvent(new CustomEvent('dev-tier-changed', { detail: tier }));
   window.dispatchEvent(new CustomEvent('tierChanged', { detail: { tier } }));
+  window.dispatchEvent(new CustomEvent('plan-selection-changed', { detail: { hasSelected: true } }));
 
   try {
     const existing = await fetchUserProfile(userId, userEmail);
 
+    const updatePayload: Record<string, any> = {
+      subscription_tier: tier,
+      subscription_status: 'active',
+      has_selected_plan: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (periodEnd !== undefined) {
+      updatePayload.subscription_period_end = periodEnd;
+    }
+
     if (existing && existing.id) {
       await supabase
         .from('profiles')
-        .update({ 
-          subscription_tier: tier, 
-          subscription_status: 'active',
-          has_selected_plan: true,
-          updated_at: new Date().toISOString() 
-        })
+        .update(updatePayload)
         .eq('id', existing.id);
     } else {
       await supabase
@@ -2260,10 +2301,10 @@ export async function updateUserTier(
         .upsert({
           id: userId || 'info.nxuswave@gmail.com',
           user_id: userId || 'info.nxuswave@gmail.com',
-          subscription_tier: tier,
-          subscription_status: 'active',
-          has_selected_plan: true,
-          updated_at: new Date().toISOString()
+          email: userEmail || existing?.email,
+          display_name: existing?.display_name || userEmail?.split('@')[0] || 'Crafter',
+          role: existing?.role || 'user',
+          ...updatePayload,
         });
     }
 
@@ -2284,6 +2325,7 @@ export async function updateUserTier(
       await supabase.auth.updateUser({
         data: {
           subscription_tier: tier,
+          subscription_status: 'active',
           has_selected_plan: true,
         },
       });
@@ -2296,6 +2338,7 @@ export async function updateUserTier(
 
   return true;
 }
+
 
 
 

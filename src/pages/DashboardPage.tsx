@@ -34,7 +34,7 @@ interface DashboardPageProps {
   onOpenConverter: () => void;
   onNavigateToSection: (sectionId: string) => void;
   initialTab?: DashboardTab;
-  onOpenUpgradeModal?: () => void;
+  onOpenUpgradeModal?: (targetPlan?: 'studio' | null) => void;
 }
 
 export type DashboardTab = 'overview' | 'patterns' | 'purchases' | 'orders' | 'profile';

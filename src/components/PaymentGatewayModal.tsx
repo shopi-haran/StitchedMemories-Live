@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, CreditCard, Lock, Sparkles, Check, ArrowRight, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
-import { supabase, updateUserTier } from '../lib/supabase';
+import { supabase, updateUserTier, updateUserPlanSelection } from '../lib/supabase';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface PaymentGatewayModalProps {
@@ -48,15 +48,20 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       // Update user subscription_tier and subscription_status ('active') in Supabase database if logged in
       if (user?.id || user?.email) {
         await updateUserTier(user.id || user.email, user.email, plan);
+        await updateUserPlanSelection(user.id || user.email, user.email, true);
       }
 
       setIsSuccess(true);
       setTimeout(() => {
         onPaymentSuccess(plan);
-      }, 1500);
+      }, 1200);
     } catch (err) {
       console.error('Payment processing error:', err);
       // Still allow simulated success for preview testing
+      if (user?.id || user?.email) {
+        await updateUserTier(user.id || user.email, user.email, plan);
+        await updateUserPlanSelection(user.id || user.email, user.email, true);
+      }
       setIsSuccess(true);
       setTimeout(() => {
         onPaymentSuccess(plan);
@@ -67,7 +72,13 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-fade-in">
+    <div 
+      data-modal-overlay="true"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+      onClick={() => {
+        if (!isProcessing && onClose) onClose();
+      }}
+    >
       <div 
         className="relative w-full max-w-2xl bg-[#FAF6EE] border border-[#E8E1D2] rounded-3xl shadow-2xl overflow-hidden text-[#1D231E] max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -101,7 +112,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         </div>
 
         {/* Scrollable Body */}
-        <div className="p-6 sm:p-8 overflow-y-auto space-y-6">
+        <div data-modal-scroll="true" className="p-6 sm:p-8 overflow-y-auto space-y-6">
           
           {/* Gateway Status Banner */}
           <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-xs text-amber-900">

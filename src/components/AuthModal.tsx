@@ -154,9 +154,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+    <div 
+      data-modal-overlay="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn"
+      onClick={() => {
+        if (!isLoading && onClose) onClose();
+      }}
+    >
       <div 
-        className="relative w-full max-w-md bg-[#FAF6EE] border border-[#E8E1D2] rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] p-6 sm:p-8"
+        data-modal-scroll="true"
+        className="relative w-full max-w-md bg-[#FAF6EE] border border-[#E8E1D2] rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] p-6 sm:p-8 overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

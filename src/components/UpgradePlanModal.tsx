@@ -22,6 +22,7 @@ export interface UpgradePlanModalProps {
   onSelectPlan: (plan: 'free' | 'pro' | 'studio', billingCycle: 'monthly' | 'annual') => void;
   currentTier?: string;
   mode?: 'upgrade' | 'onboarding';
+  targetPlan?: 'studio' | null;
 }
 
 export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
@@ -30,6 +31,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   onSelectPlan,
   currentTier = 'free',
   mode = 'upgrade',
+  targetPlan = null,
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
@@ -39,19 +41,21 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   if (!isOpen) return null;
 
   const isOnboarding = mode === 'onboarding';
+  const isStudioOnly = targetPlan === 'studio';
   const normalizedTier = (currentTier || 'free').toLowerCase();
 
   // In onboarding mode, show all 3 plans: Free, Pro, Studio
-  // In upgrade mode:
+  // In studio-only mode (e.g. from Marketplace discount CTA): show ONLY Studio
+  // In regular upgrade mode:
   // - free tier: show Pro and Studio
   // - pro tier: show only Studio
   // - studio tier: show none
-  const showFree = isOnboarding;
-  const showPro = isOnboarding || normalizedTier === 'free';
-  const showStudio = isOnboarding || normalizedTier === 'free' || normalizedTier === 'pro';
+  const showFree = isOnboarding && !isStudioOnly;
+  const showPro = !isStudioOnly && (isOnboarding || normalizedTier === 'free');
+  const showStudio = isStudioOnly || isOnboarding || normalizedTier === 'free' || normalizedTier === 'pro';
 
   // Responsive container width
-  const modalMaxWidth = isOnboarding 
+  const modalMaxWidth = isOnboarding && !isStudioOnly
     ? 'max-w-6xl' 
     : showPro 
       ? 'max-w-4xl' 
@@ -59,6 +63,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
   return (
     <div 
+      data-modal-overlay="true"
       className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn"
       onClick={() => {
         // Only allow closing via backdrop in upgrade mode
@@ -80,11 +85,20 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg sm:text-xl font-bold text-[#1D231E]">
-                  {isOnboarding ? 'Choose Your StitchedMemories Plan' : 'Upgrade Your Membership'}
+                  {isOnboarding 
+                    ? 'Choose Your StitchedMemories Plan' 
+                    : isStudioOnly 
+                      ? 'Upgrade to Studio Membership' 
+                      : 'Upgrade Your Membership'}
                 </h3>
-                {!isOnboarding && (
+                {!isOnboarding && !isStudioOnly && (
                   <span className="px-2.5 py-0.5 rounded-full bg-[#FAF6EE] border border-[#D5CDBC] text-[10px] font-bold uppercase text-[#5A6659]">
                     Current: {normalizedTier === 'pro' ? 'Pro Crafter' : 'Free Plan'}
+                  </span>
+                )}
+                {isStudioOnly && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#E06C38]/10 border border-[#E06C38]/20 text-[10px] font-extrabold uppercase text-[#E06C38]">
+                    15% Store Discount
                   </span>
                 )}
                 {isOnboarding && (
@@ -96,9 +110,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <p className="text-xs text-[#6B7869] mt-0.5">
                 {isOnboarding
                   ? 'Select a plan to complete your account setup. You can start with Free or choose Pro/Studio.'
-                  : normalizedTier === 'pro'
-                    ? 'Upgrade to Studio for advanced color editing and 15% storewide discounts.'
-                    : 'Choose the plan that matches your cross-stitch aspirations.'}
+                  : isStudioOnly
+                    ? 'Get 15% off all custom kits and heirlooms, live image/color editing, and unlimited thread palettes.'
+                    : normalizedTier === 'pro'
+                      ? 'Upgrade to Studio for advanced color editing and 15% storewide discounts.'
+                      : 'Choose the plan that matches your cross-stitch aspirations.'}
               </p>
             </div>
           </div>
@@ -116,7 +132,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain space-y-6">
+        <div data-modal-scroll="true" className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain space-y-6">
           
           {/* Billing Cycle Toggle */}
           <div className="flex justify-center">
