@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { BlogPost, BlogPostSection } from '../../types';
 import {
   parseContentToSections,
@@ -8,7 +9,7 @@ import {
 } from '../../utils/blogParser';
 import { uploadBlogImageToSupabase, upsertBlogPost } from '../../lib/supabase';
 import { ArticleContentRenderer } from '../ArticleContentRenderer';
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useModalStack } from '../../hooks/useModalStack';
 import {
   X,
   Save,
@@ -65,8 +66,8 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
 }) => {
   const isEditing = Boolean(post && post.id);
 
-  // Lock body scroll when modal is open
-  useBodyScrollLock(isOpen);
+  // Stack management, dynamic z-index, and scroll containment
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'blog-editor-modal' });
 
   // Form State
   const [title, setTitle] = useState('');
@@ -556,8 +557,13 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-md animate-fade-in overflow-hidden">
+  return createPortal(
+    <div
+      data-modal-overlay="true"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-md animate-fade-in overflow-hidden"
+    >
       <div className="bg-[#FAF6EE] rounded-3xl w-full max-w-7xl h-[94vh] max-h-[96vh] flex flex-col shadow-2xl border border-[#E8E1D2] overflow-hidden">
         {/* Header Bar */}
         <div className="px-6 py-4 bg-[#1D231E] text-white flex items-center justify-between border-b border-white/10 shrink-0">
@@ -678,17 +684,17 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
         <div
           className={`flex-1 min-h-0 overflow-hidden ${
             activeTab === 'split'
-              ? 'grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#E8E1D2]'
-              : 'flex flex-col'
+              ? 'grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#E8E1D2] h-full'
+              : 'flex flex-col h-full'
           }`}
         >
           {/* ========================================================================= */}
           {/* LEFT: FORM & MARKDOWN EDITOR */}
           {/* ========================================================================= */}
           <div
-            className={`h-full overflow-y-auto p-4 sm:p-6 space-y-6 scrollbar-thin ${
+            className={`h-full overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6 scrollbar-thin ${
               activeTab === 'preview' ? 'hidden' : 'block'
-            } ${activeTab === 'editor' ? 'w-full max-w-4xl mx-auto' : ''}`}
+            } ${activeTab === 'editor' ? 'w-full max-w-4xl mx-auto flex-1 min-h-0' : ''}`}
           >
             {/* Meta Fields Card */}
             <div className="bg-white p-5 rounded-2xl border border-[#E8E1D2] shadow-xs space-y-4">
@@ -1027,9 +1033,9 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
           {/* RIGHT: LIVE PREVIEW PANE */}
           {/* ========================================================================= */}
           <div
-            className={`h-full overflow-y-auto p-4 sm:p-6 bg-[#FAF6EE] scrollbar-thin ${
+            className={`h-full overflow-y-auto overscroll-contain p-4 sm:p-6 bg-[#FAF6EE] scrollbar-thin ${
               activeTab === 'editor' ? 'hidden' : 'block'
-            } ${activeTab === 'preview' ? 'w-full' : ''}`}
+            } ${activeTab === 'preview' ? 'w-full flex-1 min-h-0' : ''}`}
           >
             <div className={`mx-auto ${activeTab === 'preview' ? 'max-w-4xl' : 'max-w-2xl'}`}>
               {/* Preview Header Badge */}
@@ -1411,6 +1417,7 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

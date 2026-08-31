@@ -68,19 +68,23 @@ function handleGlobalWheel(e: WheelEvent) {
 
   if (!activeOverlay) return;
 
-  // Locate the scrollable container inside the active topmost modal
+  // If the target is anywhere inside the topmost modal (e.g. editor pane, preview pane, dropdown, etc.),
+  // let native browser scrolling take place completely unhindered
+  if (activeOverlay.contains(e.target as Node)) {
+    return;
+  }
+
+  // Locate the scrollable container inside the active topmost modal for backdrop scrolling
   const scrollable =
     activeOverlay.querySelector<HTMLElement>('[data-modal-scroll="true"], .overflow-y-auto') ||
     (activeOverlay.classList.contains('overflow-y-auto') ? activeOverlay : null);
 
-  if (!scrollable) return;
-
-  // If the target is already inside the topmost modal's scroll container, let native scrolling take place
-  if (scrollable.contains(e.target as Node)) {
+  if (!scrollable) {
+    e.preventDefault();
     return;
   }
 
-  // Otherwise (e.g. mouse is over backdrop, header, or lower covered modal), prevent background scroll
+  // Otherwise (e.g. mouse is over backdrop or outside active modal), prevent background scroll
   // and scroll the topmost modal's container
   e.preventDefault();
   scrollable.scrollBy({
