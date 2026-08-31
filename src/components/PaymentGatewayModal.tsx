@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ShieldCheck, CreditCard, Lock, Sparkles, Check, ArrowRight, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { supabase, updateUserTier, updateUserPlanSelection } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
@@ -29,7 +30,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const planName = plan === 'pro' ? 'Pro Crafter Plan' : 'Studio Plan';
   const monthlyPrice = plan === 'pro' ? 9 : 19;
@@ -71,7 +72,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div 
       data-modal-overlay="true"
       data-modal-id={modalId}
@@ -298,6 +299,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
           <span>7-Day Money-Back Guarantee. Cancel anytime from your Crafter Dashboard.</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

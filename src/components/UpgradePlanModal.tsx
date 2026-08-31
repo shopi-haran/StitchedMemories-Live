@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Sparkles, 
@@ -38,7 +39,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   // Stacking z-index and body scroll lock
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'upgrade-plan-modal' });
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const isOnboarding = mode === 'onboarding';
   const isStudioOnly = targetPlan === 'studio';
@@ -61,7 +62,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       ? 'max-w-4xl' 
       : 'max-w-xl';
 
-  return (
+  return createPortal(
     <div 
       data-modal-overlay="true"
       data-modal-id={modalId}
@@ -295,7 +296,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => onSelectPlan('pro', billingCycle)}
+                  onClick={() => {
+                    console.log('[UpgradePlanModal] Pro button clicked! billingCycle:', billingCycle);
+                    onSelectPlan('pro', billingCycle);
+                  }}
                   className="w-full py-3 px-5 rounded-full bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-md cursor-pointer hover:scale-[1.02]"
                 >
                   <span>{isOnboarding ? 'Choose Pro Plan' : 'Upgrade to Pro'}</span>
@@ -375,7 +379,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => onSelectPlan('studio', billingCycle)}
+                  onClick={() => {
+                    console.log('[UpgradePlanModal] Studio button clicked! billingCycle:', billingCycle);
+                    onSelectPlan('studio', billingCycle);
+                  }}
                   className={`w-full py-3 px-5 rounded-full font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02] ${
                     !showPro && !isOnboarding
                       ? 'bg-[#E06C38] hover:bg-[#d05c28] text-white shadow-md'
@@ -393,6 +400,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -119,22 +119,26 @@ export default function App() {
   };
 
   const handleSelectPlanFromPricing = async (plan: 'free' | 'pro' | 'studio', cycle: 'monthly' | 'annual') => {
+    console.log('[App:handleSelectPlanFromPricing] Invoked with plan:', plan, 'cycle:', cycle, 'isLoggedIn:', isLoggedIn, 'user:', user?.email);
     setPricingPlan(plan);
     setPricingCycle(cycle);
 
     if (isLoggedIn) {
       if (plan === 'free') {
+        console.log('[App:handleSelectPlanFromPricing] Selecting free plan, dismissing onboarding');
         await handleConfirmFreePlanAndDismiss();
         setDashboardTab('overview');
         setCurrentPage('dashboard');
         window.history.pushState({}, '', '/dashboard');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
+        console.log('[App:handleSelectPlanFromPricing] Selecting paid plan (' + plan + '), setting isPaymentModalOpen=true, isUpgradeModalOpen=false');
         setIsUpgradeModalOpen(false);
         setUpgradeModalTargetPlan(null);
         setIsPaymentModalOpen(true);
       }
     } else {
+      console.log('[App:handleSelectPlanFromPricing] Guest selected ' + plan + ', opening AuthModal (setIsPricingAuthModalOpen=true)');
       setIsPricingAuthModalOpen(true);
     }
   };

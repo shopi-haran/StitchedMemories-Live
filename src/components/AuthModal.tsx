@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Mail, Lock, User as UserIcon, Sparkles, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase, fetchUserProfile } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
@@ -41,7 +42,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   }, [isOpen, defaultTab]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +155,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div 
       data-modal-overlay="true"
       data-modal-id={modalId}
@@ -359,6 +360,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </form>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

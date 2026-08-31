@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Check, RotateCw, RotateCcw, FlipHorizontal, FlipVertical,
   Crop, Sliders, Sun, Sparkles, RefreshCw, Layers, Scissors,
@@ -213,7 +214,9 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
     onClose();
   };
 
-  return (
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
       data-modal-overlay="true"
       data-modal-id={modalId}
@@ -729,6 +732,7 @@ export const StudioImageEditorModal: React.FC<StudioImageEditorModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

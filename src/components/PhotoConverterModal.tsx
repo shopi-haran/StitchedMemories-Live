@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Upload, Sparkles, Sliders, Layers, Check, Download,
   RefreshCw, Lock, Shield, ArrowRight, Eye, CheckCircle2,
@@ -905,7 +906,9 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
     setCompletedStitches(newSet);
   };
 
-  return (
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  return createPortal(
     <div 
       id="photo-converter-modal" 
       data-converter-modal="true" 
@@ -1901,6 +1904,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
           }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

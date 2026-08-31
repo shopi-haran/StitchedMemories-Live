@@ -1,4 +1,4 @@
-import { useEffect, useState, useId } from 'react';
+import { useEffect, useState, useId, useRef } from 'react';
 
 export interface ModalStackEntry {
   id: string;
@@ -8,7 +8,7 @@ export interface ModalStackEntry {
 
 // Global modal stack state
 let modalStack: ModalStackEntry[] = [];
-let nextZIndex = 1000;
+let nextZIndex = 100000;
 let originalOverflow = '';
 let originalPaddingRight = '';
 let globalWheelListenerAttached = false;
@@ -140,7 +140,11 @@ export function useModalStack(
 ) {
   const generatedId = useId();
   const modalId = options?.id || generatedId;
-  const [zIndex, setZIndex] = useState<number>(() => 1000);
+  const [zIndex, setZIndex] = useState<number>(() => 100000);
+
+  // Keep a stable ref to the latest onClose callback without re-triggering the effect
+  const onCloseRef = useRef(options?.onClose);
+  onCloseRef.current = options?.onClose;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -153,7 +157,9 @@ export function useModalStack(
     const entry: ModalStackEntry = {
       id: modalId,
       zIndex: allocatedZ,
-      onClose: options?.onClose,
+      get onClose() {
+        return onCloseRef.current;
+      },
     };
 
     modalStack.push(entry);
@@ -168,7 +174,7 @@ export function useModalStack(
       ensureGlobalListeners();
       notifyListeners();
     };
-  }, [isOpen, modalId, options?.onClose]);
+  }, [isOpen, modalId]);
 
   const isTopmost = modalStack.length > 0 && modalStack[modalStack.length - 1]?.id === modalId;
 

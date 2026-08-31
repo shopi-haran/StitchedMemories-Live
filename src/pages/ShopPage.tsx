@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ShoppingBag, 
   ArrowLeft, 
@@ -462,7 +463,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       </div>
 
       {/* Quote Request Modal */}
-      {activeModal && (
+      {activeModal && typeof document !== 'undefined' && createPortal(
         <div 
           data-modal-overlay="true" 
           data-modal-id={quoteModalId}
@@ -833,7 +834,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Auth Modal Triggered if Guest clicks Submit */}
