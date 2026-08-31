@@ -96,20 +96,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
 
         if (data.session && data.user) {
-          // Initialize new profile row with has_selected_plan: false
+          // Initialize new profile row strictly using existing profiles table columns
           try {
-            await supabase.from('profiles').upsert({
+            const { error: upsertErr } = await supabase.from('profiles').upsert({
               id: data.user.id,
-              user_id: data.user.id,
-              email: data.user.email || email,
               display_name: name || email.split('@')[0],
+              role: 'user',
               has_selected_plan: false,
               subscription_tier: 'free',
               subscription_status: 'active',
-              updated_at: new Date().toISOString(),
             });
+            if (upsertErr) {
+              console.error('[AuthModal] Profile upsert error:', upsertErr);
+            }
           } catch (e) {
-            console.warn('Error creating new user profile:', e);
+            console.warn('[AuthModal] Error creating new user profile:', e);
           }
 
           const userName = name || data.user.user_metadata?.display_name || email.split('@')[0];

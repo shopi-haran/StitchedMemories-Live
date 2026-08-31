@@ -48,7 +48,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const profile = await fetchUserProfile(sess.user.id, sess.user.email);
         const userMeta = sess.user.user_metadata || {};
-        const appMeta = sess.user.app_metadata || {};
 
         const displayName =
           profile?.display_name ||
@@ -61,35 +60,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           userMeta.avatar_url ||
           '';
 
-        const tier = 
-          profile?.subscription_tier && profile.subscription_tier !== 'free'
-            ? profile.subscription_tier
-            : (userMeta.subscription_tier || appMeta.subscription_tier || profile?.subscription_tier || 'free');
+        const tier = profile?.subscription_tier || 'free';
+        const status = profile?.subscription_status || 'active';
+        const role = profile?.role || 'user';
 
-        const status =
-          profile?.subscription_status ||
-          userMeta.subscription_status ||
-          appMeta.subscription_status ||
-          'active';
-
-        const role =
-          profile?.role ||
-          userMeta.role ||
-          appMeta.role ||
-          'user';
-
-        const localPlanSelected =
-          localStorage.getItem(`plan_selected_${sess.user.id}`) === 'true' ||
-          (sess.user.email ? localStorage.getItem(`plan_selected_${sess.user.email}`) === 'true' : false);
-
-        const hasSelectedPlan =
-          localPlanSelected
-            ? true
-            : profile?.has_selected_plan !== undefined
-            ? profile.has_selected_plan
-            : userMeta.has_selected_plan !== undefined
-            ? userMeta.has_selected_plan
-            : true;
+        // Profiles table is the single source of truth for plan selection.
+        // If profile row exists and has_selected_plan is true -> true
+        // If profile row exists and has_selected_plan is false -> false
+        // If no profile row exists yet -> false (user needs to complete plan selection)
+        const hasSelectedPlan = profile?.has_selected_plan === true;
 
         setUser({
           id: sess.user.id,
@@ -99,34 +78,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: role,
           subscription_tier: tier,
           subscription_status: status,
-          subscription_period_end: profile?.subscription_period_end || userMeta.subscription_period_end || null,
+          subscription_period_end: null,
           has_selected_plan: hasSelectedPlan,
         });
       } catch (err) {
-        console.warn('[AuthContext] Notice during profile sync, using session metadata:', err);
+        console.warn('[AuthContext] Notice during profile sync:', err);
         const userMeta = sess.user.user_metadata || {};
-        const appMeta = sess.user.app_metadata || {};
-        const localPlanSelected =
-          localStorage.getItem(`plan_selected_${sess.user.id}`) === 'true' ||
-          (sess.user.email ? localStorage.getItem(`plan_selected_${sess.user.email}`) === 'true' : false);
-
-        const fallbackHasSelected =
-          localPlanSelected
-            ? true
-            : userMeta.has_selected_plan !== undefined
-            ? userMeta.has_selected_plan
-            : true;
 
         setUser({
           id: sess.user.id,
           name: userMeta.full_name || userMeta.display_name || sess.user.email?.split('@')[0] || 'Crafter',
           email: sess.user.email || '',
           avatar_url: userMeta.avatar_url || '',
-          role: userMeta.role || appMeta.role || 'user',
-          subscription_tier: userMeta.subscription_tier || appMeta.subscription_tier || 'free',
-          subscription_status: userMeta.subscription_status || appMeta.subscription_status || 'active',
-          subscription_period_end: userMeta.subscription_period_end || null,
-          has_selected_plan: fallbackHasSelected,
+          role: 'user',
+          subscription_tier: 'free',
+          subscription_status: 'active',
+          subscription_period_end: null,
+          has_selected_plan: false,
         });
       }
     } else {

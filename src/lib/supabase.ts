@@ -2115,22 +2115,19 @@ export async function uploadPatternPreviewToSupabase(imageSrc: string | Blob, fi
   }
 }
 
-export async function fetchUserProfile(userId?: string, userEmail?: string): Promise<SupabaseProfileRow | null> {
+export async function fetchUserProfile(userId?: string, _userEmail?: string): Promise<SupabaseProfileRow | null> {
+  if (!userId) return null;
   let profile: SupabaseProfileRow | null = null;
 
   try {
-    if (userId) {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (!error && data) profile = data as SupabaseProfileRow;
-      if (!profile) {
-        const { data: byUserId, error: errUserId } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
-        if (!errUserId && byUserId) profile = byUserId as SupabaseProfileRow;
-      }
-    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, display_name, role, subscription_tier, subscription_status, has_selected_plan, avatar_url, created_at')
+      .eq('id', userId)
+      .maybeSingle();
 
-    if (!profile && userEmail) {
-      const { data: byEmail, error: errEmail } = await supabase.from('profiles').select('*').ilike('email', userEmail.trim()).maybeSingle();
-      if (!errEmail && byEmail) profile = byEmail as SupabaseProfileRow;
+    if (!error && data) {
+      profile = data as SupabaseProfileRow;
     }
   } catch (err: any) {
     if (err?.code === '42P17') {
@@ -2141,34 +2138,7 @@ export async function fetchUserProfile(userId?: string, userEmail?: string): Pro
   }
 
   if (profile) {
-    // If has_selected_plan is not explicitly defined in the profile row (e.g. existing accounts before migration),
-    // default to true so existing users are never locked out of their dashboards.
-    if (profile.has_selected_plan === undefined || profile.has_selected_plan === null) {
-      profile.has_selected_plan = true;
-    } else {
-      profile.has_selected_plan = Boolean(profile.has_selected_plan);
-    }
-  } else {
-    // If no row exists yet, check current auth session user_metadata for a new signup flag
-    let initialHasSelectedPlan = true;
-    try {
-      const currentSession = supabase.auth.getSession ? (await supabase.auth.getSession()).data.session : null;
-      if (currentSession?.user?.user_metadata?.has_selected_plan === false) {
-        initialHasSelectedPlan = false;
-      }
-    } catch {
-      // ignore
-    }
-
-    profile = { 
-      id: userId,
-      email: userEmail || '', 
-      display_name: userEmail ? userEmail.split('@')[0] : 'Crafter',
-      role: 'user',
-      subscription_tier: 'free',
-      subscription_status: 'active',
-      has_selected_plan: initialHasSelectedPlan,
-    };
+    profile.has_selected_plan = profile.has_selected_plan === true;
   }
 
   return profile;
@@ -2176,119 +2146,87 @@ export async function fetchUserProfile(userId?: string, userEmail?: string): Pro
 
 export async function updateUserProfile(
   userId: string,
-  userEmail: string,
+  _userEmail: string,
   updates: { display_name?: string; avatar_url?: string; has_selected_plan?: boolean }
 ): Promise<boolean> {
-  const existing = await fetchUserProfile(userId, userEmail);
+  if (!userId) return false;
 
-  if (existing && existing.id) {
-    const { error } = await supabase
+  const validUpdates: Record<string, any> = {};
+  if (updates.display_name !== undefined) validUpdates.display_name = updates.display_name;
+  if (updates.avatar_url !== undefined) validUpdates.avatar_url = updates.avatar_url;
+  if (updates.has_selected_plan !== undefined) validUpdates.has_selected_plan = updates.has_selected_plan;
+
+  try {
+    const { error: updateError } = await supabase
       .from('profiles')
-      .update(updates)
-      .eq('id', existing.id);
+      .update(validUpdates)
+      .eq('id', userId);
 
-    if (error) {
-      console.error('Error updating profile in Supabase:', error);
-      return false;
-    }
-    return true;
-  } else {
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: userId,
-        user_id: userId,
-        ...updates
-      });
+    if (updateError) {
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          display_name: updates.display_name || 'Crafter',
+          role: 'user',
+          subscription_tier: 'free',
+          subscription_status: 'active',
+          ...validUpdates,
+        });
 
-    if (error) {
-      console.error('Error upserting profile in Supabase:', error);
-      return false;
+      if (upsertError) {
+        console.error('[updateUserProfile] Error upserting profile:', upsertError);
+        return false;
+      }
     }
+
     return true;
+  } catch (err) {
+    console.error('[updateUserProfile] Exception:', err);
+    return false;
   }
 }
 
 /**
- * Updates the user's plan selection status in Supabase profiles and auth metadata.
- * Ensures subscription_status is set to 'active' once a plan (even Free) is confirmed.
+ * Updates the user's plan selection status strictly in Supabase profiles table.
+ * Profiles table is the single source of truth.
  */
 export async function updateUserPlanSelection(
   userId?: string,
-  userEmail?: string,
+  _userEmail?: string,
   hasSelected: boolean = true
 ): Promise<boolean> {
-  // Save to localStorage immediately as reliable local fallback
-  try {
-    if (userId) localStorage.setItem(`plan_selected_${userId}`, String(hasSelected));
-    if (userEmail) localStorage.setItem(`plan_selected_${userEmail}`, String(hasSelected));
-  } catch {
-    // ignore localStorage errors in private mode
-  }
+  if (!userId) return false;
 
   // Fire local event so UI reacts immediately without waiting on network
   window.dispatchEvent(new CustomEvent('plan-selection-changed', { detail: { hasSelected } }));
 
   try {
-    if (!userId && !userEmail) return false;
-
-    const existing = await fetchUserProfile(userId, userEmail);
-    const targetId = existing?.id || userId;
-    const tier = existing?.subscription_tier || 'free';
-
-    const updatePayload: Record<string, any> = {
+    const updatePayload = {
       has_selected_plan: hasSelected,
-      subscription_tier: tier,
+      subscription_tier: 'free',
       subscription_status: 'active',
-      updated_at: new Date().toISOString(),
     };
 
-    if (existing && existing.id) {
-      await supabase
-        .from('profiles')
-        .update(updatePayload)
-        .eq('id', existing.id);
-    } else if (targetId) {
-      await supabase
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', userId);
+
+    if (updateError) {
+      console.warn('[updateUserPlanSelection] Update failed, attempting upsert:', updateError.message);
+      const { error: upsertError } = await supabase
         .from('profiles')
         .upsert({
-          id: targetId,
-          user_id: targetId,
-          email: userEmail || existing?.email,
-          display_name: existing?.display_name || userEmail?.split('@')[0] || 'Crafter',
-          role: existing?.role || 'user',
+          id: userId,
+          role: 'user',
           ...updatePayload,
         });
-    }
 
-    // Also sync user_profiles table if present
-    if (targetId || userEmail) {
-      try {
-        await supabase.from('user_profiles').upsert([
-          {
-            id: targetId || userEmail,
-            has_selected_plan: hasSelected,
-            subscription_tier: tier,
-            subscription_status: 'active',
-            updated_at: new Date().toISOString(),
-          }
-        ]);
-      } catch {
-        // ignore
+      if (upsertError) {
+        console.error('[updateUserPlanSelection] Error upserting profile in Supabase:', upsertError);
+        return false;
       }
-    }
-
-    // Also update auth user metadata if active session matches
-    try {
-      await supabase.auth.updateUser({
-        data: {
-          has_selected_plan: hasSelected,
-          subscription_status: 'active',
-          subscription_tier: tier,
-        },
-      });
-    } catch (e) {
-      console.warn('[updateUserPlanSelection] Error updating user metadata:', e);
     }
 
     return true;
@@ -2300,69 +2238,37 @@ export async function updateUserPlanSelection(
 
 export async function updateUserTier(
   userId: string,
-  userEmail: string,
+  _userEmail: string,
   tier: 'free' | 'pro' | 'studio',
-  periodEnd?: string | null
+  _periodEnd?: string | null
 ): Promise<boolean> {
   window.dispatchEvent(new CustomEvent('dev-tier-changed', { detail: tier }));
   window.dispatchEvent(new CustomEvent('tierChanged', { detail: { tier } }));
   window.dispatchEvent(new CustomEvent('plan-selection-changed', { detail: { hasSelected: true } }));
 
-  try {
-    const existing = await fetchUserProfile(userId, userEmail);
+  if (!userId) return false;
 
-    const updatePayload: Record<string, any> = {
+  try {
+    const updatePayload = {
       subscription_tier: tier,
       subscription_status: 'active',
       has_selected_plan: true,
-      updated_at: new Date().toISOString(),
     };
 
-    if (periodEnd !== undefined) {
-      updatePayload.subscription_period_end = periodEnd;
-    }
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', userId);
 
-    if (existing && existing.id) {
-      await supabase
-        .from('profiles')
-        .update(updatePayload)
-        .eq('id', existing.id);
-    } else {
+    if (updateError) {
+      console.warn('[updateUserTier] Update failed, attempting upsert:', updateError.message);
       await supabase
         .from('profiles')
         .upsert({
-          id: userId || 'info.nxuswave@gmail.com',
-          user_id: userId || 'info.nxuswave@gmail.com',
-          email: userEmail || existing?.email,
-          display_name: existing?.display_name || userEmail?.split('@')[0] || 'Crafter',
-          role: existing?.role || 'user',
+          id: userId,
+          role: 'user',
           ...updatePayload,
         });
-    }
-
-    // Also sync user_profiles table if present
-    if (userId || userEmail) {
-      await supabase.from('user_profiles').upsert([
-        {
-          id: userId || userEmail || 'info.nxuswave@gmail.com',
-          subscription_tier: tier,
-          subscription_status: 'active',
-          has_selected_plan: true,
-          updated_at: new Date().toISOString(),
-        }
-      ]);
-    }
-
-    try {
-      await supabase.auth.updateUser({
-        data: {
-          subscription_tier: tier,
-          subscription_status: 'active',
-          has_selected_plan: true,
-        },
-      });
-    } catch {
-      // ignore
     }
   } catch (err) {
     console.error('Error updating tier in Supabase:', err);
