@@ -28,7 +28,12 @@ import {
   Maximize2,
   Minimize2,
   RefreshCw,
-  FolderOpen
+  FolderOpen,
+  Bold,
+  Heading2,
+  Heading3,
+  List,
+  Edit3
 } from 'lucide-react';
 
 interface BlogEditorModalProps {
@@ -183,6 +188,169 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
       const newCursorPos = startPos + needsPreNewline.length + textToInsert.length;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 50);
+  };
+
+  // Bold Formatting: wraps selected text in ** ** or inserts **** with cursor in between
+  const handleFormatBold = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const text = textarea.value;
+    const selected = text.substring(start, end);
+
+    if (selected.length > 0) {
+      // Check if already bolded
+      if (selected.startsWith('**') && selected.endsWith('**') && selected.length >= 4) {
+        const unwrapped = selected.slice(2, -2);
+        const newText = text.substring(0, start) + unwrapped + text.substring(end);
+        setContentText(newText);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start, start + unwrapped.length);
+        }, 0);
+      } else {
+        const wrapped = `**${selected}**`;
+        const newText = text.substring(0, start) + wrapped + text.substring(end);
+        setContentText(newText);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start, start + wrapped.length);
+        }, 0);
+      }
+    } else {
+      // No text selected: insert **** and position cursor between asterisks
+      const newText = text.substring(0, start) + '****' + text.substring(end);
+      setContentText(newText);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + 2, start + 2);
+      }, 0);
+    }
+  };
+
+  // Heading 2 & 3 Formatting: inserts "## " or "### " at the start of current line
+  const handleFormatHeading = (level: 2 | 3) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const text = textarea.value;
+
+    const prefix = level === 2 ? '## ' : '### ';
+
+    // Find start of line containing the cursor / selection
+    const lastNewline = text.lastIndexOf('\n', start - 1);
+    const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+    const lineRest = text.substring(lineStart);
+
+    // Check if line already begins with markdown heading syntax
+    let existingHeadingLen = 0;
+    if (lineRest.startsWith('### ')) {
+      existingHeadingLen = 4;
+    } else if (lineRest.startsWith('## ')) {
+      existingHeadingLen = 3;
+    } else if (lineRest.startsWith('# ')) {
+      existingHeadingLen = 2;
+    }
+
+    const newText =
+      text.substring(0, lineStart) +
+      prefix +
+      text.substring(lineStart + existingHeadingLen);
+
+    const delta = prefix.length - existingHeadingLen;
+    setContentText(newText);
+
+    setTimeout(() => {
+      textarea.focus();
+      const newStart = Math.max(lineStart + prefix.length, start + delta);
+      const newEnd = Math.max(lineStart + prefix.length, end + delta);
+      textarea.setSelectionRange(newStart, newEnd);
+    }, 0);
+  };
+
+  // Bullet List Formatting: inserts "- " at the start of current line(s)
+  const handleFormatList = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const text = textarea.value;
+
+    // Find line boundaries
+    const firstLineStart = text.lastIndexOf('\n', start - 1) === -1 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+    const nextNewline = text.indexOf('\n', end);
+    const lastLineEnd = nextNewline === -1 ? text.length : nextNewline;
+
+    const targetChunk = text.substring(firstLineStart, lastLineEnd);
+    const lines = targetChunk.split('\n');
+
+    const allAreLists = lines.every((l) => l.startsWith('- '));
+
+    const transformedLines = lines.map((l) => {
+      if (allAreLists) {
+        // Toggle off
+        return l.startsWith('- ') ? l.substring(2) : l;
+      } else {
+        if (l.startsWith('- ')) return l;
+        if (l.startsWith('* ')) return '- ' + l.substring(2);
+        return `- ${l}`;
+      }
+    });
+
+    const replacedChunk = transformedLines.join('\n');
+    const newText = text.substring(0, firstLineStart) + replacedChunk + text.substring(lastLineEnd);
+
+    setContentText(newText);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(firstLineStart, firstLineStart + replacedChunk.length);
+    }, 0);
+  };
+
+  // Keydown handler to support Enter list-continuation and Ctrl/Cmd+B shortcut
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart ?? 0;
+      const text = textarea.value;
+      const lastNewline = text.lastIndexOf('\n', start - 1);
+      const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+      const currentLine = text.substring(lineStart, start);
+
+      if (currentLine.startsWith('- ')) {
+        e.preventDefault();
+        // If the bullet line is empty (just "- "), exit list mode
+        if (currentLine.trim() === '-') {
+          const newText = text.substring(0, lineStart) + text.substring(start);
+          setContentText(newText);
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(lineStart, lineStart);
+          }, 0);
+        } else {
+          // Continue list mode on next line
+          const insertion = '\n- ';
+          const newText = text.substring(0, start) + insertion + text.substring(start);
+          setContentText(newText);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = start + insertion.length;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 0);
+        }
+      }
+    } else if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      handleFormatBold();
+    }
   };
 
   // Handle Cover Image Upload
@@ -415,33 +583,39 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
           {/* View Toggles & Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Split / Editor / Preview View Switcher */}
-            <div className="hidden md:flex items-center bg-white/10 p-1 rounded-xl border border-white/10 text-xs">
+            <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/10 text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab('editor')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeTab === 'editor' ? 'bg-[#E06C38] text-white shadow-xs' : 'text-white/70 hover:text-white'
                 }`}
+                title="Edit raw text & metadata"
               >
-                Editor Only
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Editor</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('split')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`hidden md:flex px-2.5 sm:px-3 py-1.5 rounded-lg font-medium transition-all items-center gap-1.5 cursor-pointer ${
                   activeTab === 'split' ? 'bg-[#E06C38] text-white shadow-xs' : 'text-white/70 hover:text-white'
                 }`}
+                title="Side-by-side editing & preview"
               >
-                Split View
+                <Columns className="w-3.5 h-3.5" />
+                <span>Split</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('preview')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeTab === 'preview' ? 'bg-[#E06C38] text-white shadow-xs' : 'text-white/70 hover:text-white'
                 }`}
+                title="Live rendered visitor preview"
               >
-                Live Preview
+                <Eye className="w-3.5 h-3.5" />
+                <span>Preview</span>
               </button>
             </div>
 
@@ -501,14 +675,20 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
         )}
 
         {/* Workspace Body */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#E8E1D2] overflow-hidden">
+        <div
+          className={`flex-1 min-h-0 overflow-hidden ${
+            activeTab === 'split'
+              ? 'grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#E8E1D2]'
+              : 'flex flex-col'
+          }`}
+        >
           {/* ========================================================================= */}
           {/* LEFT: FORM & MARKDOWN EDITOR */}
           {/* ========================================================================= */}
           <div
-            className={`h-full overflow-y-auto p-6 space-y-6 scrollbar-thin ${
-              activeTab === 'preview' ? 'hidden md:block' : ''
-            }`}
+            className={`h-full overflow-y-auto p-4 sm:p-6 space-y-6 scrollbar-thin ${
+              activeTab === 'preview' ? 'hidden' : 'block'
+            } ${activeTab === 'editor' ? 'w-full max-w-4xl mx-auto' : ''}`}
           >
             {/* Meta Fields Card */}
             <div className="bg-white p-5 rounded-2xl border border-[#E8E1D2] shadow-xs space-y-4">
@@ -731,37 +911,48 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
 
               {/* Formatting Toolbar */}
               <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-[#FAF6EE] border border-[#E8E1D2]">
+                {/* Bold Button */}
                 <button
                   type="button"
-                  title="Heading 2"
-                  onClick={() => insertTextAtCursor('## Section Heading')}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer"
+                  title="Bold (**text**) - Ctrl/Cmd+B"
+                  onClick={handleFormatBold}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
-                  ## H2
+                  <Bold className="w-3.5 h-3.5" />
+                  <span>Bold</span>
                 </button>
+
+                {/* Heading 2 Button */}
                 <button
                   type="button"
-                  title="Heading 3"
-                  onClick={() => insertTextAtCursor('### Subheading')}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer"
+                  title="Heading 2 (## Section)"
+                  onClick={() => handleFormatHeading(2)}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
-                  ### H3
+                  <Heading2 className="w-3.5 h-3.5" />
+                  <span>H2</span>
                 </button>
+
+                {/* Heading 3 Button */}
                 <button
                   type="button"
-                  title="Bullet List Item"
-                  onClick={() => insertTextAtCursor('- Item 1\n- Item 2\n- Item 3')}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer"
+                  title="Heading 3 (### Subheading)"
+                  onClick={() => handleFormatHeading(3)}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
-                  • List
+                  <Heading3 className="w-3.5 h-3.5" />
+                  <span>H3</span>
                 </button>
+
+                {/* Bullet List Button */}
                 <button
                   type="button"
-                  title="Bold Text"
-                  onClick={() => insertTextAtCursor('**bold key term**')}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer"
+                  title="Bullet List (- Item)"
+                  onClick={handleFormatList}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#D5CDBC] text-xs font-bold text-[#1D231E] hover:bg-[#E06C38] hover:text-white transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
-                  <b>B</b>
+                  <List className="w-3.5 h-3.5" />
+                  <span>List</span>
                 </button>
 
                 <div className="h-4 w-px bg-[#D5CDBC] mx-1" />
@@ -814,6 +1005,7 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
                   rows={16}
                   value={contentText}
                   onChange={(e) => setContentText(e.target.value)}
+                  onKeyDown={handleTextareaKeyDown}
                   placeholder={`Write your article here using regular markdown paragraphs:\n\n## Section Title\n\nExplain stitch techniques, color selection tips, or fabric calculations.\n\n- Tip 1\n- Tip 2\n\nUse the buttons above to insert images, tips, FAQs, and interactive buttons!`}
                   className="w-full p-4 rounded-xl border border-[#D5CDBC] bg-[#FAF6EE]/40 text-sm font-sans text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38] focus:bg-white font-mono leading-relaxed transition-all resize-y min-h-[360px]"
                 />
@@ -835,11 +1027,11 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
           {/* RIGHT: LIVE PREVIEW PANE */}
           {/* ========================================================================= */}
           <div
-            className={`h-full overflow-y-auto p-6 bg-[#FAF6EE] scrollbar-thin ${
-              activeTab === 'editor' ? 'hidden md:block' : ''
-            }`}
+            className={`h-full overflow-y-auto p-4 sm:p-6 bg-[#FAF6EE] scrollbar-thin ${
+              activeTab === 'editor' ? 'hidden' : 'block'
+            } ${activeTab === 'preview' ? 'w-full' : ''}`}
           >
-            <div className="max-w-2xl mx-auto">
+            <div className={`mx-auto ${activeTab === 'preview' ? 'max-w-4xl' : 'max-w-2xl'}`}>
               {/* Preview Header Badge */}
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#E8E1D2]">
                 <div className="flex items-center gap-2">
