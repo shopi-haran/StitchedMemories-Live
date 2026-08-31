@@ -20,7 +20,8 @@ import {
   MapPin,
   Check,
   Percent,
-  Tag
+  Tag,
+  Store
 } from 'lucide-react';
 import { createOrderRequest, uploadOriginalPhotoToSupabase, fetchUserProfile, getEffectiveTier } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -34,6 +35,7 @@ interface ShopPageProps {
   user?: { id?: string; name: string; email: string; avatar_url?: string; subscription_tier?: string; subscription_status?: string } | null;
   onLoginSuccess?: (user: { id?: string; name: string; email: string; avatar_url?: string }) => void;
   onOpenUpgradeModal?: (targetPlan?: 'studio' | null) => void;
+  initialTab?: 'custom-orders' | 'store';
 }
 
 export const ShopPage: React.FC<ShopPageProps> = ({ 
@@ -43,9 +45,20 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   user: propUser,
   onLoginSuccess,
   onOpenUpgradeModal,
+  initialTab = 'custom-orders',
 }) => {
   const { session, isLoggedIn, user: authUser } = useAuth();
   const effectiveUser = authUser || propUser;
+
+  // Tab State: 'custom-orders' (default) or 'store'
+  const [activeTab, setActiveTab] = useState<'custom-orders' | 'store'>(initialTab || 'custom-orders');
+
+  // Ensure default active tab is always synchronized on load
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const [profile, setProfile] = useState<any>(null);
   // Modal state for Assisted Kit Request & Custom Stitched Product Request
@@ -247,7 +260,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     <div className="min-h-screen bg-[#FAF6EE] text-[#1D231E]">
       
       {/* Top Header */}
-      <div className="bg-[#1D231E] text-white py-12 px-6 lg:px-12 border-b border-[#2D382E] relative overflow-hidden">
+      <div className="bg-[#1D231E] text-white pt-12 pb-0 px-6 lg:px-12 border-b border-[#2D382E] relative overflow-hidden">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
             <button
@@ -262,7 +275,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <span className="px-3 py-1 rounded-full bg-[#E8EFE5] text-[#3D5239] text-[10px] font-bold uppercase tracking-wider">
                 Marketplace
               </span>
-              <span className="text-[11px] text-[#A2B0A0]">• Custom-Order & Quote Studio</span>
+              <span className="text-[11px] text-[#A2B0A0]">• Custom-Order & Ready-Made Studio</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white flex items-center gap-3">
@@ -270,197 +283,303 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <ShoppingBag className="w-6 h-6 text-[#E06C38]" />
             </h1>
             <p className="text-sm text-[#A2B0A0] mt-1 max-w-xl">
-              Turn your memories into physical stitching kits or commission our master artisans to stitch and frame an heirloom piece for you.
+              Turn your memories into physical stitching kits, browse ready-made kits, or commission our master artisans to stitch and frame an heirloom piece for you.
             </p>
+          </div>
+        </div>
+
+        {/* Tab Switcher UI */}
+        <div className="max-w-6xl mx-auto mt-8 border-t border-white/10 relative z-10">
+          <div className="flex items-center gap-2 pt-2 -mb-px overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActiveTab('custom-orders')}
+              className={`flex items-center gap-2.5 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer rounded-t-xl ${
+                activeTab === 'custom-orders'
+                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
+                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Package className="w-4 h-4 text-[#E06C38]" />
+              <span>Custom Orders</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('store')}
+              className={`flex items-center gap-2.5 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer rounded-t-xl ${
+                activeTab === 'store'
+                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
+                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Store className="w-4 h-4 text-[#E06C38]" />
+              <span>Store</span>
+            </button>
           </div>
         </div>
 
         <div className="absolute -right-10 top-0 w-96 h-96 bg-[#E06C38]/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* Main Two-Card Layout */}
-      <div className="max-w-5xl mx-auto px-6 lg:px-8 py-14">
-        
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#E06C38] bg-[#E06C38]/10 px-3 py-1 rounded-full inline-block mb-3">
-            Bespoke Custom Orders
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#1D231E]">
-            How would you like to create your piece?
-          </h2>
-          <p className="text-xs sm:text-sm text-[#5A6659] mt-2">
-            Select an option below to convert your photo into a kit or have our team handcraft the entire finished product.
-          </p>
-        </div>
-
-        {/* The Two Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+      {/* Tab 1: Custom Orders Tab Content */}
+      {activeTab === 'custom-orders' && (
+        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-14 animate-fade-in">
           
-          {/* Card 1: Custom Kits */}
-          <div className="bg-white rounded-3xl p-8 border border-[#E8E1D2] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#E06C38]/5 rounded-bl-full pointer-events-none" />
-            
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                <Package className="w-7 h-7" />
-              </div>
-
-              <span className="text-xs font-bold uppercase tracking-wider text-[#E06C38] block mb-1">
-                DIY Physical Kit
-              </span>
-              <h3 className="text-2xl font-bold text-[#1D231E] mb-3">
-                Custom Kits
-              </h3>
-
-              <p className="text-sm text-[#5A6659] leading-relaxed mb-6 font-medium">
-                Turn your photo into a stitching kit, delivered to your door.
-              </p>
-
-              <div className="space-y-2.5 text-xs text-[#3A4538] mb-8 pb-6 border-b border-[#F0EBE1]">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
-                  <span>Custom-cut Zweigart Aida cloth</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
-                  <span>Pre-sorted French DMC cotton floss skeins</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
-                  <span>Bohin tapestry needles & printed color chart</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions for Card 1 */}
-            <div className="space-y-3 pt-2">
-              <button
-                onClick={onOpenConverter}
-                className="w-full py-3.5 px-5 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Use the Photo Converter</span>
-              </button>
-
-              <button
-                onClick={() => handleOpenModal('assisted-kit')}
-                className="w-full py-3 px-4 rounded-2xl bg-[#FAF6EE] hover:bg-[#EFE7D8] text-[#1D231E] font-semibold text-xs flex items-center justify-center gap-1.5 border border-[#D5CDC0] transition-colors cursor-pointer"
-              >
-                <HelpCircle className="w-4 h-4 text-[#70806E]" />
-                <span>Not sure how to use the converter? Request a kit</span>
-              </button>
-            </div>
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="text-xs font-bold uppercase tracking-widest text-[#E06C38] bg-[#E06C38]/10 px-3 py-1 rounded-full inline-block mb-3">
+              Bespoke Custom Orders
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#1D231E]">
+              How would you like to create your piece?
+            </h2>
+            <p className="text-xs sm:text-sm text-[#5A6659] mt-2">
+              Select an option below to convert your photo into a kit or have our team handcraft the entire finished product.
+            </p>
           </div>
 
-          {/* Card 2: Custom Stitched Product */}
-          <div className="bg-white rounded-3xl p-8 border border-[#E8E1D2] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#3D5239]/5 rounded-bl-full pointer-events-none" />
+          {/* The Two Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
             
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-[#3D5239]/10 text-[#3D5239] flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                <Palette className="w-7 h-7" />
-              </div>
-
-              <span className="text-xs font-bold uppercase tracking-wider text-[#3D5239] block mb-1">
-                Finished Heirloom Art
-              </span>
-              <h3 className="text-2xl font-bold text-[#1D231E] mb-3">
-                Custom Stitched Product
-              </h3>
-
-              <p className="text-sm text-[#5A6659] leading-relaxed mb-6 font-medium">
-                We stitch it for you — just send your photo.
-              </p>
-
-              <div className="space-y-2.5 text-xs text-[#3A4538] mb-6 pb-6 border-b border-[#F0EBE1]">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
-                  <span>Handcrafted by master artisan embroiderers</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
-                  <span>Washed, ironed, and museum-grade mounted</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
-                  <span>Delivered framed and ready to hang</span>
-                </div>
-                <div className="flex items-start gap-2.5 text-[#633912] bg-[#FFF8F2] p-3 rounded-2xl border border-[#F5D8C4] mt-2">
-                  <Clock className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">
-                    ⏱ <strong>Typically takes 2–3 months to complete</strong>, depending on size, color count, and stitch complexity.
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action for Card 2 */}
-            <div className="pt-2">
-              <button
-                onClick={() => handleOpenModal('custom-stitched')}
-                className="w-full py-3.5 px-5 rounded-2xl bg-[#1D231E] hover:bg-[#323D34] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-              >
-                <Heart className="w-4 h-4 text-[#E06C38]" />
-                <span>Request a Custom Stitched Product</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </button>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Studio Tier 15% Discount Promotional Banner (Visible ONLY for logged-in free/pro users) */}
-        {showStudioPromo && (
-          <div className="mt-12 p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#2D5A43] via-[#244835] to-[#1D3B2C] text-white border border-[#3D6E54] shadow-md relative overflow-hidden animate-fade-in">
-            {/* Subtle decorative glows */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#E06C38]/15 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-[#93A28F]/20 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              <div className="space-y-3 max-w-2xl">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-3 py-1 rounded-full bg-[#E06C38] text-white text-[11px] font-extrabold uppercase tracking-wider shadow-xs flex items-center gap-1.5">
-                    <Percent className="w-3.5 h-3.5" />
-                    Studio Member Benefit
-                  </span>
-                  <span className="text-xs text-[#C8D7C5] font-medium">
-                    Current Plan: <strong className="text-white capitalize">{!isLoggedIn ? 'Guest / Starter' : userTier === 'pro' ? 'Pro Crafter' : 'Free Crafter'}</strong>
-                  </span>
+            {/* Card 1: Custom Kits */}
+            <div className="bg-white rounded-3xl p-8 border border-[#E8E1D2] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#E06C38]/5 rounded-bl-full pointer-events-none" />
+              
+              <div>
+                <div className="w-14 h-14 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
+                  <Package className="w-7 h-7" />
                 </div>
 
-                <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-snug">
-                  Studio members save 15% on every custom kit and stitched product order
+                <span className="text-xs font-bold uppercase tracking-wider text-[#E06C38] block mb-1">
+                  DIY Physical Kit
+                </span>
+                <h3 className="text-2xl font-bold text-[#1D231E] mb-3">
+                  Custom Kits
                 </h3>
 
-                <p className="text-xs sm:text-sm text-[#D3E0D1] leading-relaxed">
-                  Upgrade your membership to automatically receive an exclusive 15% discount applied directly to all bespoke handcrafted kits and finished stitched heirlooms, along with priority crafting and unlimited pattern exports.
+                <p className="text-sm text-[#5A6659] leading-relaxed mb-6 font-medium">
+                  Turn your photo into a stitching kit, delivered to your door.
                 </p>
+
+                <div className="space-y-2.5 text-xs text-[#3A4538] mb-8 pb-6 border-b border-[#F0EBE1]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
+                    <span>Custom-cut Zweigart Aida cloth</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
+                    <span>Pre-sorted French DMC cotton floss skeins</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
+                    <span>Bohin tapestry needles & printed color chart</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {/* Actions for Card 1 */}
+              <div className="space-y-3 pt-2">
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (onOpenUpgradeModal) {
-                      onOpenUpgradeModal('studio');
-                    } else if (onNavigateToSection) {
-                      onNavigateToSection('pricing-section');
-                    } else {
-                      onGoHome();
-                    }
-                  }}
-                  className="px-6 py-3.5 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
+                  onClick={onOpenConverter}
+                  className="w-full py-3.5 px-5 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-200" />
-                  <span>Upgrade to Studio Plan</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4" />
+                  <span>Use the Photo Converter</span>
+                </button>
+
+                <button
+                  onClick={() => handleOpenModal('assisted-kit')}
+                  className="w-full py-3 px-4 rounded-2xl bg-[#FAF6EE] hover:bg-[#EFE7D8] text-[#1D231E] font-semibold text-xs flex items-center justify-center gap-1.5 border border-[#D5CDC0] transition-colors cursor-pointer"
+                >
+                  <HelpCircle className="w-4 h-4 text-[#70806E]" />
+                  <span>Not sure how to use the converter? Request a kit</span>
                 </button>
               </div>
             </div>
-          </div>
-        )}
 
-      </div>
+            {/* Card 2: Custom Stitched Product */}
+            <div className="bg-white rounded-3xl p-8 border border-[#E8E1D2] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#3D5239]/5 rounded-bl-full pointer-events-none" />
+              
+              <div>
+                <div className="w-14 h-14 rounded-2xl bg-[#3D5239]/10 text-[#3D5239] flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
+                  <Palette className="w-7 h-7" />
+                </div>
+
+                <span className="text-xs font-bold uppercase tracking-wider text-[#3D5239] block mb-1">
+                  Finished Heirloom Art
+                </span>
+                <h3 className="text-2xl font-bold text-[#1D231E] mb-3">
+                  Custom Stitched Product
+                </h3>
+
+                <p className="text-sm text-[#5A6659] leading-relaxed mb-6 font-medium">
+                  We stitch it for you — just send your photo.
+                </p>
+
+                <div className="space-y-2.5 text-xs text-[#3A4538] mb-6 pb-6 border-b border-[#F0EBE1]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
+                    <span>Handcrafted by master artisan embroiderers</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
+                    <span>Washed, ironed, and museum-grade mounted</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#93A28F] shrink-0" />
+                    <span>Delivered framed and ready to hang</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-[#633912] bg-[#FFF8F2] p-3 rounded-2xl border border-[#F5D8C4] mt-2">
+                    <Clock className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      ⏱ <strong>Typically takes 2–3 months to complete</strong>, depending on size, color count, and stitch complexity.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action for Card 2 */}
+              <div className="pt-2">
+                <button
+                  onClick={() => handleOpenModal('custom-stitched')}
+                  className="w-full py-3.5 px-5 rounded-2xl bg-[#1D231E] hover:bg-[#323D34] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  <Heart className="w-4 h-4 text-[#E06C38]" />
+                  <span>Request a Custom Stitched Product</span>
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Store Coming Soon Discovery Banner (Secondary Nudge) */}
+          <div className="mt-10 p-5 sm:p-6 rounded-3xl bg-[#F2ECE1] border border-[#E3D9C8] text-[#1D231E] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                <Store className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm font-bold text-[#1D231E]">
+                    Looking for ready-made kits and individual items?
+                  </h4>
+                  <span className="inline-flex px-2 py-0.5 rounded-full bg-[#E06C38]/10 text-[#E06C38] text-[10px] font-bold uppercase tracking-wider">
+                    Launching Soon
+                  </span>
+                </div>
+                <p className="text-xs text-[#5A6659] mt-0.5">
+                  Our Store is launching soon — take a peek at what&apos;s coming.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('store');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#1D231E] font-bold text-xs flex items-center gap-1.5 border border-[#D5CDC0] shadow-2xs hover:shadow-xs transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Store className="w-3.5 h-3.5 text-[#E06C38]" />
+              <span>Preview Store</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#70806E]" />
+            </button>
+          </div>
+
+          {/* Studio Tier 15% Discount Promotional Banner (Visible ONLY for logged-in free/pro users) */}
+          {showStudioPromo && (
+            <div className="mt-12 p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#2D5A43] via-[#244835] to-[#1D3B2C] text-white border border-[#3D6E54] shadow-md relative overflow-hidden animate-fade-in">
+              {/* Subtle decorative glows */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#E06C38]/15 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-[#93A28F]/20 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="space-y-3 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-[#E06C38] text-white text-[11px] font-extrabold uppercase tracking-wider shadow-xs flex items-center gap-1.5">
+                      <Percent className="w-3.5 h-3.5" />
+                      Studio Member Benefit
+                    </span>
+                    <span className="text-xs text-[#C8D7C5] font-medium">
+                      Current Plan: <strong className="text-white capitalize">{!isLoggedIn ? 'Guest / Starter' : userTier === 'pro' ? 'Pro Crafter' : 'Free Crafter'}</strong>
+                    </span>
+                  </div>
+
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-snug">
+                    Studio members save 15% on every custom kit and stitched product order
+                  </h3>
+
+                  <p className="text-xs sm:text-sm text-[#D3E0D1] leading-relaxed">
+                    Upgrade your membership to automatically receive an exclusive 15% discount applied directly to all bespoke handcrafted kits and finished stitched heirlooms, along with priority crafting and unlimited pattern exports.
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenUpgradeModal) {
+                        onOpenUpgradeModal('studio');
+                      } else if (onNavigateToSection) {
+                        onNavigateToSection('pricing-section');
+                      } else {
+                        onGoHome();
+                      }
+                    }}
+                    className="px-6 py-3.5 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-200" />
+                    <span>Upgrade to Studio Plan</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* Tab 2: Store Tab Content (Coming Soon State) */}
+      {activeTab === 'store' && (
+        <div className="max-w-4xl mx-auto px-6 lg:px-8 py-20 animate-fade-in">
+          <div className="bg-white rounded-3xl p-10 sm:p-16 border border-[#E8E1D2] shadow-xs text-center flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-[#E06C38]/5 rounded-bl-full pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#3D5239]/5 rounded-tr-full pointer-events-none" />
+            
+            <div className="w-16 h-16 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center mb-6 shadow-xs">
+              <Store className="w-8 h-8" />
+            </div>
+
+            <span className="text-xs font-bold uppercase tracking-widest text-[#E06C38] bg-[#E06C38]/10 px-3.5 py-1 rounded-full inline-block mb-3">
+              Coming Soon
+            </span>
+
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#1D231E] mb-3 font-serif">
+              Thread Artisan Store
+            </h2>
+
+            <p className="text-sm sm:text-base text-[#5A6659] max-w-md mx-auto leading-relaxed mb-6">
+              Individual items and ready-made kits will be available here soon.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('custom-orders');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[#FAF6EE] hover:bg-[#EFE7D8] text-[#1D231E] font-semibold text-xs flex items-center gap-2 border border-[#D5CDC0] transition-colors cursor-pointer"
+            >
+              <Package className="w-4 h-4 text-[#E06C38]" />
+              <span>Explore Custom Orders</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quote Request Modal */}
       {activeModal && typeof document !== 'undefined' && createPortal(
