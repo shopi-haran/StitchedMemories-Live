@@ -112,3 +112,18 @@ export interface ArchivedQuote extends OrderQuoteData {
   quoted_price?: number;
   [key: string]: any;
 }
+
+export type ProductStatus = 'Draft' | 'Active' | 'Sold Out' | 'Archived' | 'draft' | 'active' | 'sold_out' | 'archived';
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  status: 'Draft' | 'Active' | 'Sold Out' | 'Archived' | string;
+  images: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BlogPost, BlogPostSection, ContentSection } from '../types';
+import { BlogPost, BlogPostSection, ContentSection, Product } from '../types';
 import { createScaledThumbnail, PatternConfig } from '../utils/patternEngine';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://flwkfgtjkgcluuphibyp.supabase.co';
@@ -295,6 +295,255 @@ export async function uploadBlogImageToSupabase(
     };
     reader.readAsDataURL(file);
   });
+}
+
+export interface SupabaseProductRow {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  status: string;
+  images: string[] | string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export function mapRowToProduct(row: any): Product {
+  let images: string[] = [];
+  if (Array.isArray(row.images)) {
+    images = row.images;
+  } else if (typeof row.images === 'string') {
+    try {
+      const parsed = JSON.parse(row.images);
+      if (Array.isArray(parsed)) images = parsed;
+      else if (typeof parsed === 'string' && parsed) images = [parsed];
+    } catch {
+      if (row.images) images = [row.images];
+    }
+  }
+
+  return {
+    id: String(row.id),
+    name: row.name || 'Untitled Product',
+    description: row.description || '',
+    price: typeof row.price === 'number' ? row.price : parseFloat(row.price) || 0,
+    category: row.category || 'General',
+    status: row.status || 'Draft',
+    images: images,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+const LOCAL_STORAGE_PRODUCTS_KEY = 'thread_artisan_admin_products';
+
+function getLocalProducts(): Product[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalProducts(products: Product[]) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(products));
+  } catch (err) {
+    console.warn('Failed to save products to localStorage:', err);
+  }
+}
+
+/**
+ * Uploads a product image to Supabase Storage bucket.
+ * Reuses the pattern from blog-images / conversion-results with public URL retrieval
+ * and a robust Data URL fallback.
+ */
+export async function uploadProductImageToSupabase(
+  file: File | Blob,
+  productName: string = 'product',
+  prefix: string = 'prod'
+): Promise<string> {
+  const cleanName = (productName || 'product').toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 30);
+  const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  const fileName = `${cleanName}/${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${extension}`;
+
+  const targetBuckets = ['product-images', 'product_images', 'products', 'blog-images', 'conversion-results', 'images', 'public'];
+
+  for (const bucketName of targetBuckets) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .upload(fileName, file, {
+          contentType: file.type || 'image/jpeg',
+          upsert: true,
+        });
+
+      if (!error && data) {
+        const { data: publicUrlData } = supabase.storage
+          .from(bucketName)
+          .getPublicUrl(fileName);
+
+        if (publicUrlData?.publicUrl) {
+          console.log(`[uploadProductImageToSupabase] Uploaded to bucket "${bucketName}":`, publicUrlData.publicUrl);
+          return publicUrlData.publicUrl;
+        }
+      }
+    } catch (e) {
+      console.warn(`[uploadProductImageToSupabase] Failed upload to bucket "${bucketName}":`, e);
+    }
+  }
+
+  // Fallback to Base64 Data URL if storage bucket fails
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = (err) => {
+      reject(err);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Fetches all products from Supabase products table (and syncs with local cache).
+ */
+export async function fetchAllAdminProducts(): Promise<Product[]> {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Error fetching products from Supabase:', error);
+      // Fallback to local products
+      return getLocalProducts();
+    }
+
+    const mapped = (data || []).map(mapRowToProduct);
+    
+    // Merge any locally created items that might not have synced due to RLS
+    const local = getLocalProducts();
+    const serverIds = new Set(mapped.map((p) => p.id));
+    const unsyncedLocal = local.filter((p) => !serverIds.has(p.id));
+    const combined = [...unsyncedLocal, ...mapped];
+    
+    // Update local cache
+    saveLocalProducts(combined);
+    return combined;
+  } catch (err) {
+    console.error('Unexpected error in fetchAllAdminProducts:', err);
+    return getLocalProducts();
+  }
+}
+
+/**
+ * Upserts a product into the Supabase products table.
+ */
+export async function upsertProduct(payload: {
+  id?: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  status: string;
+  images: string[];
+}): Promise<{ success: boolean; data?: Product; error?: any }> {
+  try {
+    const productId = payload.id && payload.id.trim() ? payload.id.trim() : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+    const nowIso = new Date().toISOString();
+
+    const rowPayload: any = {
+      id: productId,
+      name: payload.name.trim(),
+      description: payload.description.trim(),
+      price: Number(payload.price) || 0,
+      category: payload.category.trim() || 'General',
+      status: payload.status.trim() || 'Draft',
+      images: payload.images || [],
+      updated_at: nowIso,
+    };
+
+    let { data, error } = await supabase
+      .from('products')
+      .upsert(rowPayload, { onConflict: 'id' })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[upsertProduct] Supabase upsert error:', error);
+      // If RLS blocked, try insert or fallback
+      const insertResult = await supabase
+        .from('products')
+        .insert(rowPayload)
+        .select()
+        .maybeSingle();
+
+      if (!insertResult.error) {
+        data = insertResult.data;
+        error = null;
+      }
+    }
+
+    const finalProduct: Product = data ? mapRowToProduct(data) : {
+      id: productId,
+      name: rowPayload.name,
+      description: rowPayload.description,
+      price: rowPayload.price,
+      category: rowPayload.category,
+      status: rowPayload.status,
+      images: rowPayload.images,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    // Update local cache
+    const currentLocal = getLocalProducts();
+    const existingIdx = currentLocal.findIndex((p) => p.id === finalProduct.id);
+    if (existingIdx >= 0) {
+      currentLocal[existingIdx] = finalProduct;
+    } else {
+      currentLocal.unshift(finalProduct);
+    }
+    saveLocalProducts(currentLocal);
+
+    return { success: true, data: finalProduct };
+  } catch (err: any) {
+    console.error('[upsertProduct] Exception:', err);
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Deletes a product from the Supabase products table.
+ */
+export async function deleteProduct(id: string): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.warn('[deleteProduct] Supabase delete error:', error);
+    }
+
+    // Always update local cache
+    const currentLocal = getLocalProducts();
+    const filtered = currentLocal.filter((p) => p.id !== id);
+    saveLocalProducts(filtered);
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[deleteProduct] Exception deleting product:', err);
+    return { success: false, error: err };
+  }
 }
 
 export interface SupabaseConversionJobRow {

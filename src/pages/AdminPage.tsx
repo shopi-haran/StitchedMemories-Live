@@ -35,6 +35,7 @@ import {
   TrendingUp,
   Tag,
   BookOpen,
+  Store,
   Plus,
   Trash2,
   RotateCcw,
@@ -47,6 +48,7 @@ import {
   fetchAllAdminOrders,
   fetchAllProfiles,
   fetchAllAdminBlogPosts,
+  fetchAllAdminProducts,
   submitAdminQuote,
   updateAdminOrderDetails,
   declineAdminOrder,
@@ -58,9 +60,11 @@ import {
   supabase,
 } from '../lib/supabase';
 import { UserProfile } from '../context/AuthContext';
-import { BlogPost } from '../types';
+import { BlogPost, Product } from '../types';
 import { BlogPostsTab } from '../components/admin/BlogPostsTab';
 import { BlogEditorModal } from '../components/admin/BlogEditorModal';
+import { StoreProductsTab } from '../components/admin/StoreProductsTab';
+import { ProductEditorModal } from '../components/admin/ProductEditorModal';
 import { AdminJobCard } from '../components/admin/AdminJobCard';
 import { JobsTab } from '../components/admin/JobsTab';
 import { CustomersTab } from '../components/admin/CustomersTab';
@@ -68,7 +72,7 @@ import { StitchTrackerModal } from '../components/dashboard/StitchTrackerModal';
 import { PhotoConverterModal } from '../components/PhotoConverterModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
-export type AdminTopLevelTab = 'jobs' | 'blogs' | 'customers';
+export type AdminTopLevelTab = 'jobs' | 'blogs' | 'store' | 'customers';
 export type AdminJobsSubTab =
   | 'all'
   | 'pending_quote'
@@ -81,7 +85,7 @@ export type AdminJobsSubTab =
 interface AdminPageProps {
   user: UserProfile | null;
   onGoHome: () => void;
-  initialTab?: 'pending_quotes' | 'in_progress' | 'all_orders' | 'customers' | 'blog_posts' | 'jobs' | 'blogs';
+  initialTab?: 'pending_quotes' | 'in_progress' | 'all_orders' | 'customers' | 'blog_posts' | 'jobs' | 'blogs' | 'store';
   initialSubTab?: AdminJobsSubTab;
 }
 
@@ -93,6 +97,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 }) => {
   const [topLevelTab, setTopLevelTab] = useState<AdminTopLevelTab>(() => {
     if (initialTab === 'blog_posts' || initialTab === 'blogs') return 'blogs';
+    if (initialTab === 'store') return 'store';
     if (initialTab === 'customers') return 'customers';
     return 'jobs';
   });
@@ -107,6 +112,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [orders, setOrders] = useState<SupabaseStitchOrderRow[]>([]);
   const [profiles, setProfiles] = useState<SupabaseProfileRow[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -125,6 +131,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   // Blog Editor State
   const [isBlogEditorOpen, setIsBlogEditorOpen] = useState(false);
   const [selectedPostForEdit, setSelectedPostForEdit] = useState<BlogPost | null>(null);
+
+  // Store Product Editor State
+  const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
+  const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
 
   // Quote Form Modal State
   const [selectedQuoteOrder, setSelectedQuoteOrder] = useState<SupabaseStitchOrderRow | null>(null);
@@ -183,22 +193,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     setTimeout(() => setSuccessToast(null), 4000);
   };
 
-  // Load all admin orders, customer profiles & blog articles
+  // Load all admin orders, customer profiles, blog articles & store products
   const loadData = useCallback(async (quiet = false) => {
     if (!quiet) setIsLoading(true);
     else setIsRefreshing(true);
     setErrorMessage(null);
 
     try {
-      const [fetchedOrders, fetchedProfiles, fetchedBlogPosts] = await Promise.all([
+      const [fetchedOrders, fetchedProfiles, fetchedBlogPosts, fetchedProducts] = await Promise.all([
         fetchAllAdminOrders(),
         fetchAllProfiles(),
         fetchAllAdminBlogPosts(),
+        fetchAllAdminProducts(),
       ]);
 
       setOrders(fetchedOrders);
       setProfiles(fetchedProfiles);
       setBlogPosts(fetchedBlogPosts);
+      setProducts(fetchedProducts);
     } catch (err: any) {
       console.error('[AdminPage] Error loading data:', err);
       setErrorMessage('Failed to fetch data from Supabase. Please check connection and permissions.');
@@ -927,6 +939,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
             <button
               onClick={() => {
+                setTopLevelTab('store');
+                setCustomerOrdersFilterEmail(null);
+              }}
+              className={`flex items-center gap-2 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                topLevelTab === 'store'
+                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
+                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Store className="w-4 h-4 text-[#E06C38]" />
+              <span>Store</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-white/15 text-white">
+                {products.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
                 setTopLevelTab('customers');
                 setCustomerOrdersFilterEmail(null);
               }}
@@ -1028,7 +1058,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             )}
 
             {/* ========================================================================= */}
-            {/* TOP-LEVEL TAB 3: CUSTOMERS DIRECTORY */}
+            {/* TOP-LEVEL TAB 3: STORE PRODUCTS MANAGEMENT */}
+            {/* ========================================================================= */}
+            {topLevelTab === 'store' && (
+              <StoreProductsTab
+                products={products}
+                isLoading={isLoading}
+                onRefresh={() => loadData(true)}
+                onOpenNewProduct={() => {
+                  setSelectedProductForEdit(null);
+                  setIsProductEditorOpen(true);
+                }}
+                onEditProduct={(prod) => {
+                  setSelectedProductForEdit(prod);
+                  setIsProductEditorOpen(true);
+                }}
+                showToast={showToast}
+              />
+            )}
+
+            {/* ========================================================================= */}
+            {/* TOP-LEVEL TAB 4: CUSTOMERS DIRECTORY */}
             {/* ========================================================================= */}
             {topLevelTab === 'customers' && (
               <CustomersTab
@@ -1982,6 +2032,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           }}
           currentUserName={user?.name || user?.email || 'Elena Rostova'}
           currentUserAvatar={user?.avatar_url || ''}
+        />
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4.5: STORE PRODUCT EDITOR MODAL */}
+      {/* ========================================================================= */}
+      {isProductEditorOpen && (
+        <ProductEditorModal
+          isOpen={isProductEditorOpen}
+          product={selectedProductForEdit}
+          onClose={() => {
+            setIsProductEditorOpen(false);
+            setSelectedProductForEdit(null);
+          }}
+          onSaved={async (savedProduct) => {
+            showToast(`Product "${savedProduct.name}" saved successfully!`);
+            await loadData(true);
+          }}
+          existingCategories={Array.from(new Set(products.map((p) => p.category).filter(Boolean)))}
         />
       )}
 
