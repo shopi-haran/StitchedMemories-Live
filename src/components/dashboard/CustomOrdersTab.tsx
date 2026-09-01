@@ -33,7 +33,8 @@ import {
   AlertTriangle,
   Search,
   Filter,
-  Eye
+  Eye,
+  ShoppingBag
 } from 'lucide-react';
 import { 
   supabase, 
@@ -67,6 +68,22 @@ export const ORDER_STAGES = [
   { id: 'shipped', label: 'Shipped', icon: Truck, description: 'Dispatched with tracking' },
   { id: 'delivered', label: 'Delivered', icon: Check, description: 'Delivered to your door' },
 ];
+
+export const STORE_ORDER_STAGES = [
+  { id: 'received', label: 'Received', icon: Package, description: 'Order & payment confirmed' },
+  { id: 'processing', label: 'Processing', icon: Clock, description: 'Items being prepared & packaged' },
+  { id: 'shipped', label: 'Shipped', icon: Truck, description: 'Dispatched with tracking' },
+  { id: 'delivered', label: 'Delivered', icon: CheckCircle2, description: 'Delivered to your door' },
+] as const;
+
+export const getStoreStageIndex = (statusRaw?: string): number => {
+  if (!statusRaw) return 0;
+  const s = statusRaw.toLowerCase().trim();
+  if (s === 'delivered' || s.includes('deliver') || s.includes('complete')) return 3;
+  if (s === 'shipped' || s.includes('ship') || s.includes('transit') || s.includes('dispatch')) return 2;
+  if (s === 'processing' || s === 'in_progress' || s === 'preparing' || s.includes('process')) return 1;
+  return 0;
+};
 
 export const getStageIndex = (statusRaw?: string): number => {
   if (!statusRaw) return 0;
@@ -172,7 +189,9 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         if (typeFilter === 'custom_stitched') {
           if (!isCustomStitched) return false;
         } else if (typeFilter === 'custom_kit') {
-          if (isCustomStitched) return false;
+          if (isCustomStitched || order.order_type === 'store') return false;
+        } else if (typeFilter === 'store') {
+          if (order.order_type !== 'store') return false;
         }
       }
 
@@ -696,6 +715,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                   <option value="all">All Types</option>
                   <option value="custom_stitched">Hand-Stitched Keepsake</option>
                   <option value="custom_kit">Custom Kit Only</option>
+                  <option value="store">Store Purchases</option>
                 </select>
               </div>
 
@@ -779,16 +799,20 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         <div className="space-y-5">
           {filteredOrders.map((order) => {
             const rawStatus = (order.fulfillment_status || order.status || 'pending_quote').toLowerCase();
-            const currentStageIndex = getStageIndex(rawStatus);
-            const orderTitle = order.title || order.title_name || `Custom Order #${order.id}`;
             const details = order.request_details || {};
+            const isStoreOrder = (order.order_type || '').toLowerCase() === 'store' || (details.order_type || '').toLowerCase() === 'store';
+            const activeStagesList = isStoreOrder ? STORE_ORDER_STAGES : ORDER_STAGES;
+            const currentStageIndex = isStoreOrder ? getStoreStageIndex(rawStatus) : getStageIndex(rawStatus);
+            const orderTitle = order.title || order.title_name || (isStoreOrder ? 'Store Order' : `Custom Order #${order.id}`);
             
             // Check if custom stitched product
-            const isCustomStitched = order.order_type === 'custom_stitched' || 
+            const isCustomStitched = !isStoreOrder && (
+              order.order_type === 'custom_stitched' || 
               (order.title && order.title.toLowerCase().includes('stitched')) ||
-              (details.order_type === 'custom_stitched');
+              (details.order_type === 'custom_stitched')
+            );
 
-            const isPendingQuote = rawStatus === 'pending_quote' || rawStatus === 'received';
+            const isPendingQuote = !isStoreOrder && (rawStatus === 'pending_quote' || rawStatus === 'received');
             const isRevisionRequested = rawStatus === 'revision_requested';
             const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
             const isDeclined = rawStatus === 'declined';
@@ -796,7 +820,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
             const progressPercent = Number(order.progress_percent || details.progress_percent || 0);
 
             const totalAmount = Number(order.quote?.total_amount) || Number(order.quoted_price) || Number(order.total_amount) || 0;
-            const hasQuotedAmount = !isPendingQuote && !isDeclined && totalAmount > 0;
+            const hasQuotedAmount = (!isPendingQuote && !isDeclined && totalAmount > 0) || (isStoreOrder && totalAmount > 0);
 
             return (
               <div
@@ -828,6 +852,11 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         {isCustomStitched && (
                           <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-[#E06C38] bg-[#E06C38]/10 px-2 py-0.5 rounded-full">
                             <Scissors className="w-2.5 h-2.5" /> Keepsake
+                          </span>
+                        )}
+                        {isStoreOrder && (
+                          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <ShoppingBag className="w-2.5 h-2.5" /> Store Order
                           </span>
                         )}
                       </div>
@@ -913,12 +942,12 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       <div 
                         className="absolute top-5 left-8 h-1 bg-[#E06C38] -z-0 transition-all duration-700 ease-out rounded-full"
                         style={{
-                          width: `${(currentStageIndex / (ORDER_STAGES.length - 1)) * 92}%`
+                          width: `${(currentStageIndex / (activeStagesList.length - 1)) * (isStoreOrder ? 88 : 92)}%`
                         }}
                       />
 
-                      <div className="grid grid-cols-7 gap-2 relative z-10">
-                        {ORDER_STAGES.map((stage, idx) => {
+                      <div className={`grid ${isStoreOrder ? 'grid-cols-4' : 'grid-cols-7'} gap-2 relative z-10`}>
+                        {activeStagesList.map((stage, idx) => {
                           const isPassed = idx < currentStageIndex;
                           const isCurrent = idx === currentStageIndex;
                           const StageIcon = stage.icon;
@@ -954,11 +983,11 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#E06C38] animate-pulse" />
                         <span className="text-xs font-bold text-[#1D231E]">
-                          Stage {currentStageIndex + 1}/7: {ORDER_STAGES[currentStageIndex]?.label}
+                          Stage {currentStageIndex + 1}/{activeStagesList.length}: {activeStagesList[currentStageIndex]?.label}
                         </span>
                       </div>
                       <span className="text-[11px] text-[#6B7869]">
-                        {ORDER_STAGES[currentStageIndex]?.description}
+                        {activeStagesList[currentStageIndex]?.description}
                       </span>
                     </div>
                   </div>
@@ -1027,25 +1056,31 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
       {selectedDetailOrder && (() => {
         const order = selectedDetailOrder;
         const rawStatus = (order.fulfillment_status || order.status || 'pending_quote').toLowerCase();
-        const currentStageIndex = getStageIndex(rawStatus);
-        const orderTitle = order.title || order.title_name || `Custom Order #${order.id}`;
         const details = order.request_details || {};
-        const isQuotedState = rawStatus === 'quoted';
-        const isAwaitingPayment = rawStatus === 'awaiting_payment';
-        const isPendingQuote = rawStatus === 'pending_quote' || rawStatus === 'received';
-        const isRevisionRequested = rawStatus === 'revision_requested';
+        const isStoreOrder = (order.order_type || '').toLowerCase() === 'store' || (details.order_type || '').toLowerCase() === 'store';
+        const currentStageIndex = isStoreOrder ? getStoreStageIndex(rawStatus) : getStageIndex(rawStatus);
+        const orderTitle = order.title || order.title_name || (isStoreOrder ? 'Store Order' : `Custom Order #${order.id}`);
+        const storeItems: any[] = (Array.isArray(order.items) ? order.items : details.items) || [];
+        const isQuotedState = !isStoreOrder && rawStatus === 'quoted';
+        const isAwaitingPayment = !isStoreOrder && rawStatus === 'awaiting_payment';
+        const isPendingQuote = !isStoreOrder && (rawStatus === 'pending_quote' || rawStatus === 'received');
+        const isRevisionRequested = !isStoreOrder && rawStatus === 'revision_requested';
         const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
         const isDeclined = rawStatus === 'declined';
 
-        const isCustomStitched = order.order_type === 'custom_stitched' || 
+        const isCustomStitched = !isStoreOrder && (
+          order.order_type === 'custom_stitched' || 
           (order.title && order.title.toLowerCase().includes('stitched')) ||
-          (details.order_type === 'custom_stitched');
+          (details.order_type === 'custom_stitched')
+        );
 
-        const isInProduction = rawStatus === 'in_production' || 
+        const isInProduction = !isStoreOrder && (
+          rawStatus === 'in_production' || 
           rawStatus === 'in_progress' || 
-          currentStageIndex === 3;
+          currentStageIndex === 3
+        );
 
-        const isShipped = rawStatus === 'shipped' || currentStageIndex === 5 || currentStageIndex === 6 || Boolean(order.tracking_number);
+        const isShipped = isStoreOrder ? currentStageIndex >= 2 : (rawStatus === 'shipped' || currentStageIndex === 5 || currentStageIndex === 6 || Boolean(order.tracking_number));
 
         const revisionCount = (order.quote_history && Array.isArray(order.quote_history)) ? order.quote_history.length : 0;
         const hasReachedRevisionLimit = revisionCount >= 2;
@@ -1065,13 +1100,13 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         const quote: any = (typeof order.quote === 'object' && order.quote !== null) ? order.quote : {};
         const lineItems: any[] = quote.line_items || [];
         const hasLineItems = Array.isArray(lineItems) && lineItems.length > 0;
-        const hasQuoteData = (!isPendingQuote && !isDeclined) || hasLineItems || (Number(order.quoted_price) > 0);
+        const hasQuoteData = isStoreOrder || (!isPendingQuote && !isDeclined) || hasLineItems || (Number(order.quoted_price) > 0);
 
         const itemsSubtotal = quote.items_subtotal !== undefined 
           ? Number(quote.items_subtotal) 
           : hasLineItems
           ? lineItems.reduce((acc: number, it: any) => acc + (Number(it.total) || (Number(it.quantity) * Number(it.unit_price)) || 0), 0)
-          : Number(quote.item_price) || Number(order.item_price) || 0;
+          : Number(quote.item_price) || Number(order.item_price) || Number(order.total_amount) || 0;
 
         const craftingCharge = Number(quote.crafting_charge) || 0;
         const discountPercent = Number(quote.discount_percent) || 0;
@@ -1206,7 +1241,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
               {/* ================================================================= */}
               {/* CASE 1: PENDING QUOTE (NO QUOTE DATA YET) */}
               {/* ================================================================= */}
-              {!isDeclined && isPendingQuote && !hasQuoteData ? (
+              {!isDeclined && !isStoreOrder && isPendingQuote && !hasQuoteData ? (
                 <div className="p-6 sm:p-8 bg-[#FAF6EE] border-2 border-dashed border-[#D5CDBC] rounded-3xl text-center space-y-3">
                   <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-2xs">
                     <Clock className="w-6 h-6 animate-pulse" />
@@ -1218,9 +1253,76 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                     Our studio artisans are currently calculating your DMC thread skein counts, premium fabric dimensions, and workshop preparation time. You'll receive a full itemized quote breakdown here once ready.
                   </p>
                 </div>
+              ) : !isDeclined && isStoreOrder ? (
+                /* ================================================================= */
+                /* CASE 2A: STORE ORDER ITEMS & BREAKDOWN */
+                /* ================================================================= */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-[#5A6659] flex items-center gap-1.5">
+                      <ShoppingBag className="w-4 h-4 text-[#E06C38]" /> Store Order Items
+                    </h4>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Paid & Confirmed
+                    </span>
+                  </div>
+
+                  <div className="bg-[#FAF6EE]/50 rounded-2xl border border-[#E8E1D2] overflow-hidden shadow-2xs">
+                    {storeItems.length > 0 ? (
+                      <div className="divide-y divide-[#E8E1D2]/80 bg-white">
+                        {storeItems.map((it: any, idx: number) => {
+                          const itImg = it.image || it.image_url || '';
+                          const itQty = Number(it.quantity || 1);
+                          const itPrice = Number(it.price || 0);
+                          return (
+                            <div key={idx} className="p-3.5 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                {itImg ? (
+                                  <img src={itImg} alt={it.title || 'Product'} className="w-12 h-12 rounded-xl object-cover border border-[#E8E1D2] shadow-2xs" />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-xl bg-[#FAF6EE] text-[#8A9588] flex items-center justify-center border border-[#E8E1D2]">
+                                    <Package className="w-5 h-5" />
+                                  </div>
+                                )}
+                                <div>
+                                  <h5 className="text-xs font-bold text-[#1D231E]">{it.title || it.name || 'Store Item'}</h5>
+                                  <p className="text-[11px] text-[#5A6659]">Qty: {itQty} × ${itPrice.toFixed(2)}</p>
+                                </div>
+                              </div>
+                              <span className="font-mono text-xs font-bold text-[#1D231E]">${(itQty * itPrice).toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-white text-xs text-[#5A6659]">
+                        Order items recorded in studio system.
+                      </div>
+                    )}
+
+                    <div className="p-4 bg-[#FAF6EE] border-t border-[#E8E1D2] space-y-2 text-xs">
+                      {deliveryCharge > 0 && (
+                        <div className="flex justify-between text-[#5A6659]">
+                          <span className="flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery:
+                          </span>
+                          <span className="font-semibold font-mono text-[#1D231E]">
+                            ${deliveryCharge.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between pt-2 border-t border-[#D5CDBC] text-sm font-bold text-[#1D231E]">
+                        <span>Total Paid:</span>
+                        <span className="text-base font-black font-serif text-[#E06C38]">
+                          ${totalAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : !isDeclined ? (
                 /* ================================================================= */
-                /* CASE 2: FULL ITEMIZED QUOTE BREAKDOWN */
+                /* CASE 2B: FULL ITEMIZED QUOTE BREAKDOWN (CUSTOM ORDERS) */
                 /* ================================================================= */
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">

@@ -127,3 +127,20 @@ export interface Product {
   updated_at?: string;
 }
 
+export type StoreOrderStatus = 'received' | 'processing' | 'shipped' | 'delivered';
+
+export interface StoreOrderItem {
+  id?: string | number;
+  product_id?: string;
+  title: string;
+  name?: string;
+  price: number;
+  quantity: number;
+  image?: string;
+  image_url?: string;
+  images?: string[];
+  category?: string;
+  variant?: string;
+  [key: string]: any;
+}
+

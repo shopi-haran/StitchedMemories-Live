@@ -79,7 +79,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const fileInputRef迷 = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Combined category options
   const categoryOptions = React.useMemo(() => {
@@ -158,8 +158,8 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
       setErrorMessage('Failed to upload some images. Fallback data URL was applied where possible.');
     } finally {
       setIsUploading(false);
-      if (fileInputRef迷.current) {
-        fileInputRef迷.current.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
     }
   };
@@ -193,9 +193,9 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
   const makePrimaryCover = (index: number) => {
     if (index === 0) return;
     setImages((prev) => {
-      const copy迷 = [...prev];
-      const [selected] = copy迷.splice(index, 1);
-      return [selected, ...copy迷];
+      const copy = [...prev];
+      const [selected] = copy.splice(index, 1);
+      return [selected, ...copy];
     });
   };
 
@@ -203,21 +203,30 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Handle Drag & Drop
+  // Handle Drag & Drop with full browser event override
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFilesUpload(e.dataTransfer.files);
     }
   };
@@ -268,11 +277,21 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
 
   return createPortal(
     <div
+      data-modal-overlay="true"
       data-modal-id={modalId}
       style={{ zIndex }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
       className="fixed inset-0 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-xs animate-fade-in"
     >
-      <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-[#E8E1D2] my-8 overflow-hidden flex flex-col max-h-[92vh]">
+      <div 
+        className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-[#E8E1D2] my-8 overflow-hidden flex flex-col max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      >
         
         {/* Modal Header */}
         <div className="px-6 py-5 bg-[#1D231E] text-white flex items-center justify-between border-b border-white/10 shrink-0">
@@ -306,7 +325,11 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
         </div>
 
         {/* Modal Body / Scroll Area */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 text-[#1D231E]">
+        <form 
+          data-modal-scroll="true"
+          onSubmit={handleSubmit} 
+          className="flex-1 overflow-y-auto overscroll-contain p-6 sm:p-8 space-y-6 text-[#1D231E]"
+        >
           
           {errorMessage && (
             <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-3 text-xs">
@@ -461,7 +484,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => fileInputRef迷.current?.click()}
+                  onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
                   className="px-3.5 py-1.5 rounded-lg bg-[#E06C38] hover:bg-[#c95b28] text-white text-[11px] font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
                 >
@@ -482,7 +505,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
 
             {/* Hidden Multi-file Input */}
             <input
-              ref={fileInputRef迷}
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               multiple
@@ -514,6 +537,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
 
             {/* Drag & Drop Area / Gallery Grid */}
             <div
+              onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -532,7 +556,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                   <p className="text-[11px] text-[#7A8877] mt-0.5">or click &quot;Upload Images&quot; to choose files from your computer</p>
                   <button
                     type="button"
-                    onClick={() => fileInputRef迷.current?.click()}
+                    onClick={() => fileInputRef.current?.click()}
                     className="mt-4 px-4 py-2 rounded-xl bg-white hover:bg-[#FAF6EE] text-xs font-bold text-[#1D231E] border border-[#D5CDBC] transition-colors cursor-pointer shadow-2xs"
                   >
                     Select Image Files
@@ -619,7 +643,7 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
                   {/* Add more button tile */}
                   <button
                     type="button"
-                    onClick={() => fileInputRef迷.current?.click()}
+                    onClick={() => fileInputRef.current?.click()}
                     className="aspect-square rounded-2xl border-2 border-dashed border-[#D5CDBC] hover:border-[#E06C38] bg-white hover:bg-[#FAF6EE]/60 flex flex-col items-center justify-center gap-1.5 transition-all text-[#70806E] hover:text-[#E06C38] cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-6 h-6" />

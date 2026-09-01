@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   ShoppingBag, 
   Clock, 
@@ -8,9 +8,34 @@ import {
   Loader2, 
   Package, 
   CreditCard,
-  DollarSign
+  DollarSign,
+  Truck,
+  MapPin,
+  Check,
+  Copy,
+  Search,
+  ExternalLink,
+  ChevronRight,
+  Sparkles
 } from 'lucide-react';
 import { fetchUserStoreOrders, SupabaseOrderRow } from '../../lib/supabase';
+import { StoreOrderItem } from '../../types';
+
+export const STORE_ORDER_STAGES = [
+  { id: 'received', label: 'Received', icon: Package, description: 'Order & payment confirmed' },
+  { id: 'processing', label: 'Processing', icon: Clock, description: 'Items being prepared & packaged' },
+  { id: 'shipped', label: 'Shipped', icon: Truck, description: 'Dispatched with tracking' },
+  { id: 'delivered', label: 'Delivered', icon: CheckCircle2, description: 'Delivered to your door' },
+] as const;
+
+export function getStoreStageIndex(statusRaw?: string): number {
+  if (!statusRaw) return 0;
+  const s = statusRaw.toLowerCase().trim();
+  if (s === 'delivered' || s.includes('deliver') || s.includes('complete')) return 3;
+  if (s === 'shipped' || s.includes('ship') || s.includes('transit') || s.includes('dispatch')) return 2;
+  if (s === 'processing' || s === 'in_progress' || s === 'preparing' || s.includes('process')) return 1;
+  return 0; // received
+}
 
 interface UserProfile {
   id?: string;
@@ -27,6 +52,9 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
   const [orders, setOrders] = useState<SupabaseOrderRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedTracking, setCopiedTracking] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'received' | 'processing' | 'shipped' | 'delivered'>('all');
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -45,6 +73,12 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  const handleCopyTracking = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedTracking(code);
+    setTimeout(() => setCopiedTracking(null), 2500);
+  };
 
   const formatDate = (rawDateStr?: string) => {
     if (!rawDateStr) return 'Recent';
@@ -71,78 +105,33 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
     return `$${num.toFixed(2)}`;
   };
 
-  const parseItemNames = (itemsRaw: any): string[] => {
-    if (!itemsRaw) return ['Store Order Item'];
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const stageIdx = getStoreStageIndex(order.fulfillment_status || order.status);
 
-    let parsed = itemsRaw;
-    if (typeof itemsRaw === 'string') {
-      try {
-        parsed = JSON.parse(itemsRaw);
-      } catch {
-        return [itemsRaw];
+      if (statusFilter === 'received' && stageIdx !== 0) return false;
+      if (statusFilter === 'processing' && stageIdx !== 1) return false;
+      if (statusFilter === 'shipped' && stageIdx !== 2) return false;
+      if (statusFilter === 'delivered' && stageIdx !== 3) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const details = typeof order.request_details === 'string'
+          ? (() => { try { return JSON.parse(order.request_details); } catch { return {}; } })()
+          : order.request_details || {};
+        const items = (Array.isArray(order.items) ? order.items : details.items) || [];
+        const itemsText = items.map((it: any) => `${it.title || ''} ${it.name || ''}`).join(' ');
+
+        const matchId = String(order.id || '').toLowerCase().includes(q);
+        const matchTracking = String(order.tracking_number || '').toLowerCase().includes(q);
+        const matchItems = itemsText.toLowerCase().includes(q);
+
+        if (!matchId && !matchTracking && !matchItems) return false;
       }
-    }
 
-    if (Array.isArray(parsed)) {
-      if (parsed.length === 0) return ['Store Order Item'];
-      return parsed.map((item, idx) => {
-        if (typeof item === 'string') return item;
-        if (typeof item === 'object' && item !== null) {
-          const title = item.name || item.title || item.item_name || item.product_name;
-          const qty = item.quantity || item.qty;
-          if (title) {
-            return qty && qty > 1 ? `${title} (x${qty})` : title;
-          }
-        }
-        return `Item #${idx + 1}`;
-      });
-    }
-
-    if (typeof parsed === 'object' && parsed !== null) {
-      const title = parsed.name || parsed.title || parsed.item_name || parsed.product_name;
-      if (title) return [title];
-    }
-
-    return ['Store Order Item'];
-  };
-
-  const renderPaymentStatusBadge = (statusRaw?: string) => {
-    const s = (statusRaw || 'pending').toLowerCase();
-
-    if (s === 'paid' || s === 'completed' || s === 'succeeded' || s === 'complete') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-          <span className="capitalize">Paid</span>
-        </span>
-      );
-    }
-
-    if (s === 'pending' || s === 'processing' || s === 'unpaid') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-          <Clock className="w-3 h-3 text-amber-600" />
-          <span className="capitalize">{s}</span>
-        </span>
-      );
-    }
-
-    if (s === 'failed' || s === 'cancelled' || s === 'error') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
-          <AlertCircle className="w-3 h-3 text-rose-600" />
-          <span className="capitalize">{s}</span>
-        </span>
-      );
-    }
-
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
-        <CreditCard className="w-3 h-3 text-gray-500" />
-        <span className="capitalize">{statusRaw}</span>
-      </span>
-    );
-  };
+      return true;
+    });
+  }, [orders, statusFilter, searchQuery]);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -151,11 +140,11 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-[#93A28F] block mb-1">
-            Order History
+            Store Orders
           </span>
-          <h2 className="text-2xl font-bold text-[#1D231E]">Purchases</h2>
+          <h2 className="text-2xl font-bold text-[#1D231E]">Purchases & Tracking</h2>
           <p className="text-xs text-[#5A6659] mt-1">
-            View order details, item breakdown, total amounts, and payment statuses for kit & shop purchases.
+            Track your ready-made kits and store items live through the 4 fulfillment stages: <strong>Received → Processing → Shipped → Delivered</strong>.
           </p>
         </div>
 
@@ -165,7 +154,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
             title="Refresh order history"
             className="p-2 bg-[#FAF6EE] hover:bg-[#E8E1D2] text-[#5A6659] rounded-xl border border-[#D5CDBC] transition-colors cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#E06C38]' : ''}`} />
           </button>
 
           {onNavigateToShop && (
@@ -173,8 +162,8 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
               onClick={onNavigateToShop}
               className="px-4 py-2 bg-[#1D231E] hover:bg-[#323D34] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-xs shrink-0"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-[#93A28F]" />
-              <span>Visit Shop</span>
+              <ShoppingBag className="w-3.5 h-3.5 text-[#E06C38]" />
+              <span>Browse Store</span>
             </button>
           )}
         </div>
@@ -182,14 +171,15 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
 
       {/* Loading Skeleton */}
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="p-4 bg-[#FAF6EE] border border-[#E8E1D2] rounded-2xl animate-pulse flex items-center justify-between">
-              <div className="space-y-2">
+        <div className="space-y-4">
+          {[1, 2].map((n) => (
+            <div key={n} className="p-6 bg-white border border-[#E8E1D2] rounded-3xl animate-pulse space-y-4">
+              <div className="flex justify-between items-center">
                 <div className="h-4 bg-[#E8E1D2] rounded w-48" />
-                <div className="h-3 bg-[#E8E1D2] rounded w-28" />
+                <div className="h-6 bg-[#E8E1D2] rounded w-24" />
               </div>
-              <div className="h-6 bg-[#E8E1D2] rounded w-20" />
+              <div className="h-16 bg-[#FAF6EE] rounded-2xl" />
+              <div className="h-10 bg-[#E8E1D2] rounded-xl" />
             </div>
           ))}
         </div>
@@ -205,81 +195,319 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
           </button>
         </div>
       ) : orders.length > 0 ? (
-        <div className="bg-white border border-[#E8E1D2] rounded-3xl overflow-hidden shadow-xs">
-          
-          {/* Desktop & Tablet Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#FAF6EE] border-b border-[#E8E1D2] text-[#5A6659] uppercase tracking-wider font-bold">
-                  <th className="py-3.5 px-6">Order ID & Items</th>
-                  <th className="py-3.5 px-4">Date</th>
-                  <th className="py-3.5 px-4">Total Amount</th>
-                  <th className="py-3.5 px-6 text-right">Payment Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F0EBE1]">
-                {orders.map((order) => {
-                  const itemNames = parseItemNames(order.items);
-                  return (
-                    <tr key={order.id} className="hover:bg-[#FAF6EE]/60 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center shrink-0 mt-0.5">
-                            <Package className="w-4 h-4" />
+        <div className="space-y-6">
+
+          {/* Filter Bar */}
+          <div className="bg-[#FAF6EE] p-3.5 rounded-2xl border border-[#E8E1D2] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+              {(['all', 'received', 'processing', 'shipped', 'delivered'] as const).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer whitespace-nowrap ${
+                    statusFilter === st
+                      ? 'bg-[#1D231E] text-white shadow-xs'
+                      : 'bg-white text-[#5A6659] hover:bg-white/80 hover:text-[#1D231E] border border-[#E8E1D2]'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="w-3.5 h-3.5 text-[#8A9588] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search purchases..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-4 py-1.5 bg-white border border-[#D5CDC0] rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#E06C38]"
+              />
+            </div>
+          </div>
+
+          {/* Orders Cards List */}
+          {filteredOrders.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-3xl border border-[#E8E1D2] text-[#5A6659] text-xs">
+              No store orders match your filters.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {filteredOrders.map((order) => {
+                const details = typeof order.request_details === 'string'
+                  ? (() => { try { return JSON.parse(order.request_details); } catch { return {}; } })()
+                  : order.request_details || {};
+                
+                const items: StoreOrderItem[] = (Array.isArray(order.items) ? order.items : details.items) || [];
+                const stageIdx = getStoreStageIndex(order.fulfillment_status || order.status);
+                const totalAmount = Number(order.total_amount || order.quoted_price || 0);
+                const deliveryAddress = details.delivery_address || details.address || details.shipping_address;
+
+                const isDelivered = stageIdx === 3;
+                const isShipped = stageIdx === 2;
+                const isProcessing = stageIdx === 1;
+                const isReceived = stageIdx === 0;
+
+                return (
+                  <div
+                    key={order.id}
+                    className="bg-white border border-[#E8E1D2] rounded-3xl p-6 sm:p-7 shadow-xs space-y-5 transition-all hover:shadow-md"
+                  >
+                    {/* Top Bar: Order ID, Date, Badges */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F0EBE1]">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <span className="font-mono text-sm font-bold text-[#1D231E] bg-[#FAF6EE] px-3 py-1 rounded-xl border border-[#E8E1D2]">
+                          #{String(order.id).replace('order_', '').slice(-8)}
+                        </span>
+                        <span className="text-xs text-[#70806E] flex items-center gap-1.5 font-medium">
+                          <Clock className="w-3.5 h-3.5" />
+                          {formatDate(order.created_at)}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Paid</span>
+                        </span>
+                      </div>
+
+                      {/* Fulfillment Status Badge */}
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 self-start sm:self-auto ${
+                          isDelivered
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : isShipped
+                            ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                            : isProcessing
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-[#FAF6EE] text-[#E06C38] border border-[#E06C38]/30'
+                        }`}
+                      >
+                        {isDelivered && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />}
+                        {isShipped && <Truck className="w-3.5 h-3.5 text-sky-700" />}
+                        {isProcessing && <Clock className="w-3.5 h-3.5 text-amber-700" />}
+                        {isReceived && <Package className="w-3.5 h-3.5 text-[#E06C38]" />}
+                        <span>{STORE_ORDER_STAGES[stageIdx]?.label || 'Received'}</span>
+                      </span>
+                    </div>
+
+                    {/* Items Breakdown */}
+                    <div className="space-y-3">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#70806E] flex items-center gap-1.5">
+                        <ShoppingBag className="w-3.5 h-3.5 text-[#E06C38]" />
+                        <span>Purchased Items ({items.length || 1})</span>
+                      </span>
+
+                      <div className="bg-[#FAF6EE]/70 rounded-2xl border border-[#E8E1D2] divide-y divide-[#E8E1D2] overflow-hidden">
+                        {items.length > 0 ? (
+                          items.map((item, itIdx) => {
+                            const itemImg = item.image || item.image_url || (Array.isArray(item.images) && item.images[0]) || '';
+                            const qty = Number(item.quantity || 1);
+                            const price = Number(item.price || 0);
+                            const lineTotal = price * qty;
+
+                            return (
+                              <div key={itIdx} className="p-3.5 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  {itemImg ? (
+                                    <img
+                                      src={itemImg}
+                                      alt={item.title || 'Product'}
+                                      className="w-12 h-12 rounded-xl object-cover border border-[#E8E1D2] bg-white shrink-0 shadow-2xs"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-xl bg-[#E8E1D2]/80 text-[#70806E] flex items-center justify-center shrink-0">
+                                      <Package className="w-5 h-5" />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <h4 className="text-xs font-bold text-[#1D231E]">
+                                      {item.title || item.name || 'Store Item'}
+                                    </h4>
+                                    <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-[#5A6659]">
+                                      <span>Qty: <strong className="text-[#1D231E]">{qty}</strong></span>
+                                      <span>•</span>
+                                      <span>${price.toFixed(2)} each</span>
+                                      {item.category && (
+                                        <>
+                                          <span>•</span>
+                                          <span className="bg-white px-1.5 py-0.2 rounded border border-[#E8E1D2] text-[10px]">
+                                            {item.category}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <span className="font-mono text-xs font-bold text-[#1D231E] shrink-0">
+                                  ${lineTotal.toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="p-3.5 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-xl bg-[#E8E1D2]/80 text-[#70806E] flex items-center justify-center shrink-0">
+                                <Package className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-[#1D231E]">
+                                  {order.title || 'Store Inventory Package'}
+                                </h4>
+                                <p className="text-[11px] text-[#5A6659]">Ready-made kit & accessories</p>
+                              </div>
+                            </div>
+                            <span className="font-mono text-xs font-bold text-[#1D231E]">
+                              ${totalAmount.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Grand Total */}
+                        <div className="p-3 bg-[#FAF6EE] flex items-center justify-between text-xs font-bold text-[#1D231E]">
+                          <span className="text-[#5A6659]">Total Amount:</span>
+                          <span className="font-mono text-sm text-[#1D231E] font-black">
+                            ${totalAmount.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4-Stage Store Order Progress Tracker */}
+                    <div className="pt-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#70806E]">
+                          Fulfillment Progress (Stage {stageIdx + 1} of 4)
+                        </span>
+                        <span className="text-xs font-bold text-[#1D231E]">
+                          {STORE_ORDER_STAGES[stageIdx]?.description}
+                        </span>
+                      </div>
+
+                      {/* Desktop / Tablet Stepper */}
+                      <div className="relative">
+                        <div className="absolute top-4 left-6 right-6 h-1 bg-[#E8E1D2] -z-0 rounded-full" />
+                        <div
+                          className="absolute top-4 left-6 h-1 bg-[#E06C38] -z-0 transition-all duration-700 ease-out rounded-full"
+                          style={{
+                            width: `${(stageIdx / (STORE_ORDER_STAGES.length - 1)) * 88}%`
+                          }}
+                        />
+
+                        <div className="grid grid-cols-4 gap-2 relative z-10">
+                          {STORE_ORDER_STAGES.map((stg, sIdx) => {
+                            const isPassed = sIdx < stageIdx;
+                            const isCurrent = sIdx === stageIdx;
+                            const StageIcon = stg.icon;
+
+                            return (
+                              <div key={stg.id} className="flex flex-col items-center text-center">
+                                <div
+                                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center transition-all duration-500 shrink-0 font-bold ${
+                                    isPassed
+                                      ? 'bg-emerald-600 text-white shadow-2xs'
+                                      : isCurrent
+                                      ? 'bg-[#E06C38] text-white shadow-md ring-4 ring-[#E06C38]/20 scale-105'
+                                      : 'bg-[#FAF6EE] text-[#8A9588] border border-[#E8E1D2]'
+                                  }`}
+                                >
+                                  {isPassed ? <Check className="w-4 h-4" /> : <StageIcon className="w-3.5 h-3.5" />}
+                                </div>
+                                <div className="mt-1.5 w-full px-1">
+                                  <p className={`text-[11px] font-bold truncate ${
+                                    isCurrent ? 'text-[#E06C38]' : isPassed ? 'text-[#1D231E]' : 'text-[#8A9588]'
+                                  }`}>
+                                    {stg.label}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Note or Artisan Update */}
+                    {order.status_note && (
+                      <div className="p-3 bg-[#FAF6EE] rounded-xl border border-[#E8E1D2] text-xs text-[#1D231E] flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-[#E06C38] shrink-0 mt-0.5" />
+                        <p className="leading-relaxed text-[#5A6659]">
+                          <strong className="text-[#1D231E]">Studio Update:</strong> {order.status_note}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Courier Tracking Info (when shipped or delivered) */}
+                    {order.tracking_number && (
+                      <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                            <Truck className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="text-[11px] font-mono font-semibold text-[#8A9588] block">
-                              #{String(order.id).slice(-8)}
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 block">
+                              Courier Tracking Code
                             </span>
-                            <div className="font-bold text-[#1D231E] text-sm mt-0.5">
-                              {itemNames.join(', ')}
-                            </div>
+                            <span className="font-mono text-xs font-bold text-sky-950">
+                              {order.tracking_number}
+                            </span>
                           </div>
                         </div>
-                      </td>
 
-                      <td className="py-4 px-4 text-[#5A6659] whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-[#8A9588]" />
-                          <span>{formatDate(order.created_at)}</span>
-                        </div>
-                      </td>
+                        <button
+                          onClick={() => handleCopyTracking(order.tracking_number!)}
+                          className="px-3 py-1.5 bg-white hover:bg-sky-100 text-sky-900 text-xs font-bold rounded-xl border border-sky-300 transition-colors cursor-pointer flex items-center justify-center gap-1.5 self-start sm:self-auto"
+                        >
+                          {copiedTracking === order.tracking_number ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-sky-700" />
+                              <span>Copy Tracking</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
 
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="font-bold text-[#1D231E] text-sm">
-                          {formatTotalAmount(order.total_amount)}
-                        </span>
-                      </td>
+                    {/* Shipping Destination Snippet */}
+                    {deliveryAddress && (
+                      <div className="pt-2 border-t border-[#F0EBE1] flex items-start gap-2 text-xs text-[#5A6659]">
+                        <MapPin className="w-3.5 h-3.5 text-[#70806E] shrink-0 mt-0.5" />
+                        <span>Delivery Address: <strong className="text-[#1D231E] font-medium">{deliveryAddress}</strong></span>
+                      </div>
+                    )}
 
-                      <td className="py-4 px-6 text-right whitespace-nowrap">
-                        {renderPaymentStatusBadge(order.payment_status)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
         </div>
       ) : (
         /* Empty State */
-        <div className="p-10 border-2 border-dashed border-[#E8E1D2] rounded-3xl bg-[#FAF6EE]/50 text-center">
-          <div className="w-12 h-12 bg-[#93A28F]/20 text-[#556653] rounded-2xl flex items-center justify-center mx-auto mb-3">
-            <ShoppingBag className="w-6 h-6" />
+        <div className="p-12 border-2 border-dashed border-[#E8E1D2] rounded-3xl bg-[#FAF6EE]/50 text-center space-y-4">
+          <div className="w-14 h-14 bg-[#E06C38]/10 text-[#E06C38] rounded-2xl flex items-center justify-center mx-auto">
+            <ShoppingBag className="w-7 h-7" />
           </div>
-          <h3 className="text-lg font-bold text-[#1D231E]">No Store Purchases Yet</h3>
-          <p className="text-xs text-[#5A6659] max-w-md mx-auto mt-1 mb-5 leading-relaxed">
-            When you commission custom kits, bespoke hand-stitched keepsakes, or digital materials, your receipts will appear here.
-          </p>
+          <div>
+            <h3 className="text-lg font-bold text-[#1D231E]">No Store Purchases Yet</h3>
+            <p className="text-xs text-[#5A6659] max-w-md mx-auto mt-1 leading-relaxed">
+              When you purchase ready-made kits, fabrics, threads, and handcrafted inventory items, your orders will appear here with live 4-stage tracking.
+            </p>
+          </div>
           {onNavigateToShop && (
             <button
               onClick={onNavigateToShop}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1D231E] text-white text-xs font-bold rounded-full hover:bg-[#323D34] transition-all cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1D231E] text-white text-xs font-bold rounded-full hover:bg-[#323D34] transition-all cursor-pointer shadow-xs"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-[#93A28F]" />
-              <span>Explore Marketplace</span>
+              <ShoppingBag className="w-3.5 h-3.5 text-[#E06C38]" />
+              <span>Explore the Store</span>
             </button>
           )}
         </div>

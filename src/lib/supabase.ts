@@ -833,6 +833,91 @@ export async function fetchUserStoreOrders(
   }
 }
 
+export const STORE_ORDER_STAGES_DEF = [
+  { id: 'received', label: 'Received', description: 'Order & payment received' },
+  { id: 'processing', label: 'Processing', description: 'Items being prepared & packaged' },
+  { id: 'shipped', label: 'Shipped', description: 'Dispatched with tracking' },
+  { id: 'delivered', label: 'Delivered', description: 'Delivered to customer' },
+] as const;
+
+export function getStoreStageIndex(statusRaw?: string): number {
+  if (!statusRaw) return 0;
+  const s = statusRaw.toLowerCase().trim();
+  if (s === 'delivered' || s.includes('deliver') || s.includes('complete')) return 3;
+  if (s === 'shipped' || s.includes('ship') || s.includes('transit') || s.includes('dispatch')) return 2;
+  if (s === 'processing' || s === 'in_progress' || s === 'preparing' || s.includes('process')) return 1;
+  return 0; // received
+}
+
+export interface CreateStoreOrderParams {
+  userId?: string;
+  userEmail?: string;
+  items: Array<{
+    id?: string | number;
+    title: string;
+    price: number;
+    quantity: number;
+    image_url?: string;
+    category?: string;
+    variant?: string;
+    details?: any;
+  }>;
+  totalAmount: number;
+  customerDetails: {
+    customer_name?: string;
+    customer_email?: string;
+    delivery_address?: string;
+    phone?: string;
+    notes?: string;
+  };
+}
+
+export async function createStoreOrder(params: CreateStoreOrderParams): Promise<{ success: boolean; data?: any; error?: any }> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const effectiveUserId = session?.user?.id || params.userId || session?.user?.email || params.userEmail;
+
+    if (!effectiveUserId) {
+      return { success: false, error: new Error('User must be identified to place a store order.') };
+    }
+
+    const payload: Record<string, any> = {
+      user_id: effectiveUserId,
+      order_type: 'store',
+      items: params.items,
+      request_details: {
+        ...params.customerDetails,
+        order_type: 'store',
+        items: params.items,
+      },
+      fulfillment_status: 'received',
+      payment_status: 'paid',
+      total_amount: params.totalAmount,
+      created_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('orders')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      console.error('[createStoreOrder] Error:', error);
+      return { success: false, error };
+    }
+
+    try {
+      window.dispatchEvent(new CustomEvent('orderCreated', { detail: { orderType: 'store' } }));
+    } catch {}
+
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('[createStoreOrder] Exception:', err);
+    return { success: false, error: err };
+  }
+}
+
+
 export interface CreateOrderRequestParams {
   userId?: string;
   userEmail?: string;
@@ -1006,12 +1091,11 @@ export async function fetchUserStitchOrders(
   const allResults: SupabaseStitchOrderRow[] = [];
   const seenIds = new Set<string>();
 
-  // Fetch from custom requests in orders table
+  // Fetch from orders table (including custom orders and store orders)
   try {
     let orderQuery = supabase
       .from('orders')
-      .select('*')
-      .neq('order_type', 'store');
+      .select('*');
 
     if (userId) {
       orderQuery = orderQuery.eq('user_id', userId);
@@ -1036,7 +1120,19 @@ export async function fetchUserStitchOrders(
         if (row.order_type === 'custom_kit_converter') title = `Custom Kit (Converter) - ${details.size || 'Standard'}`;
         else if (row.order_type === 'custom_kit_assisted') title = `Assisted Kit - ${details.size || 'Standard'}`;
         else if (row.order_type === 'custom_stitched') title = `Custom Stitched Keepsake - ${details.size || 'Standard'}`;
+        else if (row.order_type === 'store') {
+          const firstItem = Array.isArray(row.items) && row.items[0] ? row.items[0] : (details.items && Array.isArray(details.items) ? details.items[0] : null);
+          const itemName = firstItem?.title || firstItem?.name || details.product_name || details.title;
+          title = itemName ? `Store Purchase: ${itemName}` : (row.title || 'Store Purchase');
+        }
+        else if (row.title) title = row.title;
         else if (row.order_type) title = `${row.order_type.replace(/_/g, ' ')}`;
+
+        const firstItemImg = (Array.isArray(row.items) && (row.items[0]?.image || row.items[0]?.image_url || row.items[0]?.images?.[0])) ||
+          (details.items && Array.isArray(details.items) && (details.items[0]?.image || details.items[0]?.image_url || details.items[0]?.images?.[0])) ||
+          (Array.isArray(details.images) && details.images[0]) || '';
+
+        const resolvedImageUrl = details.photo_url || details.pattern_result_url || row.image_url || firstItemImg || '';
 
         const quoteHistoryRaw = row.quote_history || details.quote_history || [];
         const quoteHistoryArr: ArchivedQuote[] = Array.isArray(quoteHistoryRaw)
@@ -1080,7 +1176,7 @@ export async function fetchUserStitchOrders(
           raw_order_id: row.id,
           user_id: row.user_id,
           title: title,
-          image_url: details.photo_url || details.pattern_result_url || row.image_url || '',
+          image_url: resolvedImageUrl,
           status: rawStatus,
           fulfillment_status: rawStatus,
           payment_status: row.payment_status || details.payment_status || 'pending_quote',
@@ -1167,7 +1263,19 @@ export async function fetchAllAdminOrders(): Promise<SupabaseStitchOrderRow[]> {
         if (row.order_type === 'custom_kit_converter') title = `Custom Kit (Converter) - ${details.size || 'Standard'}`;
         else if (row.order_type === 'custom_kit_assisted') title = `Assisted Kit - ${details.size || 'Standard'}`;
         else if (row.order_type === 'custom_stitched') title = `Custom Stitched Keepsake - ${details.size || 'Standard'}`;
+        else if (row.order_type === 'store') {
+          const firstItem = Array.isArray(row.items) && row.items[0] ? row.items[0] : (details.items && Array.isArray(details.items) ? details.items[0] : null);
+          const itemName = firstItem?.title || firstItem?.name || details.product_name || details.title;
+          title = itemName ? `Store Purchase: ${itemName}` : (row.title || 'Store Purchase');
+        }
+        else if (row.title) title = row.title;
         else if (row.order_type) title = `${row.order_type.replace(/_/g, ' ')}`;
+
+        const firstItemImg = (Array.isArray(row.items) && (row.items[0]?.image || row.items[0]?.image_url || row.items[0]?.images?.[0])) ||
+          (details.items && Array.isArray(details.items) && (details.items[0]?.image || details.items[0]?.image_url || details.items[0]?.images?.[0])) ||
+          (Array.isArray(details.images) && details.images[0]) || '';
+
+        const resolvedImageUrl = details.photo_url || details.pattern_result_url || row.image_url || firstItemImg || '';
 
         const quoteHistoryRaw = row.quote_history || details.quote_history || [];
         const quoteHistoryArr: ArchivedQuote[] = Array.isArray(quoteHistoryRaw)
@@ -1207,7 +1315,7 @@ export async function fetchAllAdminOrders(): Promise<SupabaseStitchOrderRow[]> {
           raw_order_id: row.id,
           user_id: row.user_id,
           title: title,
-          image_url: details.photo_url || details.pattern_result_url || row.image_url || '',
+          image_url: resolvedImageUrl,
           status: rawStatus,
           fulfillment_status: rawStatus,
           payment_status: row.payment_status || details.payment_status || 'pending_quote',
