@@ -2656,18 +2656,16 @@ export async function submitContactMessage(messageData: {
       created_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('contact_messages')
-      .insert([payload])
-      .select()
-      .maybeSingle();
+      .insert([payload]);
 
     if (error) {
       console.error('[submitContactMessage] Supabase error:', error);
       return { success: false, error };
     }
 
-    const inserted: ContactMessage = data || {
+    const inserted: ContactMessage = {
       id: `msg_${Date.now()}`,
       ...payload,
     };
