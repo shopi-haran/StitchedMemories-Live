@@ -40,7 +40,7 @@ export const ThreeEntryPoints: React.FC<ThreeEntryPointsProps> = ({
                 <Sparkles className="w-7 h-7" />
               </div>
 
-              <span className="text-xs font-bold uppercase tracking-wider text-[#E06C38]">Stitchly</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#E06C38]">Stitchara</span>
               <h3 className="text-2xl font-bold text-[#1D231E] mt-1 mb-3">
                 The Converter
               </h3>

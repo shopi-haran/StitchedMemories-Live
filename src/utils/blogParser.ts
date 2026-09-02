@@ -108,7 +108,7 @@ export function parseContentToSections(rawText: string): BlogPostSection[] {
             type: 'cta',
             title: parsed.title || 'Start Crafting',
             content: parsed.content || '',
-            ctaText: parsed.ctaText || 'Launch Stitchly',
+            ctaText: parsed.ctaText || 'Launch Stitchara',
             ctaAction: parsed.ctaAction || 'converter',
           });
         } else {

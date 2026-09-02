@@ -37,7 +37,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
             </div>
 
             <p className="text-sm text-[#A2B0A0] leading-relaxed max-w-sm">
-              Turn your favorite photos into custom DMC cross-stitch patterns with Stichly, our free AI-powered converter — plus expert stitching guides, custom kits, and handmade keepsakes, all in one place.
+              Turn your favorite photos into custom DMC cross-stitch patterns with Stitchara, our free AI-powered converter — plus expert stitching guides, custom kits, and handmade keepsakes, all in one place.
             </p>
 
             {/* Newsletter Subscription Box */}
@@ -78,7 +78,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
             <ul className="space-y-2 text-sm text-[#A2B0A0]">
               <li>
                 <button onClick={onOpenConverter} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Stichly - The Converter
+                  Stitchara - The Converter
                 </button>
               </li>
               <li>
@@ -121,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
           <div className="md:col-span-4 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-widest text-[#E06C38]">Social & Community</h4>
             <p className="text-xs text-[#A2B0A0] leading-relaxed">
-              Share your completed cross-stitch works using <span className="text-white font-mono">#StitchlyCrafts</span> on social media to be featured in our user gallery.
+              Share your completed cross-stitch works using <span className="text-white font-mono">#StitcharaCrafts</span> on social media to be featured in our user gallery.
             </p>
             <div className="flex items-center gap-3 pt-2">
               <a href="#" className="w-9 h-9 rounded-full bg-[#2B342C] hover:bg-[#E06C38] text-white flex items-center justify-center transition-colors">

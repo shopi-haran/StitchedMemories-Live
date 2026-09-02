@@ -928,7 +928,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-bold text-[#1D231E]">
-                  {isAdminOrderMode ? 'Admin Order Pattern Studio' : 'Stitchly • Pattern Studio'}
+                  {isAdminOrderMode ? 'Admin Order Pattern Studio' : 'Stitchara • Pattern Studio'}
                 </h2>
                 {isAdminOrderMode && (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#2D5A43]/15 text-[#2D5A43] border border-[#2D5A43]/30">
@@ -1818,7 +1818,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
             </div>
 
             <h3 className="text-xl font-bold text-[#1D231E] mb-2">
-              Welcome to Stitchly Pattern Studio
+              Welcome to Stitchara Pattern Studio
             </h3>
             <p className="text-xs text-[#5A6659] mb-6 leading-relaxed">
               Log in or sign up to save your pattern conversions to your account and access them from any device, or continue as a guest.
@@ -1834,7 +1834,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
                   setAuthModalConfig({
                     isOpen: true,
                     defaultTab: 'login',
-                    customTitle: 'Log In to Stitchly',
+                    customTitle: 'Log In to Stitchara',
                     customSubtitle: 'Access your saved cross-stitch patterns across devices.'
                   });
                 }}

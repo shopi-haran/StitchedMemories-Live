@@ -101,7 +101,7 @@ export const AboutContactPage: React.FC<AboutContactPageProps> = ({
               className="px-6 py-3 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full shadow-md transition-all cursor-pointer flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
-              <span>Launch Stitchly</span>
+              <span>Launch Stitchara</span>
             </button>
 
             <button

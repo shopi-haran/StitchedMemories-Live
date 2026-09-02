@@ -215,6 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && (
+            key.startsWith('stitchara_') ||
             key.startsWith('stitchly_') ||
             key.startsWith('user_pattern_') ||
             key.startsWith('cached_') ||

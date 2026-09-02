@@ -329,7 +329,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1D231E] hover:bg-[#323D34] text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-xs"
         >
           <Sparkles className="w-3.5 h-3.5 text-[#E06C38]" />
-          <span>Launch Stitchly</span>
+          <span>Launch Stitchara</span>
         </button>
       </div>
 

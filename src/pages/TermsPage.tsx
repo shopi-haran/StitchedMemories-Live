@@ -88,8 +88,8 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onGoHome, onNavigateToSect
                 <button onClick={() => scrollToAnchor('accounts')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
                   3. Accounts
                 </button>
-                <button onClick={() => scrollToAnchor('stitchly')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
-                  4. Stichly - The Photo Converter
+                <button onClick={() => scrollToAnchor('stitchara')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
+                  4. Stitchara - The Photo Converter
                 </button>
                 <button onClick={() => scrollToAnchor('orders-quotes')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
                   5. Orders & Quotes
@@ -177,11 +177,11 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onGoHome, onNavigateToSect
               </p>
             </section>
 
-            {/* 4. Stichly - The Photo Converter */}
-            <section id="stitchly" className="space-y-3 bg-white p-6 sm:p-8 rounded-3xl border border-[#E8E1D2] shadow-xs">
+            {/* 4. Stitchara - The Photo Converter */}
+            <section id="stitchara" className="space-y-3 bg-white p-6 sm:p-8 rounded-3xl border border-[#E8E1D2] shadow-xs">
               <h2 className="text-xl font-bold text-[#1D231E] flex items-center gap-2.5">
                 <span className="w-7 h-7 rounded-xl bg-[#FAF6EE] text-[#E06C38] flex items-center justify-center text-xs font-black border border-[#E8E1D2]">4</span>
-                Stichly - The Photo Converter
+                Stitchara - The Photo Converter
               </h2>
               <p>
                 Our converter tool analyzes photos you upload to generate cross-stitch pattern suggestions (color mapping, stitch counts, and grid layouts). You retain ownership of any photos you upload. By uploading a photo, you confirm that you own the rights to it, or have permission to use it, and that it does not infringe any third party's rights.
@@ -256,7 +256,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onGoHome, onNavigateToSect
                 Intellectual Property
               </h2>
               <p>
-                The Stitched Memories name, logo, website design, and pattern-generation technology — including Stichly, our proprietary photo-to-cross-stitch pattern converter — are our property or licensed to us and may not be copied, reverse-engineered, or used without our permission. You retain rights to your own uploaded photos and any patterns generated specifically for your personal use through Stichly.
+                The Stitched Memories name, logo, website design, and pattern-generation technology — including Stitchara, our proprietary photo-to-cross-stitch pattern converter — are our property or licensed to us and may not be copied, reverse-engineered, or used without our permission. You retain rights to your own uploaded photos and any patterns generated specifically for your personal use through Stitchara.
               </p>
             </section>
 

@@ -510,7 +510,7 @@ export const MyPatternsTab: React.FC<MyPatternsTabProps> = ({ user, onOpenConver
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#E06C38] text-white text-xs font-bold rounded-full hover:bg-[#d05c28] transition-all cursor-pointer shadow-xs"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Launch Stitchly</span>
+            <span>Launch Stitchara</span>
           </button>
         </div>
       )}

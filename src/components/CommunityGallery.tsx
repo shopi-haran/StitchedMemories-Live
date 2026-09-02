@@ -60,7 +60,7 @@ export const CommunityGallery: React.FC<CommunityGalleryProps> = ({
                 Be one of our first featured stitchers!
               </h3>
               <p className="text-sm text-[#5A6659] leading-relaxed">
-                Share your finished cross-stitch piece using <span className="font-bold text-[#1D231E] font-mono">#StitchlyCrafts</span> on Instagram and we'll feature it right here.
+                Share your finished cross-stitch piece using <span className="font-bold text-[#1D231E] font-mono">#StitcharaCrafts</span> on Instagram and we'll feature it right here.
               </p>
             </div>
 
@@ -72,7 +72,7 @@ export const CommunityGallery: React.FC<CommunityGalleryProps> = ({
                 className="px-5 py-3 rounded-full bg-[#1D231E] hover:bg-[#2B342C] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
               >
                 <Instagram className="w-4 h-4 text-[#E06C38]" />
-                <span>Tag #StitchlyCrafts on Instagram</span>
+                <span>Tag #StitcharaCrafts on Instagram</span>
                 <ExternalLink className="w-3 h-3 text-[#93A28F]" />
               </a>
             </div>

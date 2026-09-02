@@ -85,7 +85,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onGoHome, onOpenConverter })
             className="px-5 py-2.5 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-2 shrink-0"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Launch Stitchly</span>
+            <span>Launch Stitchara</span>
           </button>
         </div>
       </div>

@@ -209,7 +209,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 onClick={onOpenConverter}
                 className="w-full py-2 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
-                Launch Stitchly
+                Launch Stitchara
               </button>
             </div>
           </aside>

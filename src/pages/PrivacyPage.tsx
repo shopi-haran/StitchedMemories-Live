@@ -147,7 +147,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onGoHome, onNavigateTo
 
                 <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E8E1D2] space-y-1.5">
                   <strong className="text-[#1D231E] block text-xs uppercase tracking-wider font-bold">Order & Photo Information</strong>
-                  <p className="text-sm">When you use Stitchly - our photo-to-pattern converter or place a custom order, we collect:</p>
+                  <p className="text-sm">When you use Stitchara - our photo-to-pattern converter or place a custom order, we collect:</p>
                   <ul className="list-disc pl-5 space-y-1 text-sm">
                     <li>The photos you upload</li>
                     <li>Size, color, and product preferences you select</li>

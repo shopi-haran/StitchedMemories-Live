@@ -148,7 +148,7 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
         setAuthorAvatar(currentUserAvatar);
         setCoverImageUrl('');
         setContentText(
-          `## Getting Started\n\nCross-stitching is a timeless craft combining precision and creative expression. Follow these tips to elevate your technique.\n\n### Essential Checklist\n- Use tapestry needles (size 24 or 26)\n- Separate your embroidery floss into 2 strands\n- Keep stitch tension consistent across rows\n\nWith Stitchly Studio, you can convert high-resolution photos into optimized DMC palettes seamlessly.`
+          `## Getting Started\n\nCross-stitching is a timeless craft combining precision and creative expression. Follow these tips to elevate your technique.\n\n### Essential Checklist\n- Use tapestry needles (size 24 or 26)\n- Separate your embroidery floss into 2 strands\n- Keep stitch tension consistent across rows\n\nWith Stitchara Studio, you can convert high-resolution photos into optimized DMC palettes seamlessly.`
         );
       }
       setErrorMessage(null);
@@ -451,7 +451,7 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
     const blockCode = `<!--BLOCK:CTA ${JSON.stringify({
       title: ctaTitle.trim() || 'Start Crafting',
       content: ctaContent.trim(),
-      ctaText: ctaButtonText.trim() || 'Launch Stitchly',
+      ctaText: ctaButtonText.trim() || 'Launch Stitchara',
       ctaAction: ctaButtonAction,
     })}-->`;
     insertTextAtCursor(blockCode);
@@ -1381,7 +1381,7 @@ export const BlogEditorModal: React.FC<BlogEditorModalProps> = ({
                   type="text"
                   value={ctaButtonText}
                   onChange={(e) => setCtaButtonText(e.target.value)}
-                  placeholder="Launch Stitchly"
+                  placeholder="Launch Stitchara"
                   className="w-full px-3 py-1.5 rounded-lg border border-[#D5CDBC] text-xs"
                 />
               </div>

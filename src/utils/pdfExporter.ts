@@ -22,7 +22,7 @@ function applyFreePlanWatermarkToPDF(doc: jsPDF): void {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(26);
     doc.setTextColor(224, 108, 56);
-    doc.text('Stitchly powered by stitchedmemories.com', pw / 2, ph / 2, {
+    doc.text('Stitchara powered by stitchedmemories.com', pw / 2, ph / 2, {
       angle: 45,
       align: 'center',
       baseline: 'middle',
@@ -39,7 +39,7 @@ function getFooterText(config: PatternConfig, sectionName: string, patternName: 
     return `${patternName} • ${sectionName}`;
   }
   // Free & Pro Plan:
-  return `Stitchly powered by stitchedmemories.com • ${sectionName}`;
+  return `Stitchara powered by stitchedmemories.com • ${sectionName}`;
 }
 function isLightColor(hex: string): boolean {
   const clean = hex.replace('#', '');

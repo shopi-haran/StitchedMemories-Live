@@ -23,7 +23,7 @@ export const AboutSection: React.FC = () => {
           </h2>
 
           <p className="text-base sm:text-lg text-[#4A544A] leading-relaxed">
-            Stitchly was born out of a simple love for handcrafts and storytelling. We bridge the gap between digital photography and timeless physical needlework.
+            Stitchara was born out of a simple love for handcrafts and storytelling. We bridge the gap between digital photography and timeless physical needlework.
           </p>
         </div>
 
