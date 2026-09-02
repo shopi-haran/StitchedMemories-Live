@@ -175,10 +175,27 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
               <p>
                 Custom stitched products are handmade to order and require significant time and labor (typically <strong>2–3 months</strong> depending on size, color count, and stitch complexity).
               </p>
-              <ul className="list-disc pl-5 space-y-2 text-[#4D5A4C]">
-                <li>You may cancel or request revisions to your quote under the same terms as custom kits (up to two revisions, free cancellation before confirmation).</li>
-                <li>Once your order is <strong>confirmed and production has started</strong>, cancellation is only possible before significant stitching work has begun, and may be subject to a cancellation fee covering materials and labor already invested. Contact us as soon as possible if you need to cancel.</li>
-                <li>Once a custom stitched piece is <strong>completed and shipped</strong>, it is not eligible for return or refund except in cases of damage or defect (see Section 5), since it is a bespoke, one-of-a-kind item made specifically for you.</li>
+
+              <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E8E1D2] space-y-2">
+                <strong className="text-[#1D231E] block text-xs uppercase tracking-wider font-bold">Deposit & Balance Payment:</strong>
+                <p className="text-sm text-[#4D5A4C]">
+                  Custom stitched product orders require a <strong>50% deposit</strong> to confirm and begin your order, with the remaining <strong>50% balance due before delivery/shipping</strong> of your completed piece.
+                </p>
+              </div>
+
+              <ul className="list-disc pl-5 space-y-2.5 text-[#4D5A4C]">
+                <li>
+                  You may cancel or request revisions to your quote under the same terms as custom kits (up to two revisions, free cancellation before confirmation) — <strong>no charge applies before you've paid your deposit.</strong>
+                </li>
+                <li>
+                  <strong>Your deposit is non-refundable once paid.</strong> By paying your deposit, you confirm your order and we begin sourcing materials and reserving production time specifically for your piece. If you cancel after paying your deposit, the deposit is forfeited to cover materials and reserved labor, regardless of how much stitching work has been completed.
+                </li>
+                <li>
+                  The <strong>balance payment</strong> is due once your piece is completed and ready for delivery. We will notify you when your balance is due; your item will not be shipped until the balance is paid in full.
+                </li>
+                <li>
+                  Once a custom stitched piece is <strong>completed and shipped</strong>, it is not eligible for return, refund, or cancellation of either the deposit or balance, except in cases of damage or defect (see Section 5), since it is a bespoke, one-of-a-kind item made specifically for you.
+                </li>
               </ul>
             </section>
 
