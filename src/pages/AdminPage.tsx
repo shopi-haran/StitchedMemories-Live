@@ -49,6 +49,9 @@ import {
   fetchAllProfiles,
   fetchAllAdminBlogPosts,
   fetchAllAdminProducts,
+  fetchAllContactMessages,
+  updateContactMessageStatus,
+  deleteContactMessage,
   submitAdminQuote,
   updateAdminOrderDetails,
   declineAdminOrder,
@@ -60,19 +63,22 @@ import {
   supabase,
 } from '../lib/supabase';
 import { UserProfile } from '../context/AuthContext';
-import { BlogPost, Product } from '../types';
+import { BlogPost, ContactMessage, ContactMessageStatus, Product } from '../types';
 import { BlogPostsTab } from '../components/admin/BlogPostsTab';
 import { BlogEditorModal } from '../components/admin/BlogEditorModal';
 import { StoreProductsTab } from '../components/admin/StoreProductsTab';
+import { StoreOrdersTab } from '../components/admin/StoreOrdersTab';
 import { ProductEditorModal } from '../components/admin/ProductEditorModal';
 import { AdminJobCard } from '../components/admin/AdminJobCard';
 import { JobsTab } from '../components/admin/JobsTab';
 import { CustomersTab } from '../components/admin/CustomersTab';
+import { MessagesTab } from '../components/admin/MessagesTab';
 import { StitchTrackerModal } from '../components/dashboard/StitchTrackerModal';
 import { PhotoConverterModal } from '../components/PhotoConverterModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
-export type AdminTopLevelTab = 'jobs' | 'blogs' | 'store' | 'customers';
+export type AdminTopLevelTab = 'jobs' | 'blogs' | 'store' | 'customers' | 'messages';
+export type AdminStoreSubTab = 'products' | 'orders';
 export type AdminJobsSubTab =
   | 'all'
   | 'pending_quote'
@@ -85,7 +91,7 @@ export type AdminJobsSubTab =
 interface AdminPageProps {
   user: UserProfile | null;
   onGoHome: () => void;
-  initialTab?: 'pending_quotes' | 'in_progress' | 'all_orders' | 'customers' | 'blog_posts' | 'jobs' | 'blogs' | 'store';
+  initialTab?: 'pending_quotes' | 'in_progress' | 'all_orders' | 'customers' | 'blog_posts' | 'jobs' | 'blogs' | 'store' | 'messages';
   initialSubTab?: AdminJobsSubTab;
 }
 
@@ -99,8 +105,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     if (initialTab === 'blog_posts' || initialTab === 'blogs') return 'blogs';
     if (initialTab === 'store') return 'store';
     if (initialTab === 'customers') return 'customers';
+    if (initialTab === 'messages') return 'messages';
     return 'jobs';
   });
+
+  const [storeSubTab, setStoreSubTab] = useState<AdminStoreSubTab>('products');
 
   const [jobsSubTab, setJobsSubTab] = useState<AdminJobsSubTab>(() => {
     if (initialTab === 'pending_quotes') return 'pending_quote';
@@ -113,6 +122,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [profiles, setProfiles] = useState<SupabaseProfileRow[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -193,24 +203,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     setTimeout(() => setSuccessToast(null), 4000);
   };
 
-  // Load all admin orders, customer profiles, blog articles & store products
+  // Load all admin orders, customer profiles, blog articles, store products & contact messages
   const loadData = useCallback(async (quiet = false) => {
     if (!quiet) setIsLoading(true);
     else setIsRefreshing(true);
     setErrorMessage(null);
 
     try {
-      const [fetchedOrders, fetchedProfiles, fetchedBlogPosts, fetchedProducts] = await Promise.all([
+      const [fetchedOrders, fetchedProfiles, fetchedBlogPosts, fetchedProducts, fetchedMessages] = await Promise.all([
         fetchAllAdminOrders(),
         fetchAllProfiles(),
         fetchAllAdminBlogPosts(),
         fetchAllAdminProducts(),
+        fetchAllContactMessages(),
       ]);
 
       setOrders(fetchedOrders);
       setProfiles(fetchedProfiles);
       setBlogPosts(fetchedBlogPosts);
       setProducts(fetchedProducts);
+      setContactMessages(fetchedMessages);
     } catch (err: any) {
       console.error('[AdminPage] Error loading data:', err);
       setErrorMessage('Failed to fetch data from Supabase. Please check connection and permissions.');
@@ -223,7 +235,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   useEffect(() => {
     loadData();
 
-    // Setup real-time postgres changes subscription on orders
+    // Setup real-time postgres changes subscription on orders & contact messages
     const ordersChannel = supabase
       .channel('admin_realtime_orders')
       .on(
@@ -231,6 +243,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
           console.log('[Admin Realtime] orders change detected:', payload);
+          loadData(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contact_messages' },
+        (payload) => {
+          console.log('[Admin Realtime] contact_messages change detected:', payload);
           loadData(true);
         }
       )
@@ -307,6 +327,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       return st === 'shipped' || st === 'delivered';
     });
   }, [orders]);
+
+  // Derived Store merchandise orders (4-stage fulfillment lifecycle)
+  const storeOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const isStoreType = o.order_type === 'store';
+      const detailsType = o.request_details && (o.request_details.order_type === 'store' || o.request_details.is_store_order);
+      return isStoreType || detailsType;
+    });
+  }, [orders]);
+
+  // Derived unread contact messages count
+  const unreadMessagesCount = useMemo(() => {
+    return contactMessages.filter((m) => m.status === 'new').length;
+  }, [contactMessages]);
 
   // Handler to open stitch tracker for a custom stitched order
   const handleOpenStitchTracker = (order: SupabaseStitchOrderRow) => {
@@ -972,6 +1006,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 {profiles.length}
               </span>
             </button>
+
+            <button
+              onClick={() => {
+                setTopLevelTab('messages');
+                setCustomerOrdersFilterEmail(null);
+              }}
+              className={`flex items-center gap-2 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                topLevelTab === 'messages'
+                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
+                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-[#E06C38]" />
+              <span>Messages</span>
+              {unreadMessagesCount > 0 ? (
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#E06C38] text-white animate-pulse">
+                  {unreadMessagesCount} new
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-white/15 text-white">
+                  {contactMessages.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -1058,23 +1116,79 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             )}
 
             {/* ========================================================================= */}
-            {/* TOP-LEVEL TAB 3: STORE PRODUCTS MANAGEMENT */}
+            {/* TOP-LEVEL TAB 3: STORE PRODUCTS & ORDERS MANAGEMENT */}
             {/* ========================================================================= */}
             {topLevelTab === 'store' && (
-              <StoreProductsTab
-                products={products}
-                isLoading={isLoading}
-                onRefresh={() => loadData(true)}
-                onOpenNewProduct={() => {
-                  setSelectedProductForEdit(null);
-                  setIsProductEditorOpen(true);
-                }}
-                onEditProduct={(prod) => {
-                  setSelectedProductForEdit(prod);
-                  setIsProductEditorOpen(true);
-                }}
-                showToast={showToast}
-              />
+              <div className="space-y-6">
+                {/* Store Sub-Navigation Tabs */}
+                <div className="flex items-center gap-2 border-b border-[#E8E1D2] pb-3">
+                  <button
+                    onClick={() => setStoreSubTab('products')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                      storeSubTab === 'products'
+                        ? 'bg-[#1D231E] text-white shadow-sm'
+                        : 'bg-white text-[#5A6659] hover:bg-[#FAF6EE] border border-[#E8E1D2]'
+                    }`}
+                  >
+                    <Package className="w-3.5 h-3.5 text-[#E06C38]" />
+                    <span>Products Catalog</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                      storeSubTab === 'products' ? 'bg-white/20 text-white' : 'bg-[#FAF6EE] text-[#5A6659]'
+                    }`}>
+                      {products.length}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setStoreSubTab('orders')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                      storeSubTab === 'orders'
+                        ? 'bg-[#1D231E] text-white shadow-sm'
+                        : 'bg-white text-[#5A6659] hover:bg-[#FAF6EE] border border-[#E8E1D2]'
+                    }`}
+                  >
+                    <Truck className="w-3.5 h-3.5 text-[#E06C38]" />
+                    <span>Store Orders & Tracking</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                      storeSubTab === 'orders' ? 'bg-white/20 text-white' : 'bg-[#FAF6EE] text-[#5A6659]'
+                    }`}>
+                      {storeOrders.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Sub-Tab 1: Products */}
+                {storeSubTab === 'products' && (
+                  <StoreProductsTab
+                    products={products}
+                    isLoading={isLoading}
+                    onRefresh={() => loadData(true)}
+                    onOpenNewProduct={() => {
+                      setSelectedProductForEdit(null);
+                      setIsProductEditorOpen(true);
+                    }}
+                    onEditProduct={(prod) => {
+                      setSelectedProductForEdit(prod);
+                      setIsProductEditorOpen(true);
+                    }}
+                    showToast={showToast}
+                  />
+                )}
+
+                {/* Sub-Tab 2: Orders & 4-Stage Fulfillment Lifecycle */}
+                {storeSubTab === 'orders' && (
+                  <StoreOrdersTab
+                    orders={storeOrders}
+                    isLoading={isLoading}
+                    onRefresh={() => loadData(true)}
+                    onUpdateOrder={async (orderId, updates) => {
+                      return await updateAdminOrderDetails(orderId, updates);
+                    }}
+                    showToast={showToast}
+                    renderStatusBadge={renderStatusBadge}
+                  />
+                )}
+              </div>
             )}
 
             {/* ========================================================================= */}
@@ -1091,6 +1205,34 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 getEffectiveTier={getEffectiveTier}
                 renderTierBadge={renderTierBadge}
                 onViewCustomerOrders={handleViewCustomerOrders}
+              />
+            )}
+
+            {/* ========================================================================= */}
+            {/* TOP-LEVEL TAB 5: CONTACT MESSAGES & INQUIRIES */}
+            {/* ========================================================================= */}
+            {topLevelTab === 'messages' && (
+              <MessagesTab
+                messages={contactMessages}
+                isLoading={isLoading}
+                onRefresh={() => loadData(true)}
+                onUpdateStatus={async (id, status) => {
+                  const res = await updateContactMessageStatus(id, status);
+                  if (res.success) {
+                    setContactMessages((prev) =>
+                      prev.map((m) => (m.id === id ? { ...m, status } : m))
+                    );
+                  }
+                  return res;
+                }}
+                onDeleteMessage={async (id) => {
+                  const res = await deleteContactMessage(id);
+                  if (res.success) {
+                    setContactMessages((prev) => prev.filter((m) => m.id !== id));
+                  }
+                  return res;
+                }}
+                showToast={showToast}
               />
             )}
           </>

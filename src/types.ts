@@ -144,3 +144,17 @@ export interface StoreOrderItem {
   [key: string]: any;
 }
 
+export type ContactMessageStatus = 'new' | 'read' | 'replied';
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  inquiry_type: string;
+  subject?: string;
+  message: string;
+  status: ContactMessageStatus | string;
+  created_at?: string;
+  updated_at?: string;
+}
+

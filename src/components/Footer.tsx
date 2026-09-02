@@ -37,7 +37,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
             </div>
 
             <p className="text-sm text-[#A2B0A0] leading-relaxed max-w-sm">
-              Combining an intelligent image-to-DMC/Anchor pattern converter, inspirational crafting blog, and physical embroidery kit shop into one cohesive destination for modern stitchers.
+              Turn your favorite photos into custom DMC cross-stitch patterns with Stichly, our free AI-powered converter — plus expert stitching guides, custom kits, and handmade keepsakes, all in one place.
             </p>
 
             {/* Newsletter Subscription Box */}
@@ -78,7 +78,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
             <ul className="space-y-2 text-sm text-[#A2B0A0]">
               <li>
                 <button onClick={onOpenConverter} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Convert a Photo (DMC Tool)
+                  Stichly - The Converter
                 </button>
               </li>
               <li>
@@ -98,12 +98,20 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
               </li>
               <li>
                 <button onClick={() => onNavigateToSection('about-page')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  About Us & Our Mission
+                  About Us
                 </button>
               </li>
-              <li>
-                <button onClick={() => onNavigateToSection('contact-page')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Contact Us & Studio Info
+              <li className="pt-2 border-t border-[#2D382E] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8A9A88]">
+                <button onClick={() => onNavigateToSection('terms')} className="hover:text-[#E06C38] transition-colors cursor-pointer text-left">
+                  Terms & Conditions
+                </button>
+                <span>•</span>
+                <button onClick={() => onNavigateToSection('privacy')} className="hover:text-[#E06C38] transition-colors cursor-pointer text-left">
+                  Privacy Policy
+                </button>
+                <span>•</span>
+                <button onClick={() => onNavigateToSection('returns')} className="hover:text-[#E06C38] transition-colors cursor-pointer text-left">
+                  Return & Refund Policy
                 </button>
               </li>
             </ul>
@@ -132,7 +140,22 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
 
         {/* Bottom Credits */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-[#7A8A78] gap-4">
-          <p>© {new Date().getFullYear()} StitchedMemories • Photo to Cross-Stitch Pattern Studio. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-center sm:text-left">
+            <p>© {new Date().getFullYear()} StitchedMemories • Stitched Memories Studio.</p>
+            <div className="flex flex-wrap items-center gap-2 text-[#93A28F]">
+              <button onClick={() => onNavigateToSection('terms')} className="hover:text-white transition-colors cursor-pointer">
+                Terms
+              </button>
+              <span>•</span>
+              <button onClick={() => onNavigateToSection('privacy')} className="hover:text-white transition-colors cursor-pointer">
+                Privacy
+              </button>
+              <span>•</span>
+              <button onClick={() => onNavigateToSection('returns')} className="hover:text-white transition-colors cursor-pointer">
+                Returns & Refunds
+              </button>
+            </div>
+          </div>
           <p className="flex items-center gap-1">
             <span>Crafted with</span>
             <Heart className="w-3.5 h-3.5 text-[#E06C38] fill-current" />

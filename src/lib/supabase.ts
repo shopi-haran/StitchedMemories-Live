@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BlogPost, BlogPostSection, ContentSection, Product } from '../types';
+import { BlogPost, BlogPostSection, ContactMessage, ContentSection, Product } from '../types';
 import { createScaledThumbnail, PatternConfig } from '../utils/patternEngine';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://flwkfgtjkgcluuphibyp.supabase.co';
@@ -2633,6 +2633,143 @@ export async function updateUserTier(
 
   return true;
 }
+
+/**
+ * Inserts a new contact inquiry into the Supabase contact_messages table.
+ * Also attempts to invoke notify-contact-message Edge Function if available.
+ */
+export async function submitContactMessage(messageData: {
+  name: string;
+  email: string;
+  inquiry_type: string;
+  subject?: string;
+  message: string;
+}): Promise<{ success: boolean; data?: ContactMessage; error?: any }> {
+  try {
+    const payload = {
+      name: messageData.name.trim(),
+      email: messageData.email.trim(),
+      inquiry_type: messageData.inquiry_type || 'General Inquiry',
+      subject: messageData.subject?.trim() || '',
+      message: messageData.message.trim(),
+      status: 'new',
+      created_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('contact_messages')
+      .insert([payload])
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[submitContactMessage] Supabase error:', error);
+      return { success: false, error };
+    }
+
+    const inserted: ContactMessage = data || {
+      id: `msg_${Date.now()}`,
+      ...payload,
+    };
+
+    // Attempt triggering the notification edge function as well (in case DB webhook is not active)
+    try {
+      supabase.functions.invoke('notify-contact-message', {
+        body: { record: inserted },
+      }).catch((e) => {
+        console.info('[submitContactMessage] Note on edge function invocation:', e);
+      });
+    } catch {}
+
+    return { success: true, data: inserted };
+  } catch (err: any) {
+    console.error('[submitContactMessage] Exception:', err);
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Fetches all contact messages from Supabase contact_messages table (most recent first).
+ */
+export async function fetchAllContactMessages(): Promise<ContactMessage[]> {
+  try {
+    const { data, error } = await supabase
+      .from('contact_messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('[fetchAllContactMessages] Error fetching contact_messages:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: String(row.id),
+      name: row.name || 'Anonymous',
+      email: row.email || '',
+      inquiry_type: row.inquiry_type || row.inquiryType || 'General Inquiry',
+      subject: row.subject || '',
+      message: row.message || '',
+      status: (row.status || 'new').toLowerCase(),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  } catch (err) {
+    console.error('[fetchAllContactMessages] Exception:', err);
+    return [];
+  }
+}
+
+/**
+ * Updates the status of a contact message ('new' | 'read' | 'replied').
+ */
+export async function updateContactMessageStatus(
+  id: string,
+  status: 'new' | 'read' | 'replied'
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { error } = await supabase
+      .from('contact_messages')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('[updateContactMessageStatus] Supabase error:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateContactMessageStatus] Exception:', err);
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Deletes a contact message by id.
+ */
+export async function deleteContactMessage(id: string): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { error } = await supabase
+      .from('contact_messages')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[deleteContactMessage] Supabase error:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[deleteContactMessage] Exception:', err);
+    return { success: false, error: err };
+  }
+}
+
 
 
 

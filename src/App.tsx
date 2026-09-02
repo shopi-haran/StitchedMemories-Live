@@ -6,6 +6,7 @@ import { PricingSection } from './components/PricingSection';
 import { PhotoConverterModal } from './components/PhotoConverterModal';
 import { BlogPreview } from './components/BlogPreview';
 import { ShopKitsPreview } from './components/ShopKitsPreview';
+import { CommunityGallery } from './components/CommunityGallery';
 import { Footer } from './components/Footer';
 import { BackToTop } from './components/BackToTop';
 
@@ -15,13 +16,16 @@ import { ShopPage } from './pages/ShopPage';
 import { DashboardPage, DashboardTab } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { AdminPage } from './pages/AdminPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { ReturnsPage } from './pages/ReturnsPage';
 import { AuthModal } from './components/AuthModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
 import { useAuth } from './context/AuthContext';
 import { fetchUserProfile, updateUserPlanSelection, getEffectiveTier } from './lib/supabase';
 
-export type PageName = 'home' | 'about-contact' | 'blog' | 'shop' | 'dashboard' | 'login' | 'admin' | 'admin-quotes' | 'pricing';
+export type PageName = 'home' | 'about-contact' | 'blog' | 'shop' | 'dashboard' | 'login' | 'admin' | 'admin-quotes' | 'pricing' | 'terms' | 'privacy' | 'returns';
 
 export default function App() {
   const { user, isLoggedIn, isLoading, signOut: authSignOut, refreshProfile } = useAuth();
@@ -48,6 +52,12 @@ export default function App() {
       const path = window.location.pathname.toLowerCase();
       if (path.startsWith('/pricing') || path.startsWith('/plans')) {
         setCurrentPage('pricing');
+      } else if (path.startsWith('/terms') || path.startsWith('/terms-and-conditions') || path.startsWith('/tos')) {
+        setCurrentPage('terms');
+      } else if (path.startsWith('/privacy') || path.startsWith('/privacy-policy')) {
+        setCurrentPage('privacy');
+      } else if (path.startsWith('/returns') || path.startsWith('/return-policy') || path.startsWith('/refunds') || path.startsWith('/refund-policy')) {
+        setCurrentPage('returns');
       } else if (path.startsWith('/dashboard')) {
         if (isLoggedIn) {
           setCurrentPage('dashboard');
@@ -262,6 +272,21 @@ export default function App() {
       return;
     }
 
+    if (sectionId === 'terms' || sectionId === 'terms-page' || sectionId === 'terms-and-conditions' || sectionId === 'tos') {
+      navigateToPage('terms', '/terms');
+      return;
+    }
+
+    if (sectionId === 'privacy' || sectionId === 'privacy-page' || sectionId === 'privacy-policy') {
+      navigateToPage('privacy', '/privacy');
+      return;
+    }
+
+    if (sectionId === 'returns' || sectionId === 'returns-page' || sectionId === 'return-policy' || sectionId === 'refunds' || sectionId === 'refund-policy') {
+      navigateToPage('returns', '/returns');
+      return;
+    }
+
     // Default: Home page section navigation
     if (currentPage !== 'home') {
       setCurrentPage('home');
@@ -322,6 +347,9 @@ export default function App() {
 
             {/* Future Shop Kits Preview */}
             <ShopKitsPreview onNavigateToShopPage={() => handleNavigateToSection('shop-page')} />
+
+            {/* Community & Reviews Gallery (Invitation banner & empty visual grid) */}
+            <CommunityGallery posts={[]} />
           </>
         )}
 
@@ -377,6 +405,27 @@ export default function App() {
               setUpgradeModalTargetPlan(targetPlan || null);
               setIsUpgradeModalOpen(true);
             }}
+          />
+        )}
+
+        {currentPage === 'terms' && (
+          <TermsPage
+            onGoHome={() => handleNavigateToSection('home')}
+            onNavigateToSection={handleNavigateToSection}
+          />
+        )}
+
+        {currentPage === 'privacy' && (
+          <PrivacyPage
+            onGoHome={() => handleNavigateToSection('home')}
+            onNavigateToSection={handleNavigateToSection}
+          />
+        )}
+
+        {currentPage === 'returns' && (
+          <ReturnsPage
+            onGoHome={() => handleNavigateToSection('home')}
+            onNavigateToSection={handleNavigateToSection}
           />
         )}
 

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { AboutSection } from '../components/AboutSection';
-import { TestimonialsSection } from '../components/TestimonialsSection';
+import { CommunityGallery } from '../components/CommunityGallery';
 import { ContactSection } from '../components/ContactSection';
 import { ArrowLeft, Sparkles, MessageSquare, Info, Heart } from 'lucide-react';
 
@@ -44,7 +44,7 @@ export const AboutContactPage: React.FC<AboutContactPageProps> = ({
               <Sparkles className="w-6 h-6 text-[#E06C38]" />
             </h1>
             <p className="text-sm text-[#A2B0A0] mt-1 max-w-xl">
-              Discover the story behind StitchedMemories and connect directly with our San Francisco embroidery artisans.
+              Discover the story behind StitchedMemories and connect directly with our crafters.
             </p>
           </div>
 
@@ -79,8 +79,8 @@ export const AboutContactPage: React.FC<AboutContactPageProps> = ({
       {/* About Us Section */}
       <AboutSection />
 
-      {/* Community Testimonials Section */}
-      <TestimonialsSection />
+      {/* Community Gallery & Feature Invitation */}
+      <CommunityGallery posts={[]} />
 
       {/* Contact Us Section */}
       <ContactSection />

@@ -42,11 +42,10 @@ export const AboutSection: React.FC = () => {
 
             <div className="flex items-center gap-3 pt-4 border-t border-[#E8E1D2]">
               <div className="w-10 h-10 rounded-full bg-[#93A28F] text-white font-bold flex items-center justify-center text-sm">
-                ST
+                SM
               </div>
               <div>
-                <h4 className="text-sm font-bold text-[#1D231E]">The Stitchly Team</h4>
-                <p className="text-xs text-[#6B7869]">San Francisco Studio Artisans</p>
+                <h4 className="text-sm font-bold text-[#1D231E]">Team Stitched Memories</h4>
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, MapPin, Clock, Send, MessageSquare, CheckCircle2, Sparkles, Phone } from 'lucide-react';
+import { Mail, MapPin, Clock, Send, MessageSquare, CheckCircle2, Sparkles, Phone, AlertCircle, Loader2 } from 'lucide-react';
+import { submitContactMessage } from '../lib/supabase';
 
 export const ContactSection: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -10,12 +11,43 @@ export const ContactSection: React.FC = () => {
     message: '',
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name && formData.email && formData.message) {
-      setIsSubmitted(true);
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+      setSubmitError('Please fill in all required fields (Name, Email, and Message).');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await submitContactMessage({
+        name: formData.name,
+        email: formData.email,
+        inquiry_type: formData.inquiryType,
+        subject: formData.subject,
+        message: formData.message,
+      });
+
+      if (res.success) {
+        setIsSubmitted(true);
+      } else {
+        console.error('Contact submission error:', res.error);
+        setSubmitError(
+          res.error?.message || 
+          'We were unable to save your message right now. Please verify your connection or try again.'
+        );
+      }
+    } catch (err: any) {
+      console.error('Unexpected contact submission error:', err);
+      setSubmitError('An unexpected network error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -54,25 +86,28 @@ export const ContactSection: React.FC = () => {
                 <h3 className="text-sm font-bold text-[#1D231E] mb-1">Email Us Directly</h3>
                 <p className="text-xs text-[#5B675A] mb-2">For general inquiries, pattern assistance, or order updates.</p>
                 <a 
-                  href="mailto:support@stitchedmemories.com" 
+                  href="mailto:stitchedmemoriies@gmail.com" 
                   className="text-xs font-bold text-[#E06C38] hover:underline inline-flex items-center gap-1"
                 >
-                  support@stitchedmemories.com
+                  stitchedmemoriies@gmail.com
                 </a>
               </div>
             </div>
 
-            {/* Studio Location Card */}
+            {/* Phone Contact Card */}
             <div className="bg-white border border-[#E8E1D2] rounded-2xl p-6 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
               <div className="w-12 h-12 rounded-xl bg-[#93A28F]/20 text-[#3D5239] flex items-center justify-center shrink-0">
-                <MapPin className="w-6 h-6" />
+                <Phone className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-[#1D231E] mb-1">Artisan Studio</h3>
-                <p className="text-xs text-[#5B675A] leading-relaxed">
-                  142 Artisan Needleway, Suite 300 <br />
-                  San Francisco, CA 94107, USA
-                </p>
+                <h3 className="text-sm font-bold text-[#1D231E] mb-1">Phone & WhatsApp</h3>
+                <p className="text-xs text-[#5B675A] mb-2">Speak directly with our crafting and support team.</p>
+                <a 
+                  href="tel:+940769965252" 
+                  className="text-xs font-bold text-[#1D231E] hover:underline inline-flex items-center gap-1"
+                >
+                  +94 076 996 5252
+                </a>
               </div>
             </div>
 
@@ -84,7 +119,7 @@ export const ContactSection: React.FC = () => {
               <div>
                 <h3 className="text-sm font-bold text-[#1D231E] mb-1">Support Hours</h3>
                 <p className="text-xs text-[#5B675A] leading-relaxed mb-2">
-                  Monday – Friday: 9:00 AM – 6:00 PM PST
+                  Monday – Friday: 9:00 AM – 6:00 PM
                 </p>
                 <span className="inline-block px-2.5 py-1 rounded-full bg-[#E5EDE2] text-[#3D5239] text-[11px] font-semibold">
                   ⚡ 24-Hour Reply Guarantee
@@ -122,6 +157,23 @@ export const ContactSection: React.FC = () => {
                   <h3 className="text-lg font-bold text-[#1D231E]">Send Us a Message</h3>
                 </div>
 
+                {submitError && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-3 text-xs leading-relaxed animate-fade-in">
+                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-red-900 mb-0.5">Could not send message</p>
+                      <p>{submitError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setSubmitError(null)}
+                        className="mt-2 text-[11px] font-bold text-red-700 underline hover:text-red-900 cursor-pointer"
+                      >
+                        Dismiss & Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#3A4538] mb-1.5">
@@ -130,10 +182,11 @@ export const ContactSection: React.FC = () => {
                     <input
                       type="text"
                       required
+                      disabled={isSubmitting}
                       placeholder="e.g. Eleanor Vance"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
+                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40 disabled:opacity-60"
                     />
                   </div>
 
@@ -144,10 +197,11 @@ export const ContactSection: React.FC = () => {
                     <input
                       type="email"
                       required
+                      disabled={isSubmitting}
                       placeholder="you@example.com"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
+                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40 disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -158,9 +212,10 @@ export const ContactSection: React.FC = () => {
                       Inquiry Topic
                     </label>
                     <select
+                      disabled={isSubmitting}
                       value={formData.inquiryType}
                       onChange={(e) => setFormData({ ...formData, inquiryType: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
+                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40 disabled:opacity-60"
                     >
                       <option value="Custom Pattern Help">Custom Pattern Help</option>
                       <option value="DMC Palette Question">DMC Palette Question</option>
@@ -175,10 +230,11 @@ export const ContactSection: React.FC = () => {
                     </label>
                     <input
                       type="text"
+                      disabled={isSubmitting}
                       placeholder="e.g. Help with pet photo resolution"
                       value={formData.subject}
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
+                      className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40 disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -190,19 +246,30 @@ export const ContactSection: React.FC = () => {
                   <textarea
                     rows={4}
                     required
+                    disabled={isSubmitting}
                     placeholder="Tell us how we can help with your cross-stitch project..."
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40 resize-none"
+                    className="w-full px-4 py-2.5 bg-[#FAF6EE] border border-[#D5CDBC] rounded-xl text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40 resize-none disabled:opacity-60"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 bg-[#E06C38] hover:bg-[#d05c28] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 bg-[#E06C38] hover:bg-[#d05c28] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>Send Message to Stitching Team</span>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending Message...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Send Message to The Team</span>
+                    </>
+                  )}
                 </button>
               </form>
             )}
