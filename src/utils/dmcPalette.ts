@@ -579,7 +579,51 @@ const RAW_DMC_DATA = [
   { code: 'DMC 3862', anchorCode: 'Anchor 378', name: 'Mocha Beige Dark', hex: '#72553E' },
   { code: 'DMC 3863', anchorCode: 'Anchor 377', name: 'Mocha Beige Medium', hex: '#947863' },
   { code: 'DMC 3864', anchorCode: 'Anchor 376', name: 'Mocha Beige Light', hex: '#C0AA97' },
-  { code: 'DMC 3866', anchorCode: 'Anchor 386', name: 'Mocha Brown Ultra Light', hex: '#F2ECE1' }
+  { code: 'DMC 3866', anchorCode: 'Anchor 386', name: 'Mocha Brown Ultra Light', hex: '#F2ECE1' },
+
+  // DMC 3880 - 3895 (Official 16-Color Extension)
+  { code: 'DMC 3880', anchorCode: 'Anchor 101', name: 'Medium Dark Violet', hex: '#683863' },
+  { code: 'DMC 3881', anchorCode: 'Anchor 259', name: 'Pale Celadon Green', hex: '#D6DEC2' },
+  { code: 'DMC 3882', anchorCode: 'Anchor 261', name: 'Light Medium Celadon Green', hex: '#A5B596' },
+  { code: 'DMC 3883', anchorCode: 'Anchor 337', name: 'Medium Light Copper', hex: '#D37A53' },
+  { code: 'DMC 3884', anchorCode: 'Anchor 399', name: 'Medium Light Pewter', hex: '#86888A' },
+  { code: 'DMC 3885', anchorCode: 'Anchor 147', name: 'Medium Dark Cobalt Blue', hex: '#2B5078' },
+  { code: 'DMC 3886', anchorCode: 'Anchor 89', name: 'Very Dark Plum', hex: '#5E2042' },
+  { code: 'DMC 3887', anchorCode: 'Anchor 109', name: 'Very Dark Ultra Lavender', hex: '#8C588A' },
+  { code: 'DMC 3888', anchorCode: 'Anchor 871', name: 'Medium Dark Antique Violet', hex: '#7D6475' },
+  { code: 'DMC 3889', anchorCode: 'Anchor 295', name: 'Medium Light Chartreuse', hex: '#E1E463' },
+  { code: 'DMC 3890', anchorCode: 'Anchor 167', name: 'Very Light Bright Turquoise', hex: '#A5E3E7' },
+  { code: 'DMC 3891', anchorCode: 'Anchor 188', name: 'Very Dark Bright Turquoise', hex: '#188796' },
+  { code: 'DMC 3892', anchorCode: 'Anchor 324', name: 'Medium Light Orange Spice', hex: '#F27935' },
+  { code: 'DMC 3893', anchorCode: 'Anchor 376', name: 'Very Light Mocha Beige', hex: '#DBCAB7' },
+  { code: 'DMC 3894', anchorCode: 'Anchor 254', name: 'Very Light Parrot Green', hex: '#A9D751' },
+  { code: 'DMC 3895', anchorCode: 'Anchor 149', name: 'Very Dark Delft Blue', hex: '#354866' },
+
+  // Additional Verified DMC Floss Colors
+  { code: 'DMC 3808', anchorCode: 'Anchor 1068', name: 'Turquoise Ultra Very Dark', hex: '#003C4B' },
+  { code: 'DMC 3809', anchorCode: 'Anchor 1066', name: 'Turquoise Very Dark', hex: '#0B5968' },
+  { code: 'DMC 3812', anchorCode: 'Anchor 187', name: 'Sea Green Very Dark', hex: '#1C6966' },
+  { code: 'DMC 3837', anchorCode: 'Anchor 97', name: 'Lavender Ultra Dark', hex: '#733777' },
+  { code: 'DMC 778', anchorCode: 'Anchor 968', name: 'Antique Mauve Very Light', hex: '#DFB8BE' },
+  { code: 'DMC 915', anchorCode: 'Anchor 1029', name: 'Plum Dark', hex: '#82003D' },
+  { code: 'DMC 928', anchorCode: 'Anchor 390', name: 'Gray Green Very Light', hex: '#DDE3DC' },
+  { code: 'DMC 936', anchorCode: 'Anchor 268', name: 'Avocado Green Very Dark', hex: '#4C5B28' },
+  { code: 'DMC 956', anchorCode: 'Anchor 52', name: 'Geranium', hex: '#FF5C7A' },
+  { code: 'DMC 957', anchorCode: 'Anchor 50', name: 'Geranium Pale', hex: '#FD9BB0' },
+  { code: 'DMC 961', anchorCode: 'Anchor 76', name: 'Dusty Rose Dark', hex: '#CF6B78' },
+  { code: 'DMC 962', anchorCode: 'Anchor 75', name: 'Dusty Rose Medium', hex: '#E08390' },
+  { code: 'DMC 963', anchorCode: 'Anchor 74', name: 'Dusty Rose Ultra Very Light', hex: '#F7CCD2' },
+  { code: 'DMC 967', anchorCode: 'Anchor 6', name: 'Apricot Very Light', hex: '#FED9CC' },
+  { code: 'DMC 971', anchorCode: 'Anchor 316', name: 'Pumpkin', hex: '#F46F04' },
+  { code: 'DMC 977', anchorCode: 'Anchor 1002', name: 'Golden Brown Light', hex: '#DC994E' },
+  { code: 'DMC 3716', anchorCode: 'Anchor 25', name: 'Dusty Rose Very Light', hex: '#F7A8B8' },
+  { code: 'DMC 3740', anchorCode: 'Anchor 871', name: 'Antique Violet Dark', hex: '#7E6774' },
+  { code: 'DMC 3760', anchorCode: 'Anchor 928', name: 'Wedgewood Medium', hex: '#3B6B8C' },
+  { code: 'DMC 3761', anchorCode: 'Anchor 928', name: 'Sky Blue Light', hex: '#ACD0DE' },
+  { code: 'DMC 3765', anchorCode: 'Anchor 169', name: 'Peacock Blue Very Dark', hex: '#0C6171' },
+  { code: 'DMC 3766', anchorCode: 'Anchor 168', name: 'Peacock Blue Light', hex: '#50AAB7' },
+  { code: 'DMC 781', anchorCode: 'Anchor 1045', name: 'Topaz Very Dark', hex: '#995A22' },
+  { code: 'DMC 3773', anchorCode: 'Anchor 1013', name: 'Desert Sand Medium', hex: '#D29C7A' }
 ];
 
 // Precompute Lab values & symbols for the DMC palette

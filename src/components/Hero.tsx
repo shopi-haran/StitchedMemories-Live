@@ -167,23 +167,23 @@ export const Hero: React.FC<HeroProps> = ({ onOpenConverter, onNavigateToSection
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-center max-w-5xl mx-auto">
             
-            {/* Panel 1: Patterns Created */}
-            <div className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
+            {/* Panel 1: Free Conversions (Capability claim) */}
+            <div id="stat-free-conversions" className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
               <span className="text-4xl sm:text-5xl lg:text-[52px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
-                14K+
+                100%
               </span>
               
               <h3 className="text-xs sm:text-sm font-bold tracking-widest uppercase text-[#1D231E] mb-3">
-                PATTERNS CREATED
+                FREE CONVERSIONS
               </h3>
 
               <p className="text-xs text-[#3D4B3C] font-medium leading-relaxed max-w-[220px]">
-                Custom memories turned into detailed cross-stitch charts.
+                Unlimited photo-to-pattern conversions, no account required.
               </p>
             </div>
 
-            {/* Panel 2: Colours Listed (Central Panel - Equal in size, elevated slightly above with hover lift animation) */}
-            <div className="bg-[#93A28F]/30 backdrop-blur-lg border border-[#93A28F]/50 shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/35 md:-translate-y-6 hover:md:-translate-y-8 hover:-translate-y-1 hover:shadow-2xl">
+            {/* Panel 2: Colours Listed (Central Panel - True capability claim: 456 verified DMC & Anchor colors) */}
+            <div id="stat-colours-listed" className="bg-[#93A28F]/30 backdrop-blur-lg border border-[#93A28F]/50 shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/35 md:-translate-y-6 hover:md:-translate-y-8 hover:-translate-y-1 hover:shadow-2xl">
               <span className="text-4xl sm:text-5xl lg:text-[52px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
                 450+
               </span>
@@ -197,18 +197,18 @@ export const Hero: React.FC<HeroProps> = ({ onOpenConverter, onNavigateToSection
               </p>
             </div>
 
-            {/* Panel 3: Stitches Counted */}
-            <div className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
+            {/* Panel 3: Precision Stitch Mapping (Capability claim: 1:1 pixel-to-stitch accuracy) */}
+            <div id="stat-stitch-mapping" className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
               <span className="text-4xl sm:text-5xl lg:text-[52px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
-                18M+
+                1:1
               </span>
               
               <h3 className="text-xs sm:text-sm font-bold tracking-widest uppercase text-[#1D231E] mb-3">
-                STITCHES COUNTED
+                STITCH MAPPING
               </h3>
 
               <p className="text-xs text-[#3D4B3C] font-medium leading-relaxed max-w-[220px]">
-                Mapped and completed across custom heirloom keepsakes.
+                Every stitch mapped to an exact DMC or Anchor thread color.
               </p>
             </div>
 
