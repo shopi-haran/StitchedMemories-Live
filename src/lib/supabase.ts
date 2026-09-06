@@ -2768,6 +2768,58 @@ export async function deleteContactMessage(id: string): Promise<{ success: boole
   }
 }
 
+/**
+ * Fetches the USD to LKR exchange rate from app_settings table.
+ */
+export async function fetchExchangeRate(): Promise<number | null> {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'usd_to_lkr_rate')
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[fetchExchangeRate] Error fetching exchange rate:', error);
+      return null;
+    }
+
+    if (data && data.value) {
+      const parsed = parseFloat(data.value);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn('[fetchExchangeRate] Exception fetching exchange rate:', err);
+    return null;
+  }
+}
+
+/**
+ * Updates the USD to LKR exchange rate in app_settings table.
+ */
+export async function updateExchangeRateInDb(rate: number): Promise<{ success: boolean; error?: any }> {
+  try {
+    const rateStr = String(rate);
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: rateStr, updated_at: new Date().toISOString() })
+      .eq('key', 'usd_to_lkr_rate');
+
+    if (error) {
+      console.error('[updateExchangeRateInDb] Error updating rate:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('[updateExchangeRateInDb] Exception updating rate:', err);
+    return { success: false, error: err };
+  }
+}
+
 
 
 

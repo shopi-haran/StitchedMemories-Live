@@ -47,6 +47,7 @@ import {
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { formatDualPrice } from '../../utils/currency';
 
 interface UserProfile {
   id?: string;
@@ -1005,7 +1006,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       <div className="flex items-baseline gap-2">
                         <span className="text-xs font-semibold text-[#5A6659]">Total Amount:</span>
                         <span className="text-lg sm:text-xl font-black font-serif text-[#1D231E]">
-                          ${totalAmount.toFixed(2)}
+                          {formatDualPrice(totalAmount)}
                         </span>
                       </div>
                     ) : isRevisionRequested ? (
@@ -1286,10 +1287,10 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                 )}
                                 <div>
                                   <h5 className="text-xs font-bold text-[#1D231E]">{it.title || it.name || 'Store Item'}</h5>
-                                  <p className="text-[11px] text-[#5A6659]">Qty: {itQty} × ${itPrice.toFixed(2)}</p>
+                                  <p className="text-[11px] text-[#5A6659]">Qty: {itQty} × {formatDualPrice(itPrice)}</p>
                                 </div>
                               </div>
-                              <span className="font-mono text-xs font-bold text-[#1D231E]">${(itQty * itPrice).toFixed(2)}</span>
+                              <span className="font-mono text-xs font-bold text-[#1D231E]">{formatDualPrice(itQty * itPrice)}</span>
                             </div>
                           );
                         })}
@@ -1307,14 +1308,14 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                             <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery:
                           </span>
                           <span className="font-semibold font-mono text-[#1D231E]">
-                            ${deliveryCharge.toFixed(2)}
+                            {formatDualPrice(deliveryCharge)}
                           </span>
                         </div>
                       )}
                       <div className="flex justify-between pt-2 border-t border-[#D5CDBC] text-sm font-bold text-[#1D231E]">
                         <span>Total Paid:</span>
                         <span className="text-base font-black font-serif text-[#E06C38]">
-                          ${totalAmount.toFixed(2)}
+                          {formatDualPrice(totalAmount)}
                         </span>
                       </div>
                     </div>
@@ -1368,10 +1369,10 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                   {item.quantity} {item.unit ? `(${item.unit})` : ''}
                                 </td>
                                 <td className="py-3 px-3 text-right text-[#5A6659] font-mono">
-                                  ${Number(item.unit_price).toFixed(2)}
+                                  {formatDualPrice(Number(item.unit_price) || 0)}
                                 </td>
                                 <td className="py-3 px-4 text-right font-bold text-[#1D231E] font-mono">
-                                  ${Number(item.total).toFixed(2)}
+                                  {formatDualPrice(Number(item.total) || 0)}
                                 </td>
                               </tr>
                             ))}
@@ -1382,7 +1383,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       /* Fallback for legacy flat quotes */
                       <div className="p-4 bg-white border-b border-[#E8E1D2] text-xs flex justify-between items-center">
                         <span className="font-semibold text-[#1D231E]">Custom Materials & Crafting</span>
-                        <span className="font-bold text-[#1D231E] font-mono">${itemsSubtotal.toFixed(2)}</span>
+                        <span className="font-bold text-[#1D231E] font-mono">{formatDualPrice(itemsSubtotal)}</span>
                       </div>
                     )}
 
@@ -1393,7 +1394,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                           <div className="flex justify-between text-[#5A6659]">
                             <span>Items Subtotal:</span>
                             <span className="font-semibold font-mono text-[#1D231E]">
-                              ${itemsSubtotal.toFixed(2)}
+                              {formatDualPrice(itemsSubtotal)}
                             </span>
                           </div>
                           <div className="flex justify-between text-[#5A6659]">
@@ -1401,13 +1402,13 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                               <Scissors className="w-3.5 h-3.5 text-[#2D5A43]" /> Crafting Charge:
                             </span>
                             <span className="font-semibold font-mono text-[#1D231E]">
-                              ${craftingCharge.toFixed(2)}
+                              {formatDualPrice(craftingCharge)}
                             </span>
                           </div>
                           <div className="flex justify-between text-[#1D231E] font-medium pt-1 border-t border-[#E8E1D2]/60">
                             <span>Items + Crafting Subtotal:</span>
                             <span className="font-semibold font-mono text-[#1D231E]">
-                              ${(itemsSubtotal + craftingCharge).toFixed(2)}
+                              {formatDualPrice(itemsSubtotal + craftingCharge)}
                             </span>
                           </div>
                         </>
@@ -1415,7 +1416,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         <div className="flex justify-between text-[#5A6659]">
                           <span>Items Subtotal:</span>
                           <span className="font-semibold font-mono text-[#1D231E]">
-                            ${itemsSubtotal.toFixed(2)}
+                            {formatDualPrice(itemsSubtotal)}
                           </span>
                         </div>
                       )}
@@ -1426,7 +1427,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                             <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Studio member discount ({discountPercent || 15}%):
                           </span>
                           <span className="font-bold font-mono text-emerald-700">
-                            -${discountAmount.toFixed(2)}
+                            -{formatDualPrice(discountAmount)}
                           </span>
                         </div>
                       )}
@@ -1436,14 +1437,14 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                           <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery:
                         </span>
                         <span className="font-semibold font-mono text-[#1D231E]">
-                          ${deliveryCharge.toFixed(2)}
+                          {formatDualPrice(deliveryCharge)}
                         </span>
                       </div>
 
                       <div className="flex justify-between pt-2.5 border-t border-[#D5CDBC] text-sm font-bold text-[#1D231E]">
                         <span>Total:</span>
                         <span className="text-base font-black font-serif text-[#E06C38]">
-                          ${totalAmount.toFixed(2)}
+                          {formatDualPrice(totalAmount)}
                         </span>
                       </div>
                     </div>
@@ -1493,7 +1494,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                   {prevQuote.superseded_at && ` • ${formatDate(prevQuote.superseded_at)}`}
                                 </span>
                                 <span className="font-bold text-[#1D231E] font-mono">
-                                  ${(Number(prevQuote.total_amount) || Number(prevQuote.quoted_price) || 0).toFixed(2)}
+                                  {formatDualPrice(Number(prevQuote.total_amount) || Number(prevQuote.quoted_price) || 0)}
                                 </span>
                               </div>
                               {prevQuote.reason && (
@@ -1504,7 +1505,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                               {prevQuote.line_items && prevQuote.line_items.length > 0 && (
                                 <p className="text-[11px] text-[#6B7869]">
                                   {prevQuote.line_items.length} itemized line {prevQuote.line_items.length === 1 ? 'item' : 'items'}
-                                  {prevQuote.delivery_charge !== undefined && ` + $${Number(prevQuote.delivery_charge).toFixed(2)} delivery`}
+                                  {prevQuote.delivery_charge !== undefined && ` + ${formatDualPrice(Number(prevQuote.delivery_charge) || 0)} delivery`}
                                 </p>
                               )}
                             </div>

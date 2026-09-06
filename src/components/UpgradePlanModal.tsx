@@ -16,6 +16,7 @@ import {
   HeartHandshake
 } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
+import { formatDualPrice } from '../utils/currency';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -195,8 +196,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-extrabold text-[#FAF6EE]">$0</span>
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]">
+                        {formatDualPrice(0)}
+                      </span>
                       <span className="text-xs text-[#A5B3A2] font-medium">/ forever</span>
                     </div>
                   </div>
@@ -256,9 +259,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-extrabold text-[#FAF6EE]">
-                        {billingCycle === 'monthly' ? '$9' : '$7'}
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]">
+                        {formatDualPrice(billingCycle === 'monthly' ? 9 : 7)}
                       </span>
                       <span className="text-xs text-[#A5B3A2] font-medium">
                         / mo {billingCycle === 'annual' && '(billed annually)'}
@@ -335,9 +338,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-extrabold text-[#FAF6EE]">
-                        {billingCycle === 'monthly' ? '$19' : '$15'}
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]">
+                        {formatDualPrice(billingCycle === 'monthly' ? 19 : 15)}
                       </span>
                       <span className="text-xs text-[#A5B3A2] font-medium">
                         / mo {billingCycle === 'annual' && '(billed annually)'}

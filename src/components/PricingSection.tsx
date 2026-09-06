@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Check, Sparkles, Zap, Shield, Image, Percent, RefreshCw, Calculator, ArrowRight, Sliders } from 'lucide-react';
+import { formatDualPrice } from '../utils/currency';
 
 interface PricingSectionProps {
   onOpenConverter?: () => void;
@@ -87,8 +88,10 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl lg:text-5xl font-extrabold text-[#FAF6EE]">$0</span>
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]">
+                    {formatDualPrice(0)}
+                  </span>
                   <span className="text-xs text-[#A5B3A2] font-medium">/ forever free</span>
                 </div>
               </div>
@@ -153,11 +156,11 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl lg:text-5xl font-extrabold text-[#FAF6EE]">
-                    {billingCycle === 'monthly' ? '$9' : '$7'}
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]">
+                    {formatDualPrice(billingCycle === 'monthly' ? 9 : 7)}
                   </span>
-                  <span className="text-xs text-[#A5B3A2] font-medium">/ month {billingCycle === 'annual' && '(billed annually)'}</span>
+                  <span className="text-xs text-[#A5B3A2] font-medium">/ mo {billingCycle === 'annual' && '(billed annually)'}</span>
                 </div>
               </div>
 
@@ -222,11 +225,11 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl lg:text-5xl font-extrabold text-[#FAF6EE]">
-                    {billingCycle === 'monthly' ? '$19' : '$15'}
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]">
+                    {formatDualPrice(billingCycle === 'monthly' ? 19 : 15)}
                   </span>
-                  <span className="text-xs text-[#A5B3A2] font-medium">/ month {billingCycle === 'annual' && '(billed annually)'}</span>
+                  <span className="text-xs text-[#A5B3A2] font-medium">/ mo {billingCycle === 'annual' && '(billed annually)'}</span>
                 </div>
               </div>
 

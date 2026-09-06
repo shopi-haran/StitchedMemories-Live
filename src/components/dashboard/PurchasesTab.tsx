@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { fetchUserStoreOrders, SupabaseOrderRow } from '../../lib/supabase';
 import { StoreOrderItem } from '../../types';
+import { formatDualPrice } from '../../utils/currency';
 
 export const STORE_ORDER_STAGES = [
   { id: 'received', label: 'Received', icon: Package, description: 'Order & payment confirmed' },
@@ -340,7 +341,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
                                 </div>
 
                                 <span className="font-mono text-xs font-bold text-[#1D231E] shrink-0">
-                                  ${lineTotal.toFixed(2)}
+                                  {formatDualPrice(lineTotal)}
                                 </span>
                               </div>
                             );
@@ -359,7 +360,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
                               </div>
                             </div>
                             <span className="font-mono text-xs font-bold text-[#1D231E]">
-                              ${totalAmount.toFixed(2)}
+                              {formatDualPrice(totalAmount)}
                             </span>
                           </div>
                         )}
@@ -368,7 +369,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
                         <div className="p-3 bg-[#FAF6EE] flex items-center justify-between text-xs font-bold text-[#1D231E]">
                           <span className="text-[#5A6659]">Total Amount:</span>
                           <span className="font-mono text-sm text-[#1D231E] font-black">
-                            ${totalAmount.toFixed(2)}
+                            {formatDualPrice(totalAmount)}
                           </span>
                         </div>
                       </div>

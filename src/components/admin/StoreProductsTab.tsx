@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
 import { deleteProduct } from '../../lib/supabase';
+import { formatDualPrice } from '../../utils/currency';
 import {
   Search,
   Plus,
@@ -437,7 +438,7 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
                       {/* Price */}
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <span className="font-bold text-sm text-[#1D231E] font-mono">
-                          ${Number(p.price || 0).toFixed(2)}
+                          {formatDualPrice(Number(p.price || 0))}
                         </span>
                       </td>
 
@@ -540,7 +541,7 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
                       {p.category || 'General'}
                     </span>
                     <span className="text-base font-extrabold text-[#1D231E] font-mono">
-                      ${Number(p.price || 0).toFixed(2)}
+                      {formatDualPrice(Number(p.price || 0))}
                     </span>
                   </div>
 
@@ -622,7 +623,7 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-xs text-[#1D231E] truncate">{deleteConfirmProduct.name}</p>
                 <p className="text-[11px] text-[#7A8877] mt-0.5">
-                  Category: {deleteConfirmProduct.category} • ${Number(deleteConfirmProduct.price).toFixed(2)}
+                  Category: {deleteConfirmProduct.category} • {formatDualPrice(Number(deleteConfirmProduct.price))}
                 </p>
               </div>
             </div>

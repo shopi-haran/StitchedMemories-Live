@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, ShieldCheck, CreditCard, Lock, Sparkles, Check, ArrowRight, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { supabase, updateUserTier, updateUserPlanSelection } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
+import { formatDualPrice } from '../utils/currency';
 
 interface PaymentGatewayModalProps {
   isOpen: boolean;
@@ -144,17 +145,19 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               </div>
 
               <div className="text-left sm:text-right shrink-0">
-                <div className="text-2xl font-extrabold text-[#1D231E]">${currentMonthlyRate}<span className="text-xs text-[#5A6659] font-normal">/mo</span></div>
+                <div className="text-xl sm:text-2xl font-extrabold text-[#1D231E]">
+                  {formatDualPrice(currentMonthlyRate)}<span className="text-xs text-[#5A6659] font-normal">/mo</span>
+                </div>
                 <div className="text-[11px] text-[#8A9588] font-medium">
-                  {billingCycle === 'annual' ? `$${totalBilled} billed annually` : 'Billed monthly'}
+                  {billingCycle === 'annual' ? `${formatDualPrice(totalBilled)} billed annually` : 'Billed monthly'}
                 </div>
               </div>
             </div>
 
             {/* Billing Cycle Toggle */}
-            <div className="mt-4 flex items-center justify-between text-xs">
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
               <span className="font-bold text-[#3A4538]">Billing Frequency:</span>
-              <div className="inline-flex bg-[#FAF6EE] p-1 rounded-full border border-[#E8E1D2]">
+              <div className="inline-flex bg-[#FAF6EE] p-1 rounded-full border border-[#E8E1D2] flex-wrap gap-1">
                 <button
                   type="button"
                   onClick={() => setBillingCycle('monthly')}
@@ -162,7 +165,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     billingCycle === 'monthly' ? 'bg-[#1D231E] text-white' : 'text-[#6B7869]'
                   }`}
                 >
-                  Monthly (${monthlyPrice}/mo)
+                  Monthly ({formatDualPrice(monthlyPrice)}/mo)
                 </button>
                 <button
                   type="button"
@@ -171,7 +174,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     billingCycle === 'annual' ? 'bg-[#E06C38] text-white' : 'text-[#6B7869]'
                   }`}
                 >
-                  Annual (${annualPrice}/mo - Save 20%)
+                  Annual ({formatDualPrice(annualPrice)}/mo - Save 20%)
                 </button>
               </div>
             </div>
@@ -267,7 +270,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <div className="pt-3 border-t border-[#E8E1D2] space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold text-[#1D231E]">
                   <span>Total Amount Due Today:</span>
-                  <span className="text-base text-[#E06C38]">${totalBilled}.00</span>
+                  <span className="text-base text-[#E06C38]">{formatDualPrice(totalBilled)}</span>
                 </div>
 
                 <button

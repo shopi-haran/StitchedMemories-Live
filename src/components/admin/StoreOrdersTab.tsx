@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
 import { StoreOrderItem } from '../../types';
+import { formatDualPrice } from '../../utils/currency';
 
 export const STORE_ORDER_STAGES = [
   { id: 'received', label: 'Received', icon: Package, description: 'Order & payment received' },
@@ -346,8 +347,8 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
               Store Sales
             </span>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black font-mono text-emerald-800">
-                ${stats.totalRevenue.toFixed(2)}
+              <span className="text-xl sm:text-2xl font-black font-mono text-emerald-800">
+                {formatDualPrice(stats.totalRevenue)}
               </span>
             </div>
           </div>
@@ -651,7 +652,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                                   <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-[#5A6659]">
                                     <span>Qty: <strong className="text-[#1D231E]">{qty}</strong></span>
                                     <span>•</span>
-                                    <span>${price.toFixed(2)} each</span>
+                                    <span>{formatDualPrice(price)} each</span>
                                     {item.category && (
                                       <>
                                         <span>•</span>
@@ -665,7 +666,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                               </div>
 
                               <span className="font-mono text-xs font-bold text-[#1D231E] shrink-0">
-                                ${lineTotal.toFixed(2)}
+                                {formatDualPrice(lineTotal)}
                               </span>
                             </div>
                           );
@@ -684,7 +685,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                             </div>
                           </div>
                           <span className="font-mono text-xs font-bold text-[#1D231E]">
-                            ${totalAmount.toFixed(2)}
+                            {formatDualPrice(totalAmount)}
                           </span>
                         </div>
                       )}
@@ -693,7 +694,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                       <div className="p-3 bg-[#FAF6EE] flex items-center justify-between text-xs font-bold text-[#1D231E]">
                         <span className="text-[#5A6659]">Total Paid:</span>
                         <span className="font-mono text-sm text-[#1D231E] font-black">
-                          ${totalAmount.toFixed(2)}
+                          {formatDualPrice(totalAmount)}
                         </span>
                       </div>
                     </div>

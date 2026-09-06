@@ -42,7 +42,9 @@ import {
   History,
   AlertTriangle,
   XCircle,
-  Download
+  Download,
+  Settings,
+  Coins
 } from 'lucide-react';
 import {
   fetchAllAdminOrders,
@@ -61,7 +63,10 @@ import {
   getEffectiveTier,
   getEffectiveTierLabel,
   supabase,
+  fetchExchangeRate,
+  updateExchangeRateInDb,
 } from '../lib/supabase';
+import { formatDualPrice, formatUsd, formatLkr } from '../utils/currency';
 import { UserProfile } from '../context/AuthContext';
 import { BlogPost, ContactMessage, ContactMessageStatus, Product } from '../types';
 import { BlogPostsTab } from '../components/admin/BlogPostsTab';
@@ -73,11 +78,12 @@ import { AdminJobCard } from '../components/admin/AdminJobCard';
 import { JobsTab } from '../components/admin/JobsTab';
 import { CustomersTab } from '../components/admin/CustomersTab';
 import { MessagesTab } from '../components/admin/MessagesTab';
+import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { StitchTrackerModal } from '../components/dashboard/StitchTrackerModal';
 import { PhotoConverterModal } from '../components/PhotoConverterModal';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
-export type AdminTopLevelTab = 'jobs' | 'blogs' | 'store' | 'customers' | 'messages';
+export type AdminTopLevelTab = 'jobs' | 'blogs' | 'store' | 'customers' | 'messages' | 'settings';
 export type AdminStoreSubTab = 'products' | 'orders';
 export type AdminJobsSubTab =
   | 'all'
@@ -91,7 +97,7 @@ export type AdminJobsSubTab =
 interface AdminPageProps {
   user: UserProfile | null;
   onGoHome: () => void;
-  initialTab?: 'pending_quotes' | 'in_progress' | 'all_orders' | 'customers' | 'blog_posts' | 'jobs' | 'blogs' | 'store' | 'messages';
+  initialTab?: 'pending_quotes' | 'in_progress' | 'all_orders' | 'customers' | 'blog_posts' | 'jobs' | 'blogs' | 'store' | 'messages' | 'settings';
   initialSubTab?: AdminJobsSubTab;
 }
 
@@ -106,6 +112,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     if (initialTab === 'store') return 'store';
     if (initialTab === 'customers') return 'customers';
     if (initialTab === 'messages') return 'messages';
+    if (initialTab === 'settings') return 'settings';
     return 'jobs';
   });
 
@@ -195,12 +202,52 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   // Customer filter triggered from customer table click
   const [customerOrdersFilterEmail, setCustomerOrdersFilterEmail] = useState<string | null>(null);
 
+  // Settings Tab State (Currency / Exchange Rate)
+  const [exchangeRateInput, setExchangeRateInput] = useState<string>('300');
+  const [isSavingExchangeRate, setIsSavingExchangeRate] = useState<boolean>(false);
+  const [rateLastUpdatedAt, setRateLastUpdatedAt] = useState<string | null>(null);
+  const [rateFetchError, setRateFetchError] = useState<string | null>(null);
+
   // Lock body scroll when any admin modal is open
   useBodyScrollLock(Boolean(selectedQuoteOrder || selectedOrderForEdit || previewImageModal || declineModalOrder));
 
   const showToast = (msg: string) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(null), 4000);
+  };
+
+  const loadExchangeRate = useCallback(async () => {
+    try {
+      const rate = await fetchExchangeRate();
+      setExchangeRateInput(rate.toString());
+      setRateFetchError(null);
+    } catch (err: any) {
+      console.error('[AdminPage] Error loading exchange rate:', err);
+      setRateFetchError(err.message || 'Failed to load exchange rate');
+    }
+  }, []);
+
+  const handleSaveExchangeRate = async (rateToSave?: number) => {
+    const targetRate = rateToSave !== undefined ? rateToSave : parseFloat(exchangeRateInput);
+    if (isNaN(targetRate) || targetRate <= 0) {
+      alert('Please enter a valid positive exchange rate (e.g. 300.00).');
+      return;
+    }
+    setIsSavingExchangeRate(true);
+    try {
+      const res = await updateExchangeRateInDb(targetRate);
+      if (res.success) {
+        setExchangeRateInput(targetRate.toString());
+        setRateLastUpdatedAt(new Date().toLocaleTimeString());
+        showToast(`USD to LKR rate updated to ${targetRate.toLocaleString()}! Live price displays updated.`);
+      } else {
+        alert(`Failed to update exchange rate: ${res.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error updating exchange rate: ${err.message}`);
+    } finally {
+      setIsSavingExchangeRate(false);
+    }
   };
 
   // Load all admin orders, customer profiles, blog articles, store products & contact messages
@@ -216,6 +263,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         fetchAllAdminBlogPosts(),
         fetchAllAdminProducts(),
         fetchAllContactMessages(),
+        loadExchangeRate(),
       ]);
 
       setOrders(fetchedOrders);
@@ -230,7 +278,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [loadExchangeRate]);
 
   useEffect(() => {
     loadData();
@@ -662,7 +710,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       });
 
       if (result.success) {
-        showToast(`Itemized quote for Order #${selectedQuoteOrder.id} saved & published! (${processedLineItems.length} items, $${calculatedGrandTotal.toFixed(2)}${quoteDiscountAmount > 0 ? ` incl. 15% Studio discount -$${quoteDiscountAmount.toFixed(2)}` : ''})`);
+        showToast(`Itemized quote for Order #${selectedQuoteOrder.id} saved & published! (${processedLineItems.length} items, ${formatDualPrice(calculatedGrandTotal)}${quoteDiscountAmount > 0 ? ` incl. 15% Studio discount -${formatDualPrice(quoteDiscountAmount)}` : ''})`);
         setSelectedQuoteOrder(null);
         await loadData(true);
       } else {
@@ -1030,6 +1078,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 </span>
               )}
             </button>
+
+            <button
+              onClick={() => {
+                setTopLevelTab('settings');
+                setCustomerOrdersFilterEmail(null);
+              }}
+              className={`flex items-center gap-2 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                topLevelTab === 'settings'
+                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
+                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-[#E06C38]" />
+              <span>Settings</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1235,6 +1298,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 showToast={showToast}
               />
             )}
+
+            {/* ========================================================================= */}
+            {/* TOP-LEVEL TAB 6: SETTINGS & EXCHANGE RATE */}
+            {/* ========================================================================= */}
+            {topLevelTab === 'settings' && (
+              <AdminSettingsTab
+                currentRateInput={exchangeRateInput}
+                onRateInputChange={setExchangeRateInput}
+                onSaveRate={handleSaveExchangeRate}
+                isSavingRate={isSavingExchangeRate}
+                lastUpdatedAt={rateLastUpdatedAt}
+                rateError={rateFetchError}
+                onRefresh={loadExchangeRate}
+              />
+            )}
           </>
         )}
       </div>
@@ -1281,7 +1359,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   )}
                   {selectedQuoteOrder.quote_history && selectedQuoteOrder.quote_history.length > 0 && (
                     <p className="text-[11px] text-amber-800/80 pt-1 border-t border-amber-200">
-                      Previous quote of ${(selectedQuoteOrder.quote_history[selectedQuoteOrder.quote_history.length - 1].total_amount || 0).toFixed(2)} is archived in history.
+                      Previous quote of {formatDualPrice(selectedQuoteOrder.quote_history[selectedQuoteOrder.quote_history.length - 1].total_amount || 0)} is archived in history.
                     </p>
                   )}
                 </div>
@@ -1326,7 +1404,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   </div>
                   {isQuoteCustomerStudio && quoteDiscountAmount > 0 && (
                     <span className="font-mono font-bold text-xs text-emerald-700 shrink-0">
-                      -${quoteDiscountAmount.toFixed(2)} (15% OFF)
+                      -{formatDualPrice(quoteDiscountAmount)} (15% OFF)
                     </span>
                   )}
                 </div>
@@ -1452,7 +1530,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                                 />
                               </td>
                               <td className="py-2 px-3 text-right font-bold text-xs font-mono text-[#1D231E]">
-                                ${(item.total || 0).toFixed(2)}
+                                {formatDualPrice(item.total || 0)}
                               </td>
                               <td className="py-2 px-2 text-center">
                                 <button
@@ -1528,22 +1606,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60 font-mono">
-                    <span>Items (${itemsSubtotal.toFixed(2)})</span>
+                    <span>Items ({formatDualPrice(itemsSubtotal)})</span>
                     <span>+</span>
-                    <span>Crafting (${numCraftingCharge.toFixed(2)})</span>
+                    <span>Crafting ({formatDualPrice(numCraftingCharge)})</span>
                     {isQuoteCustomerStudio && quoteDiscountAmount > 0 && (
                       <>
                         <span className="text-emerald-400 font-bold">-</span>
-                        <span className="text-emerald-400 font-bold">Studio 15% (-${quoteDiscountAmount.toFixed(2)})</span>
+                        <span className="text-emerald-400 font-bold">Studio 15% (-{formatDualPrice(quoteDiscountAmount)})</span>
                       </>
                     )}
                     <span>+</span>
-                    <span>Shipping (${numDeliveryCharge.toFixed(2)})</span>
+                    <span>Shipping ({formatDualPrice(numDeliveryCharge)})</span>
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
-                  <span className="text-2xl sm:text-3xl font-bold font-serif text-[#E06C38]">
-                    ${calculatedGrandTotal.toFixed(2)}
+                  <span className="text-xl sm:text-2xl font-bold font-serif text-[#E06C38]">
+                    {formatDualPrice(calculatedGrandTotal)}
                   </span>
                 </div>
               </div>
@@ -1583,7 +1661,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     </>
                   ) : (
                     <>
-                      <Check className="w-4 h-4" /> Save & Publish Quote (${calculatedGrandTotal.toFixed(2)})
+                      <Check className="w-4 h-4" /> Save & Publish Quote ({formatDualPrice(calculatedGrandTotal)})
                     </>
                   )}
                 </button>
@@ -1708,35 +1786,35 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                                     />
                                   )}
                                   <span className="font-medium text-[#1D231E]">{it.description}</span>
-                                  <span className="text-[#1D231E]/50">({it.quantity} {it.unit || 'pcs'} @ ${Number(it.unit_price).toFixed(2)})</span>
+                                  <span className="text-[#1D231E]/50">({it.quantity} {it.unit || 'pcs'} @ {formatDualPrice(Number(it.unit_price))})</span>
                                 </div>
-                                <span className="font-mono font-bold text-[#1D231E]">${Number(it.total).toFixed(2)}</span>
+                                <span className="font-mono font-bold text-[#1D231E]">{formatDualPrice(Number(it.total))}</span>
                               </div>
                             ))}
                           </div>
                           <div className="pt-1.5 border-t border-[#1D231E]/10 flex flex-wrap items-center justify-between text-[11px] font-medium text-[#1D231E]/70 gap-2">
-                            <span>Subtotal: ${(selectedOrderForEdit.quote.items_subtotal ?? 0).toFixed(2)}</span>
+                            <span>Subtotal: {formatDualPrice(selectedOrderForEdit.quote.items_subtotal ?? 0)}</span>
                             {Number(selectedOrderForEdit.quote.crafting_charge || 0) > 0 && (
-                              <span>Crafting: ${(selectedOrderForEdit.quote.crafting_charge).toFixed(2)}</span>
+                              <span>Crafting: {formatDualPrice(selectedOrderForEdit.quote.crafting_charge)}</span>
                             )}
                             {Number(selectedOrderForEdit.quote.discount_amount || 0) > 0 && (
                               <span className="text-emerald-700 font-bold">
-                                Studio ({selectedOrderForEdit.quote.discount_percent || 15}%): -${Number(selectedOrderForEdit.quote.discount_amount).toFixed(2)}
+                                Studio ({selectedOrderForEdit.quote.discount_percent || 15}%): -{formatDualPrice(Number(selectedOrderForEdit.quote.discount_amount))}
                               </span>
                             )}
-                            <span>Ship: ${(selectedOrderForEdit.quote.delivery_charge || 0).toFixed(2)}</span>
+                            <span>Ship: {formatDualPrice(selectedOrderForEdit.quote.delivery_charge || 0)}</span>
                             <span className="font-bold text-[#E06C38] text-xs">
-                              Total: ${(selectedOrderForEdit.quote.total_amount || 0).toFixed(2)}
+                              Total: {formatDualPrice(selectedOrderForEdit.quote.total_amount || 0)}
                             </span>
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-[#1D231E]/70">
-                            Item: ${(selectedOrderForEdit.quote.item_price || 0).toFixed(2)} + Ship: ${(selectedOrderForEdit.quote.delivery_charge || 0).toFixed(2)}
+                            Item: {formatDualPrice(selectedOrderForEdit.quote.item_price || 0)} + Ship: {formatDualPrice(selectedOrderForEdit.quote.delivery_charge || 0)}
                           </span>
                           <span className="font-bold text-[#E06C38]">
-                            Total: ${(selectedOrderForEdit.quote.total_amount || 0).toFixed(2)}
+                            Total: {formatDualPrice(selectedOrderForEdit.quote.total_amount || 0)}
                           </span>
                         </div>
                       )}

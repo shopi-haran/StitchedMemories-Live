@@ -23,6 +23,7 @@ import {
   X
 } from 'lucide-react';
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
+import { formatDualPrice } from '../../utils/currency';
 
 interface AdminJobCardProps {
   order: SupabaseStitchOrderRow;
@@ -173,8 +174,8 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
             </span>
           )}
           {totalAmount > 0 && (
-            <span className="text-sm font-black font-mono text-[#1D231E]">
-              ${Number(totalAmount).toFixed(2)}
+            <span className="text-xs sm:text-sm font-black font-mono text-[#1D231E]">
+              {formatDualPrice(Number(totalAmount))}
             </span>
           )}
         </div>
@@ -324,21 +325,21 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
             <span>
               {order.quote.line_items && order.quote.line_items.length > 0 ? (
                 <>
-                  <strong>{order.quote.line_items.length} Line Items:</strong> Subtotal ${(order.quote.items_subtotal ?? 0).toFixed(2)} + Crafting ${(order.quote.crafting_charge ?? 0).toFixed(2)}
+                  <strong>{order.quote.line_items.length} Line Items:</strong> Subtotal {formatDualPrice(order.quote.items_subtotal ?? 0)} + Crafting {formatDualPrice(order.quote.crafting_charge ?? 0)}
                   {Number(order.quote.discount_amount || 0) > 0 && (
-                    <span className="text-emerald-700 font-semibold"> - Studio 15% (-${Number(order.quote.discount_amount).toFixed(2)})</span>
+                    <span className="text-emerald-700 font-semibold"> - Studio 15% (-{formatDualPrice(Number(order.quote.discount_amount))})</span>
                   )}
-                  {` + Delivery $${(order.quote.delivery_charge ?? 0).toFixed(2)}`}
+                  {` + Delivery ${formatDualPrice(order.quote.delivery_charge ?? 0)}`}
                 </>
               ) : (
                 <>
-                  Quoted: ${(order.quote.total_amount ?? totalAmount).toFixed(2)}
+                  Quoted: {formatDualPrice(order.quote.total_amount ?? totalAmount)}
                 </>
               )}
             </span>
           </div>
-          <span className="font-bold text-[#E06C38] font-mono text-sm">
-            Total: ${(order.quote.total_amount ?? totalAmount).toFixed(2)}
+          <span className="font-bold text-[#E06C38] font-mono text-xs sm:text-sm">
+            Total: {formatDualPrice(order.quote.total_amount ?? totalAmount)}
           </span>
         </div>
       )}
