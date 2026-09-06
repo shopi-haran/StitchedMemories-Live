@@ -1,5 +1,5 @@
 {
-  "name": "Stitchara",
+  "name": "StitchedMemories",
   "description": "Transform your precious photos into hand-stitched heirloom cross-stitch patterns with DMC and Anchor thread support.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
