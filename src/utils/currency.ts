@@ -98,15 +98,17 @@ export function formatLkr(usdAmount: number, rate: number = cachedRate || 300): 
 
 /**
  * Main dual-currency formatter:
- * Returns "$9.00 (LKR 2,700)"
+ * Returns "$9.00 (≈ LKR 2,700)"
  * Gracefully displays just "$9.00" if the exchange rate is not available.
  * 
  * @param usdAmount - Amount in USD (number or string representation)
  * @param overrideRate - Optional rate override; defaults to cachedRate
+ * @param approxSymbol - Whether to prepend the approx symbol '≈ ' (defaults to true)
  */
 export function formatDualPrice(
   usdAmount: number | string | undefined | null,
-  overrideRate?: number | null
+  overrideRate?: number | null,
+  approxSymbol: boolean = true
 ): string {
   const num = typeof usdAmount === 'number' ? usdAmount : parseFloat(String(usdAmount ?? 0));
   if (isNaN(num)) return '$0.00';
@@ -119,5 +121,6 @@ export function formatDualPrice(
   }
 
   const lkrPart = formatLkr(num, effectiveRate);
-  return `${usdPart} (${lkrPart})`;
+  const approx = approxSymbol ? '≈ ' : '';
+  return `${usdPart} (${approx}${lkrPart})`;
 }

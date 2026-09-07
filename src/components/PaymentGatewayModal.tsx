@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, ShieldCheck, CreditCard, Lock, Sparkles, Check, ArrowRight, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { supabase, updateUserTier, updateUserPlanSelection } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
-import { formatDualPrice } from '../utils/currency';
+import { DualPrice } from './DualPrice';
 
 interface PaymentGatewayModalProps {
   isOpen: boolean;
@@ -145,11 +145,18 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               </div>
 
               <div className="text-left sm:text-right shrink-0">
-                <div className="text-xl sm:text-2xl font-extrabold text-[#1D231E]">
-                  {formatDualPrice(currentMonthlyRate)}<span className="text-xs text-[#5A6659] font-normal">/mo</span>
-                </div>
-                <div className="text-[11px] text-[#8A9588] font-medium">
-                  {billingCycle === 'annual' ? `${formatDualPrice(totalBilled)} billed annually` : 'Billed monthly'}
+                <DualPrice
+                  amount={currentMonthlyRate}
+                  period="/mo"
+                  layout="stacked"
+                  usdClassName="text-xl sm:text-2xl font-extrabold text-[#1D231E]"
+                  periodClassName="text-xs text-[#5A6659] font-normal"
+                  lkrClassName="text-xs text-[#70806E] font-normal"
+                />
+                <div className="text-[11px] text-[#8A9588] font-medium mt-1">
+                  {billingCycle === 'annual' ? (
+                    <span>Billed annually: <DualPrice amount={totalBilled} layout="inline" usdClassName="font-semibold text-[#1D231E]" lkrClassName="text-[10px] text-[#8A9588]" /></span>
+                  ) : 'Billed monthly'}
                 </div>
               </div>
             </div>
@@ -165,7 +172,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     billingCycle === 'monthly' ? 'bg-[#1D231E] text-white' : 'text-[#6B7869]'
                   }`}
                 >
-                  Monthly ({formatDualPrice(monthlyPrice)}/mo)
+                  Monthly (<DualPrice amount={monthlyPrice} period="/mo" layout="inline" usdClassName="font-semibold" lkrClassName={billingCycle === 'monthly' ? 'text-white/70' : 'text-[#6B7869]'} />)
                 </button>
                 <button
                   type="button"
@@ -174,7 +181,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     billingCycle === 'annual' ? 'bg-[#E06C38] text-white' : 'text-[#6B7869]'
                   }`}
                 >
-                  Annual ({formatDualPrice(annualPrice)}/mo - Save 20%)
+                  Annual (<DualPrice amount={annualPrice} period="/mo" layout="inline" usdClassName="font-semibold" lkrClassName={billingCycle === 'annual' ? 'text-white/80' : 'text-[#6B7869]'} /> - Save 20%)
                 </button>
               </div>
             </div>
@@ -270,7 +277,12 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <div className="pt-3 border-t border-[#E8E1D2] space-y-3">
                 <div className="flex items-center justify-between text-xs font-bold text-[#1D231E]">
                   <span>Total Amount Due Today:</span>
-                  <span className="text-base text-[#E06C38]">{formatDualPrice(totalBilled)}</span>
+                  <DualPrice
+                    amount={totalBilled}
+                    layout="inline"
+                    usdClassName="text-base font-extrabold text-[#E06C38]"
+                    lkrClassName="text-xs font-normal text-[#8A9588]"
+                  />
                 </div>
 
                 <button

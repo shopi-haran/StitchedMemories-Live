@@ -16,7 +16,7 @@ import {
   HeartHandshake
 } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
-import { formatDualPrice } from '../utils/currency';
+import { DualPrice } from './DualPrice';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -196,12 +196,14 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]">
-                        {formatDualPrice(0)}
-                      </span>
-                      <span className="text-xs text-[#A5B3A2] font-medium">/ forever</span>
-                    </div>
+                    <DualPrice
+                      amount={0}
+                      period="/ forever"
+                      layout="stacked"
+                      usdClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      periodClassName="text-xs text-[#A5B3A2] font-medium"
+                      lkrClassName="text-xs text-[#8A9B87] font-normal"
+                    />
                   </div>
 
                   <ul className="space-y-3 text-xs text-[#E0E8DF] mb-6">
@@ -259,14 +261,14 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]">
-                        {formatDualPrice(billingCycle === 'monthly' ? 9 : 7)}
-                      </span>
-                      <span className="text-xs text-[#A5B3A2] font-medium">
-                        / mo {billingCycle === 'annual' && '(billed annually)'}
-                      </span>
-                    </div>
+                    <DualPrice
+                      amount={billingCycle === 'monthly' ? 9 : 7}
+                      period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
+                      layout="stacked"
+                      usdClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      periodClassName="text-xs text-[#A5B3A2] font-medium"
+                      lkrClassName="text-xs text-[#A5B3A2] font-normal"
+                    />
                   </div>
 
                   <ul className="space-y-3 text-xs text-[#FAF6EE] mb-6">
@@ -338,14 +340,14 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]">
-                        {formatDualPrice(billingCycle === 'monthly' ? 19 : 15)}
-                      </span>
-                      <span className="text-xs text-[#A5B3A2] font-medium">
-                        / mo {billingCycle === 'annual' && '(billed annually)'}
-                      </span>
-                    </div>
+                    <DualPrice
+                      amount={billingCycle === 'monthly' ? 19 : 15}
+                      period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
+                      layout="stacked"
+                      usdClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      periodClassName="text-xs text-[#A5B3A2] font-medium"
+                      lkrClassName="text-xs text-[#8A9B87] font-normal"
+                    />
                   </div>
 
                   <ul className="space-y-3 text-xs text-[#E0E8DF] mb-6">

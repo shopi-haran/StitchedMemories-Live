@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
 import { deleteProduct } from '../../lib/supabase';
 import { formatDualPrice } from '../../utils/currency';
+import { DualPrice } from '../DualPrice';
 import { useModalStack } from '../../hooks/useModalStack';
 import {
   Search,
@@ -451,9 +452,12 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
 
                       {/* Price */}
                       <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="font-bold text-sm text-[#1D231E] font-mono">
-                          {formatDualPrice(Number(p.price || 0))}
-                        </span>
+                        <DualPrice
+                          amount={Number(p.price || 0)}
+                          layout="stacked"
+                          usdClassName="font-bold text-sm text-[#1D231E] font-mono"
+                          lkrClassName="text-[11px] text-[#7A8877] font-mono"
+                        />
                       </td>
 
                       {/* Status */}
@@ -554,9 +558,12 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
                     <span className="text-[11px] font-semibold text-[#70806E] bg-[#FAF6EE] px-2 py-0.5 rounded-md border border-[#E8E1D2]">
                       {p.category || 'General'}
                     </span>
-                    <span className="text-base font-extrabold text-[#1D231E] font-mono">
-                      {formatDualPrice(Number(p.price || 0))}
-                    </span>
+                    <DualPrice
+                      amount={Number(p.price || 0)}
+                      layout="stacked"
+                      usdClassName="text-base font-extrabold text-[#1D231E] font-mono"
+                      lkrClassName="text-[11px] text-[#7A8877] font-mono"
+                    />
                   </div>
 
                   {/* Title */}

@@ -27,6 +27,7 @@ import {
   SupabaseProfileRow 
 } from '../../lib/supabase';
 import { formatDualPrice } from '../../utils/currency';
+import { DualPrice } from '../DualPrice';
 
 interface UserProfile {
   id?: string;
@@ -190,7 +191,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
               {/* Plan Price Tag */}
               <span className="text-xs font-bold text-[#E06C38] bg-[#E06C38]/15 px-2.5 py-1 rounded-full border border-[#E06C38]/30">
-                {effectiveTier === 'studio' ? `${formatDualPrice(19)}/mo` : effectiveTier === 'pro' ? `${formatDualPrice(9)}/mo` : `${formatDualPrice(0)} / forever`}
+                <DualPrice
+                  amount={effectiveTier === 'studio' ? 19 : effectiveTier === 'pro' ? 9 : 0}
+                  period={effectiveTier === 'free' ? ' / forever' : '/mo'}
+                  layout="inline"
+                  usdClassName="font-bold text-[#E06C38]"
+                  periodClassName="text-[#E06C38]"
+                  lkrClassName="text-[10px] text-[#FAF6EE]/70 font-normal"
+                />
               </span>
               
               {/* Status Badge */}

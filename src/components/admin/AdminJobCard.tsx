@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
 import { formatDualPrice } from '../../utils/currency';
+import { DualPrice } from '../DualPrice';
 
 interface AdminJobCardProps {
   order: SupabaseStitchOrderRow;
@@ -174,9 +175,13 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
             </span>
           )}
           {totalAmount > 0 && (
-            <span className="text-xs sm:text-sm font-black font-mono text-[#1D231E]">
-              {formatDualPrice(Number(totalAmount))}
-            </span>
+            <DualPrice
+              amount={Number(totalAmount)}
+              layout="stacked"
+              usdClassName="text-xs sm:text-sm font-black font-mono text-[#1D231E]"
+              lkrClassName="text-[10px] font-mono text-[#7A8877]"
+              className="items-end"
+            />
           )}
         </div>
       </div>
@@ -339,7 +344,7 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
             </span>
           </div>
           <span className="font-bold text-[#E06C38] font-mono text-xs sm:text-sm">
-            Total: {formatDualPrice(order.quote.total_amount ?? totalAmount)}
+            Total: <DualPrice amount={order.quote.total_amount ?? totalAmount} layout="inline" usdClassName="font-bold text-[#E06C38]" lkrClassName="text-[10px] text-[#8A9588]" />
           </span>
         </div>
       )}

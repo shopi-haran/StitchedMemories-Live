@@ -48,6 +48,7 @@ import {
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { formatDualPrice } from '../../utils/currency';
+import { DualPrice } from '../DualPrice';
 
 interface UserProfile {
   id?: string;
@@ -1003,11 +1004,14 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         <span className="text-xs font-medium text-rose-600">Request declined</span>
                       </div>
                     ) : hasQuotedAmount ? (
-                      <div className="flex items-baseline gap-2">
+                      <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-xs font-semibold text-[#5A6659]">Total Amount:</span>
-                        <span className="text-lg sm:text-xl font-black font-serif text-[#1D231E]">
-                          {formatDualPrice(totalAmount)}
-                        </span>
+                        <DualPrice
+                          amount={totalAmount}
+                          layout="inline"
+                          usdClassName="text-lg sm:text-xl font-black font-serif text-[#1D231E]"
+                          lkrClassName="text-xs font-normal text-[#7A8877]"
+                        />
                       </div>
                     ) : isRevisionRequested ? (
                       <div className="flex items-center gap-2">
@@ -1443,9 +1447,12 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
                       <div className="flex justify-between pt-2.5 border-t border-[#D5CDBC] text-sm font-bold text-[#1D231E]">
                         <span>Total:</span>
-                        <span className="text-base font-black font-serif text-[#E06C38]">
-                          {formatDualPrice(totalAmount)}
-                        </span>
+                        <DualPrice
+                          amount={totalAmount}
+                          layout="inline"
+                          usdClassName="text-base font-black font-serif text-[#E06C38]"
+                          lkrClassName="text-xs font-normal text-[#8A9588]"
+                        />
                       </div>
                     </div>
                   </div>

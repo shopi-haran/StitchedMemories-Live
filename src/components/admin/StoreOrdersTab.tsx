@@ -29,6 +29,7 @@ import {
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
 import { StoreOrderItem } from '../../types';
 import { formatDualPrice } from '../../utils/currency';
+import { DualPrice } from '../DualPrice';
 
 export const STORE_ORDER_STAGES = [
   { id: 'received', label: 'Received', icon: Package, description: 'Order & payment received' },
@@ -346,11 +347,12 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#70806E] block mb-1">
               Store Sales
             </span>
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-black font-mono text-emerald-800">
-                {formatDualPrice(stats.totalRevenue)}
-              </span>
-            </div>
+            <DualPrice
+              amount={stats.totalRevenue}
+              layout="stacked"
+              usdClassName="text-xl sm:text-2xl font-black font-mono text-emerald-800"
+              lkrClassName="text-xs font-mono text-emerald-800/70"
+            />
           </div>
 
           <div className="bg-amber-50/80 p-4 rounded-2xl border border-amber-200">
@@ -652,7 +654,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                                   <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-[#5A6659]">
                                     <span>Qty: <strong className="text-[#1D231E]">{qty}</strong></span>
                                     <span>•</span>
-                                    <span>{formatDualPrice(price)} each</span>
+                                    <span><DualPrice amount={price} layout="inline" usdClassName="font-medium text-[#1D231E]" lkrClassName="text-[10px] text-[#7A8877]" suffix="each" /></span>
                                     {item.category && (
                                       <>
                                         <span>•</span>
@@ -665,9 +667,13 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                                 </div>
                               </div>
 
-                              <span className="font-mono text-xs font-bold text-[#1D231E] shrink-0">
-                                {formatDualPrice(lineTotal)}
-                              </span>
+                              <DualPrice
+                                amount={lineTotal}
+                                layout="stacked"
+                                usdClassName="font-mono text-xs font-bold text-[#1D231E]"
+                                lkrClassName="font-mono text-[10px] text-[#7A8877]"
+                                className="shrink-0 items-end"
+                              />
                             </div>
                           );
                         })
@@ -684,18 +690,25 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                               <p className="text-[11px] text-[#5A6659]">Standard store inventory package</p>
                             </div>
                           </div>
-                          <span className="font-mono text-xs font-bold text-[#1D231E]">
-                            {formatDualPrice(totalAmount)}
-                          </span>
+                          <DualPrice
+                            amount={totalAmount}
+                            layout="stacked"
+                            usdClassName="font-mono text-xs font-bold text-[#1D231E]"
+                            lkrClassName="font-mono text-[10px] text-[#7A8877]"
+                            className="items-end"
+                          />
                         </div>
                       )}
 
                       {/* Total Bar */}
                       <div className="p-3 bg-[#FAF6EE] flex items-center justify-between text-xs font-bold text-[#1D231E]">
                         <span className="text-[#5A6659]">Total Paid:</span>
-                        <span className="font-mono text-sm text-[#1D231E] font-black">
-                          {formatDualPrice(totalAmount)}
-                        </span>
+                        <DualPrice
+                          amount={totalAmount}
+                          layout="inline"
+                          usdClassName="font-mono text-sm text-[#1D231E] font-black"
+                          lkrClassName="font-mono text-xs text-[#70806E] font-normal"
+                        />
                       </div>
                     </div>
                   </div>

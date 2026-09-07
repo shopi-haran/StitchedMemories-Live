@@ -12,7 +12,7 @@ import {
 interface CurrencyContextType {
   rate: number | null;
   isLoading: boolean;
-  formatDualPrice: (usdAmount: number | string | undefined | null, overrideRate?: number | null) => string;
+  formatDualPrice: (usdAmount: number | string | undefined | null, overrideRate?: number | null, approxSymbol?: boolean) => string;
   formatUsd: (usdAmount: number) => string;
   formatLkr: (usdAmount: number, overrideRate?: number) => string;
   updateRate: (newRate: number) => Promise<{ success: boolean; error?: any }>;
@@ -74,8 +74,8 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const formatPriceBound = useCallback(
-    (usdAmount: number | string | undefined | null, overrideRate?: number | null) => {
-      return formatDualPrice(usdAmount, overrideRate !== undefined ? overrideRate : rate);
+    (usdAmount: number | string | undefined | null, overrideRate?: number | null, approxSymbol?: boolean) => {
+      return formatDualPrice(usdAmount, overrideRate !== undefined ? overrideRate : rate, approxSymbol);
     },
     [rate]
   );
@@ -100,7 +100,7 @@ export function useCurrency(): CurrencyContextType {
     return {
       rate: getExchangeRate(),
       isLoading: false,
-      formatDualPrice: (usd, override) => formatDualPrice(usd, override),
+      formatDualPrice: (usd, override, approx) => formatDualPrice(usd, override, approx),
       formatUsd,
       formatLkr,
       updateRate: async (newRate: number) => {
