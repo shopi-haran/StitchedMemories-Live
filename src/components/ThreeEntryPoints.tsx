@@ -21,7 +21,7 @@ export const ThreeEntryPoints: React.FC<ThreeEntryPointsProps> = ({
             Experience the Platform
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold text-[#1D231E]">
-            Explore the Ways to Begin Your Cross-Stiching Journy
+            Explore the Ways to Begin Your Cross-Stitching Journey
           </h2>
           <p className="text-[#5A6659] text-base mt-3">
             Whether you want to transform a personal photo, learn cross-stitch techniques, or collect curated kits, we have you covered.

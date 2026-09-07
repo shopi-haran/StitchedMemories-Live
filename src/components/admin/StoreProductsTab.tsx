@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
 import { deleteProduct } from '../../lib/supabase';
 import { formatDualPrice } from '../../utils/currency';
+import { useModalStack } from '../../hooks/useModalStack';
 import {
   Search,
   Plus,
@@ -57,6 +58,19 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
 
   // Quick image preview state
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Modal stack integrations for proper z-index layering and dismiss handling
+  const { zIndex: deleteProductZIndex, modalId: deleteProductModalId } = useModalStack(Boolean(deleteConfirmProduct), {
+    onClose: () => {
+      if (!isDeleting) setDeleteConfirmProduct(null);
+    },
+    id: 'store-product-delete-modal',
+  });
+
+  const { zIndex: previewImageZIndex, modalId: previewImageModalId } = useModalStack(Boolean(previewImage), {
+    onClose: () => setPreviewImage(null),
+    id: 'store-product-preview-modal',
+  });
 
   // Categories extracted from products
   const categories = useMemo(() => {
@@ -595,8 +609,21 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
       {/* DELETE CONFIRMATION MODAL */}
       {/* ========================================================================= */}
       {deleteConfirmProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-[#E8E1D2] space-y-4">
+        <div
+          id={deleteProductModalId}
+          data-modal-overlay="true"
+          data-modal-id={deleteProductModalId}
+          style={{ zIndex: deleteProductZIndex }}
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          onClick={() => {
+            if (!isDeleting) setDeleteConfirmProduct(null);
+          }}
+        >
+          <div
+            data-modal-scroll="true"
+            className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-[#E8E1D2] space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             
             <div className="flex items-center gap-3 text-rose-600">
               <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0">
@@ -667,10 +694,15 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
       {/* ========================================================================= */}
       {previewImage && (
         <div
+          id={previewImageModalId}
+          data-modal-overlay="true"
+          data-modal-id={previewImageModalId}
+          style={{ zIndex: previewImageZIndex }}
           onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs cursor-pointer animate-fade-in"
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs cursor-pointer animate-fade-in"
         >
           <div
+            data-modal-scroll="true"
             onClick={(e) => e.stopPropagation()}
             className="relative max-w-2xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-4 cursor-default"
           >

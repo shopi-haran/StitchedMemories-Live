@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BlogPost } from '../../types';
 import { deleteBlogPost } from '../../lib/supabase';
 import { ArticleModal } from '../ArticleModal';
+import { useModalStack } from '../../hooks/useModalStack';
 import {
   Search,
   Filter,
@@ -43,6 +44,13 @@ export const BlogPostsTab: React.FC<BlogPostsTabProps> = ({
   const [deleteConfirmPost, setDeleteConfirmPost] = useState<BlogPost | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [previewingPost, setPreviewingPost] = useState<BlogPost | null>(null);
+
+  const { zIndex: deleteZIndex, modalId: deleteModalId } = useModalStack(Boolean(deleteConfirmPost), {
+    onClose: () => {
+      if (!isDeleting) setDeleteConfirmPost(null);
+    },
+    id: 'blog-post-delete-modal',
+  });
 
   // Derive unique categories
   const categories = useMemo(() => {
@@ -365,8 +373,21 @@ export const BlogPostsTab: React.FC<BlogPostsTabProps> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmPost && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#E8E1D2] space-y-4 animate-scale-in">
+        <div
+          id={deleteModalId}
+          data-modal-overlay="true"
+          data-modal-id={deleteModalId}
+          style={{ zIndex: deleteZIndex }}
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          onClick={() => {
+            if (!isDeleting) setDeleteConfirmPost(null);
+          }}
+        >
+          <div
+            data-modal-scroll="true"
+            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-[#E8E1D2] space-y-4 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>

@@ -20,6 +20,60 @@ function notifyListeners() {
   listeners.forEach((fn) => fn());
 }
 
+// Custom continuously-eased smooth scroll state
+let smoothScrollRafId: number | null = null;
+let activeScrollElement: HTMLElement | null = null;
+let targetScrollTop = 0;
+let targetScrollLeft = 0;
+const EASING_FACTOR = 0.2;
+
+export function cancelSmoothScroll() {
+  if (smoothScrollRafId !== null) {
+    cancelAnimationFrame(smoothScrollRafId);
+    smoothScrollRafId = null;
+  }
+  activeScrollElement = null;
+}
+
+function animateSmoothScroll() {
+  if (!activeScrollElement || !document.body.contains(activeScrollElement)) {
+    cancelSmoothScroll();
+    return;
+  }
+
+  const currentY = activeScrollElement.scrollTop;
+  const currentX = activeScrollElement.scrollLeft;
+
+  const diffY = targetScrollTop - currentY;
+  const diffX = targetScrollLeft - currentX;
+
+  // If close enough to target (under 1px), snap to exact target and stop the loop
+  if (Math.abs(diffY) < 1.0 && Math.abs(diffX) < 1.0) {
+    activeScrollElement.scrollTop = targetScrollTop;
+    activeScrollElement.scrollLeft = targetScrollLeft;
+    smoothScrollRafId = null;
+    activeScrollElement = null;
+    return;
+  }
+
+  // Smooth lerp easing step
+  let stepY = diffY * EASING_FACTOR;
+  let stepX = diffX * EASING_FACTOR;
+
+  // Prevent subpixel stagnation
+  if (Math.abs(stepY) < 1.0 && Math.abs(diffY) >= 1.0) {
+    stepY = Math.sign(diffY) * Math.min(1.0, Math.abs(diffY));
+  }
+  if (Math.abs(stepX) < 1.0 && Math.abs(diffX) >= 1.0) {
+    stepX = Math.sign(diffX) * Math.min(1.0, Math.abs(diffX));
+  }
+
+  activeScrollElement.scrollTop = currentY + stepY;
+  activeScrollElement.scrollLeft = currentX + stepX;
+
+  smoothScrollRafId = requestAnimationFrame(animateSmoothScroll);
+}
+
 function lockBodyScroll() {
   if (modalStack.length === 1) {
     originalOverflow = document.body.style.overflow;
@@ -68,13 +122,7 @@ function handleGlobalWheel(e: WheelEvent) {
 
   if (!activeOverlay) return;
 
-  // If the target is anywhere inside the topmost modal (e.g. editor pane, preview pane, dropdown, etc.),
-  // let native browser scrolling take place completely unhindered
-  if (activeOverlay.contains(e.target as Node)) {
-    return;
-  }
-
-  // Locate the scrollable container inside the active topmost modal for backdrop scrolling
+  // Locate the scrollable container inside the active topmost modal
   const scrollable =
     activeOverlay.querySelector<HTMLElement>('[data-modal-scroll="true"], .overflow-y-auto') ||
     (activeOverlay.classList.contains('overflow-y-auto') ? activeOverlay : null);
@@ -84,14 +132,58 @@ function handleGlobalWheel(e: WheelEvent) {
     return;
   }
 
-  // Otherwise (e.g. mouse is over backdrop or outside active modal), prevent background scroll
-  // and scroll the topmost modal's container
+  if (scrollable.contains(e.target as Node)) {
+    // Cursor is over the modal's actual scrollable content — let native 
+    // scroll behavior handle it directly, and cancel any active backdrop easing
+    cancelSmoothScroll();
+    return;
+  }
+
+  // Normalize delta values based on deltaMode:
+  // deltaMode 0: pixels (default)
+  // deltaMode 1: lines (~20px per line)
+  // deltaMode 2: pages
+  let deltaY = e.deltaY;
+  let deltaX = e.deltaX;
+  if (e.deltaMode === 1) {
+    deltaY *= 20;
+    deltaX *= 20;
+  } else if (e.deltaMode === 2) {
+    deltaY *= window.innerHeight;
+    deltaX *= window.innerWidth;
+  }
+
+  // Prevent background scroll and forward smoothly to modal content
   e.preventDefault();
-  scrollable.scrollBy({
-    top: e.deltaY,
-    left: e.deltaX,
-    behavior: 'auto',
-  });
+
+  // If active scroll target changed or animation wasn't running, sync target with current scroll position
+  if (activeScrollElement !== scrollable || smoothScrollRafId === null) {
+    cancelSmoothScroll();
+    activeScrollElement = scrollable;
+    targetScrollTop = scrollable.scrollTop;
+    targetScrollLeft = scrollable.scrollLeft;
+  }
+
+  // Calculate container boundaries
+  const maxScrollTop = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight);
+  const maxScrollLeft = Math.max(0, scrollable.scrollWidth - scrollable.clientWidth);
+
+  // Accumulate the delta into target scroll coordinates (clamped to bounds)
+  targetScrollTop = Math.max(0, Math.min(maxScrollTop, targetScrollTop + deltaY));
+  targetScrollLeft = Math.max(0, Math.min(maxScrollLeft, targetScrollLeft + deltaX));
+
+  // If already at boundary and cannot scroll further, nothing to animate
+  if (
+    Math.abs(targetScrollTop - scrollable.scrollTop) < 0.5 &&
+    Math.abs(targetScrollLeft - scrollable.scrollLeft) < 0.5
+  ) {
+    return;
+  }
+
+  // Start the requestAnimationFrame easing loop if not already active
+  if (smoothScrollRafId === null) {
+    smoothScrollRafId = requestAnimationFrame(animateSmoothScroll);
+  }
 }
 
 /**
@@ -119,6 +211,7 @@ function ensureGlobalListeners() {
       globalKeydownListenerAttached = true;
     }
   } else {
+    cancelSmoothScroll();
     if (globalWheelListenerAttached) {
       window.removeEventListener('wheel', handleGlobalWheel);
       globalWheelListenerAttached = false;
@@ -158,6 +251,9 @@ export function useModalStack(
     const allocatedZ = nextZIndex;
     setZIndex(allocatedZ);
 
+    // Cancel any previous modal's easing animation when a new modal opens
+    cancelSmoothScroll();
+
     const entry: ModalStackEntry = {
       id: modalId,
       zIndex: allocatedZ,
@@ -172,7 +268,8 @@ export function useModalStack(
     notifyListeners();
 
     return () => {
-      // Remove this modal from the stack
+      // Cancel active animation when this modal unmounts or closes
+      cancelSmoothScroll();
       modalStack = modalStack.filter((item) => item.id !== modalId);
       unlockBodyScroll();
       ensureGlobalListeners();

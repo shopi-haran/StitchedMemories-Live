@@ -2,6 +2,7 @@ import React from 'react';
 import { BlogPost } from '../types';
 import { X, ArrowRight } from 'lucide-react';
 import { ArticleContentRenderer } from './ArticleContentRenderer';
+import { useModalStack } from '../hooks/useModalStack';
 
 interface ArticleModalProps {
   post: BlogPost | null;
@@ -18,11 +19,25 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   onOpenConverter,
   onOpenShop,
 }) => {
+  const isOpen = post !== null;
+  const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'article-modal' });
+
   if (!post) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#FAF6EE] rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 lg:p-10 shadow-2xl border border-[#E8E1D2] relative scrollbar-thin">
+    <div
+      id={modalId}
+      data-modal-overlay="true"
+      data-modal-id={modalId}
+      style={{ zIndex }}
+      className="fixed inset-0 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        data-modal-scroll="true"
+        className="bg-[#FAF6EE] rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 lg:p-10 shadow-2xl border border-[#E8E1D2] relative scrollbar-thin overscroll-contain"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
