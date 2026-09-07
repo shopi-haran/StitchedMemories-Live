@@ -190,8 +190,14 @@ export const ArticleContentRenderer: React.FC<ArticleContentRendererProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          if (section.ctaAction === 'shop' && onOpenShop) {
-                            onOpenShop();
+                          if (section.ctaAction === 'shop') {
+                            if (onOpenShop) {
+                              onOpenShop();
+                            } else {
+                              window.history.pushState({}, '', '/marketplace');
+                              window.dispatchEvent(new PopStateEvent('popstate'));
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
                           } else if (onOpenConverter) {
                             onOpenConverter();
                           }
@@ -240,26 +246,32 @@ export const ArticleContentRenderer: React.FC<ArticleContentRendererProps> = ({
                       <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 relative z-10">
                         <button
                           type="button"
+                          id="blog-post-open-converter-btn"
                           onClick={() => {
                             if (onOpenConverter) onOpenConverter();
                           }}
                           className="w-full sm:w-auto px-6 py-3 bg-[#E06C38] hover:bg-[#c95b28] text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
                         >
                           <Sparkles className="w-4 h-4" />
-                          <span>{section.ctaText || 'Launch Stitchara'}</span>
+                          <span>{section.ctaText || 'Launch Converter'}</span>
                         </button>
-                        {onOpenShop && (
-                          <button
-                            type="button"
-                            onClick={() => {
+                        <button
+                          type="button"
+                          id="blog-post-explore-marketplace-btn"
+                          onClick={() => {
+                            if (onOpenShop) {
                               onOpenShop();
-                            }}
-                            className="w-full sm:w-auto px-5 py-3 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center justify-center gap-2"
-                          >
-                            <ShoppingBag className="w-4 h-4" />
-                            <span>Browse Kits & Supplies</span>
-                          </button>
-                        )}
+                            } else {
+                              window.history.pushState({}, '', '/marketplace');
+                              window.dispatchEvent(new PopStateEvent('popstate'));
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
+                          }}
+                          className="w-full sm:w-auto px-5 py-3 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <ShoppingBag className="w-4 h-4" />
+                          <span>Explore Marketplace</span>
+                        </button>
                       </div>
                     )}
                   </div>

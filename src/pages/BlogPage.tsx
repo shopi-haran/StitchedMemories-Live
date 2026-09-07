@@ -7,9 +7,10 @@ import { ArticleModal } from '../components/ArticleModal';
 interface BlogPageProps {
   onGoHome: () => void;
   onOpenConverter: () => void;
+  onNavigateToShop?: () => void;
 }
 
-export const BlogPage: React.FC<BlogPageProps> = ({ onGoHome, onOpenConverter }) => {
+export const BlogPage: React.FC<BlogPageProps> = ({ onGoHome, onOpenConverter, onNavigateToShop }) => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
@@ -313,6 +314,16 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onGoHome, onOpenConverter })
         onClose={() => setSelectedPost(null)}
         onNextArticle={handleNextArticle}
         onOpenConverter={onOpenConverter}
+        onOpenShop={() => {
+          setSelectedPost(null);
+          if (onNavigateToShop) {
+            onNavigateToShop();
+          } else {
+            window.history.pushState({}, '', '/marketplace');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }}
       />
 
     </div>

@@ -40,7 +40,13 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
           }}
           onOpenShop={() => {
             onClose();
-            if (onOpenShop) onOpenShop();
+            if (onOpenShop) {
+              onOpenShop();
+            } else {
+              window.history.pushState({}, '', '/marketplace');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
           }}
           interactive={true}
         />

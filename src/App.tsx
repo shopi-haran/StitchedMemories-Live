@@ -343,8 +343,8 @@ export default function App() {
             <BlogPreview
               onNavigateToBlogPage={() => handleNavigateToSection('blog-page')}
               onOpenConverter={() => setIsConverterOpen(true)}
+              onNavigateToShop={() => handleNavigateToSection('marketplace-page')}
             />
-
             {/* Future Shop Kits Preview */}
             <ShopKitsPreview onNavigateToShopPage={() => handleNavigateToSection('shop-page')} />
 
@@ -376,6 +376,7 @@ export default function App() {
           <BlogPage
             onGoHome={() => handleNavigateToSection('home')}
             onOpenConverter={() => setIsConverterOpen(true)}
+            onNavigateToShop={() => handleNavigateToSection('marketplace-page')}
           />
         )}
 
