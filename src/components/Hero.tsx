@@ -167,22 +167,22 @@ export const Hero: React.FC<HeroProps> = ({ onOpenConverter, onNavigateToSection
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-center max-w-5xl mx-auto">
             
-            {/* Panel 1: Free Conversions (Capability claim) */}
-            <div id="stat-free-conversions" className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
-              <span className="text-4xl sm:text-5xl lg:text-[52px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
-                100%
+            {/* Panel 1: Instant Results */}
+            <div id="stat-instant-results" className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
+              <span className="text-3xl sm:text-4xl lg:text-[46px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
+                Instant
               </span>
               
-              <h3 className="text-xs sm:text-sm font-bold tracking-widest uppercase text-[#1D231E] mb-3">
-                FREE CONVERSIONS
+              <h3 className="text-xs sm:text-sm font-bold tracking-widest uppercase text-[#1D231E] mb-3" aria-label="Instant Results">
+                RESULTS
               </h3>
 
               <p className="text-xs text-[#3D4B3C] font-medium leading-relaxed max-w-[220px]">
-                Unlimited photo-to-pattern conversions, no account required.
+                Generate a full DMC or Anchor pattern chart in seconds, right in your browser.
               </p>
             </div>
 
-            {/* Panel 2: Colours Listed (Central Panel - True capability claim: 456 verified DMC & Anchor colors) */}
+            {/* Panel 2: Colours Listed (Central Panel - Verified: 456 unique DMC codes, 462 production thread colors) */}
             <div id="stat-colours-listed" className="bg-[#93A28F]/30 backdrop-blur-lg border border-[#93A28F]/50 shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/35 md:-translate-y-6 hover:md:-translate-y-8 hover:-translate-y-1 hover:shadow-2xl">
               <span className="text-4xl sm:text-5xl lg:text-[52px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
                 450+
@@ -197,18 +197,18 @@ export const Hero: React.FC<HeroProps> = ({ onOpenConverter, onNavigateToSection
               </p>
             </div>
 
-            {/* Panel 3: Precision Stitch Mapping (Capability claim: 1:1 pixel-to-stitch accuracy) */}
-            <div id="stat-stitch-mapping" className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
+            {/* Panel 3: Precision Stitch Mapping (1:1 pixel-to-stitch accuracy) */}
+            <div id="stat-precision-stitch-mapping" className="bg-[#93A28F]/20 backdrop-blur-md border border-[#93A28F]/35 shadow-lg hover:shadow-xl rounded-[28px] p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-300 hover:bg-[#93A28F]/25 hover:-translate-y-1">
               <span className="text-4xl sm:text-5xl lg:text-[52px] font-extrabold text-[#1D231E] tracking-tight mb-3 font-sans">
                 1:1
               </span>
               
               <h3 className="text-xs sm:text-sm font-bold tracking-widest uppercase text-[#1D231E] mb-3">
-                STITCH MAPPING
+                PRECISION STITCH MAPPING
               </h3>
 
               <p className="text-xs text-[#3D4B3C] font-medium leading-relaxed max-w-[220px]">
-                Every stitch mapped to an exact DMC or Anchor thread color.
+                Every stitch precisely matched to an exact DMC or Anchor thread color.
               </p>
             </div>
 
