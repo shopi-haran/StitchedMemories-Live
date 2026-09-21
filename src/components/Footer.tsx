@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scissors, Heart, Mail, ArrowRight, Instagram, Share2, Sparkles } from 'lucide-react';
+import { Scissors, Heart, ArrowRight, Sparkles } from 'lucide-react';
 
 interface FooterProps {
   onOpenConverter: () => void;
@@ -123,17 +123,6 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
             <p className="text-xs text-[#A2B0A0] leading-relaxed">
               Share your completed cross-stitch works using <span className="text-white font-mono">#StitcharaCrafts</span> on social media to be featured in our user gallery.
             </p>
-            <div className="flex items-center gap-3 pt-2">
-              <a href="#" className="w-9 h-9 rounded-full bg-[#2B342C] hover:bg-[#E06C38] text-white flex items-center justify-center transition-colors">
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-full bg-[#2B342C] hover:bg-[#E06C38] text-white flex items-center justify-center transition-colors">
-                <Share2 className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-full bg-[#2B342C] hover:bg-[#E06C38] text-white flex items-center justify-center transition-colors">
-                <Mail className="w-4 h-4" />
-              </a>
-            </div>
           </div>
 
         </div>
