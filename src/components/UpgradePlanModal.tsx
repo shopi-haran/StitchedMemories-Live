@@ -101,7 +101,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 )}
                 {isStudioOnly && (
                   <span className="px-2.5 py-0.5 rounded-full bg-[#E06C38]/10 border border-[#E06C38]/20 text-[10px] font-extrabold uppercase text-[#E06C38]">
-                    15% Store Discount
+                    15% Custom Order Discount
                   </span>
                 )}
                 {isOnboarding && (
@@ -336,7 +336,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                   <h4 className="text-xl font-bold text-[#FAF6EE] mb-1">Studio Plan</h4>
                   <p className="text-xs text-[#A5B3A2] leading-relaxed mb-5">
-                    For pattern designers wanting image editing & 15% store discounts.
+                    For pattern designers wanting image editing & 15% custom order discounts.
                   </p>
 
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
@@ -369,7 +369,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </li>
                     <li className="flex items-start gap-2">
                       <Percent className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
-                      <span><strong className="text-[#E06C38]">15% Discount on all Marketplace orders</strong></span>
+                      <span><strong className="text-[#E06C38]">15% Discount on all Custom Orders</strong></span>
                     </li>
                     <li className="flex items-start gap-2">
                       <RefreshCw className="w-4 h-4 text-[#93A28F] shrink-0 mt-0.5" />

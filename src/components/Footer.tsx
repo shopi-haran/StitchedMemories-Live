@@ -92,8 +92,8 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConverter, onNavigateToSec
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigateToSection('shop-page')} className="hover:text-white transition-colors cursor-pointer text-left">
-                  Marketplace
+                <button onClick={() => onNavigateToSection('custom-order-page')} className="hover:text-white transition-colors cursor-pointer text-left">
+                  Custom Order
                 </button>
               </li>
               <li>

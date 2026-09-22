@@ -117,7 +117,7 @@ export const ThreeEntryPoints: React.FC<ThreeEntryPointsProps> = ({
             </button>
           </div>
 
-          {/* Entry Point 3: Marketplace */}
+          {/* Entry Point 3: Custom Order */}
           <div className="bg-white/70 backdrop-blur-md border border-white/80 rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#3D5239]/10 rounded-bl-full pointer-events-none" />
             <div className="absolute top-4 right-4 px-3 py-1 bg-[#E8EFE5] text-[#3D5239] text-[11px] font-bold rounded-full border border-[#C5D3C2] shadow-xs">
@@ -129,7 +129,7 @@ export const ThreeEntryPoints: React.FC<ThreeEntryPointsProps> = ({
                 <ShoppingBag className="w-7 h-7" />
               </div>
 
-              <span className="text-xs font-bold uppercase tracking-wider text-[#3D5239]">Marketplace</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#3D5239]">Custom Order</span>
               <h3 className="text-2xl font-bold text-[#1D231E] mt-1 mb-3">
                 Custom Orders & Kits
               </h3>
@@ -158,7 +158,7 @@ export const ThreeEntryPoints: React.FC<ThreeEntryPointsProps> = ({
               onClick={onNavigateToShop}
               className="w-full py-3.5 px-6 rounded-full bg-[#1D231E] hover:bg-[#323D34] text-white font-medium text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
-              <span>Explore Marketplace</span>
+              <span>Custom Order</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

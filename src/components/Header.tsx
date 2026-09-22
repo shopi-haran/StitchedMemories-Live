@@ -105,11 +105,11 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => onNavigateToSection('shop-page')}
+              onClick={() => onNavigateToSection('custom-order-page')}
               className="text-sm font-medium text-[#3A4538] hover:text-[#E06C38] transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <ShoppingBag className="w-4 h-4 text-[#93A28F]" />
-              <span>Marketplace</span>
+              <span>Custom Order</span>
             </button>
 
             <button

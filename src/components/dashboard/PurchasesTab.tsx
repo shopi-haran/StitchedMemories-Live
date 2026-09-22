@@ -142,11 +142,11 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-[#93A28F] block mb-1">
-            Store Orders
+            Purchases & Kits
           </span>
           <h2 className="text-2xl font-bold text-[#1D231E]">Purchases & Tracking</h2>
           <p className="text-xs text-[#5A6659] mt-1">
-            Track your ready-made kits and store items live through the 4 fulfillment stages: <strong>Received → Processing → Shipped → Delivered</strong>.
+            Track your ready-made kits and craft items live through the 4 fulfillment stages: <strong>Received → Processing → Shipped → Delivered</strong>.
           </p>
         </div>
 
@@ -165,7 +165,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
               className="px-4 py-2 bg-[#1D231E] hover:bg-[#323D34] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-xs shrink-0"
             >
               <ShoppingBag className="w-3.5 h-3.5 text-[#E06C38]" />
-              <span>Browse Store</span>
+              <span>Custom Order</span>
             </button>
           )}
         </div>
@@ -232,7 +232,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
           {/* Orders Cards List */}
           {filteredOrders.length === 0 ? (
             <div className="p-8 text-center bg-white rounded-3xl border border-[#E8E1D2] text-[#5A6659] text-xs">
-              No store orders match your filters.
+              No orders match your filters.
             </div>
           ) : (
             <div className="space-y-5">
@@ -323,7 +323,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
                                   )}
                                   <div>
                                     <h4 className="text-xs font-bold text-[#1D231E]">
-                                      {item.title || item.name || 'Store Item'}
+                                      {item.title || item.name || 'Craft Item'}
                                     </h4>
                                     <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-[#5A6659]">
                                       <span>Qty: <strong className="text-[#1D231E]">{qty}</strong></span>
@@ -359,9 +359,9 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
                               </div>
                               <div>
                                 <h4 className="text-xs font-bold text-[#1D231E]">
-                                  {order.title || 'Store Inventory Package'}
+                                  {order.title || 'Craft Package'}
                                 </h4>
-                                <p className="text-[11px] text-[#5A6659]">Ready-made kit & accessories</p>
+                                <p className="text-[11px] text-[#5A6659]">Handcrafted kit & accessories</p>
                               </div>
                             </div>
                             <DualPrice
@@ -509,9 +509,9 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
             <ShoppingBag className="w-7 h-7" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-[#1D231E]">No Store Purchases Yet</h3>
+            <h3 className="text-lg font-bold text-[#1D231E]">No Purchases Yet</h3>
             <p className="text-xs text-[#5A6659] max-w-md mx-auto mt-1 leading-relaxed">
-              When you purchase ready-made kits, fabrics, threads, and handcrafted inventory items, your orders will appear here with live 4-stage tracking.
+              When you order custom kits, fabrics, threads, and handcrafted items, your orders will appear here with live 4-stage tracking.
             </p>
           </div>
           {onNavigateToShop && (
@@ -520,7 +520,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1D231E] text-white text-xs font-bold rounded-full hover:bg-[#323D34] transition-all cursor-pointer shadow-xs"
             >
               <ShoppingBag className="w-3.5 h-3.5 text-[#E06C38]" />
-              <span>Explore the Store</span>
+              <span>Explore Custom Order</span>
             </button>
           )}
         </div>

@@ -194,7 +194,7 @@ export const ArticleContentRenderer: React.FC<ArticleContentRendererProps> = ({
                             if (onOpenShop) {
                               onOpenShop();
                             } else {
-                              window.history.pushState({}, '', '/marketplace');
+                              window.history.pushState({}, '', '/custom-order');
                               window.dispatchEvent(new PopStateEvent('popstate'));
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }
@@ -257,12 +257,12 @@ export const ArticleContentRenderer: React.FC<ArticleContentRendererProps> = ({
                         </button>
                         <button
                           type="button"
-                          id="blog-post-explore-marketplace-btn"
+                          id="blog-post-explore-custom-order-btn"
                           onClick={() => {
                             if (onOpenShop) {
                               onOpenShop();
                             } else {
-                              window.history.pushState({}, '', '/marketplace');
+                              window.history.pushState({}, '', '/custom-order');
                               window.dispatchEvent(new PopStateEvent('popstate'));
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }
@@ -270,7 +270,7 @@ export const ArticleContentRenderer: React.FC<ArticleContentRendererProps> = ({
                           className="w-full sm:w-auto px-5 py-3 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center justify-center gap-2"
                         >
                           <ShoppingBag className="w-4 h-4" />
-                          <span>Explore Marketplace</span>
+                          <span>Custom Order</span>
                         </button>
                       </div>
                     )}
