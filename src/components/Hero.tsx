@@ -72,9 +72,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenConverter, onNavigateToSection
               <button
                 onClick={() => {
                   if (onNavigateToSection) {
-                    onNavigateToSection('marketplace');
+                    onNavigateToSection('custom-order-page');
                   } else {
-                    window.history.pushState({}, '', '/marketplace');
+                    window.history.pushState({}, '', '/custom-order');
                     window.dispatchEvent(new PopStateEvent('popstate'));
                   }
                 }}

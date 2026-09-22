@@ -20,8 +20,7 @@ import {
   MapPin,
   Check,
   Percent,
-  Tag,
-  Store
+  Tag
 } from 'lucide-react';
 import { createOrderRequest, uploadOriginalPhotoToSupabase, fetchUserProfile, getEffectiveTier } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -49,16 +48,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 }) => {
   const { session, isLoggedIn, user: authUser } = useAuth();
   const effectiveUser = authUser || propUser;
-
-  // Tab State: 'custom-orders' (default) or 'store'
-  const [activeTab, setActiveTab] = useState<'custom-orders' | 'store'>(initialTab || 'custom-orders');
-
-  // Ensure default active tab is always synchronized on load
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    }
-  }, [initialTab]);
 
   const [profile, setProfile] = useState<any>(null);
   // Modal state for Assisted Kit Request & Custom Stitched Product Request
@@ -273,58 +262,26 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 rounded-full bg-[#E8EFE5] text-[#3D5239] text-[10px] font-bold uppercase tracking-wider">
-                Marketplace
+                Custom Order
               </span>
-              <span className="text-[11px] text-[#A2B0A0]">• Custom-Order & Ready-Made Studio</span>
+              <span className="text-[11px] text-[#A2B0A0]">• Bespoke Kits & Handcrafted Keepsakes</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white flex items-center gap-3">
-              <span>Marketplace</span>
+              <span>Custom Order</span>
               <ShoppingBag className="w-6 h-6 text-[#E06C38]" />
             </h1>
             <p className="text-sm text-[#A2B0A0] mt-1 max-w-xl">
-              Turn your memories into physical stitching kits, browse ready-made kits, or commission our master artisans to stitch and frame an heirloom piece for you.
+              Turn your memories into bespoke physical stitching kits, or commission our master artisans to stitch and frame an heirloom piece for you.
             </p>
-          </div>
-        </div>
-
-        {/* Tab Switcher UI */}
-        <div className="max-w-6xl mx-auto mt-8 border-t border-white/10 relative z-10">
-          <div className="flex items-center gap-2 pt-2 -mb-px overflow-x-auto scrollbar-none">
-            <button
-              type="button"
-              onClick={() => setActiveTab('custom-orders')}
-              className={`flex items-center gap-2.5 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer rounded-t-xl ${
-                activeTab === 'custom-orders'
-                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
-                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Package className="w-4 h-4 text-[#E06C38]" />
-              <span>Custom Orders</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('store')}
-              className={`flex items-center gap-2.5 px-6 py-3.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer rounded-t-xl ${
-                activeTab === 'store'
-                  ? 'border-[#E06C38] text-white bg-white/10 shadow-inner'
-                  : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Store className="w-4 h-4 text-[#E06C38]" />
-              <span>Store</span>
-            </button>
           </div>
         </div>
 
         <div className="absolute -right-10 top-0 w-96 h-96 bg-[#E06C38]/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* Tab 1: Custom Orders Tab Content */}
-      {activeTab === 'custom-orders' && (
-        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-14 animate-fade-in">
+      {/* Custom Orders Content */}
+      <div className="max-w-5xl mx-auto px-6 lg:px-8 py-14 animate-fade-in">
           
           <div className="text-center max-w-2xl mx-auto mb-12">
             <span className="text-xs font-bold uppercase tracking-widest text-[#E06C38] bg-[#E06C38]/10 px-3 py-1 rounded-full inline-block mb-3">
@@ -454,41 +411,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
           </div>
 
-          {/* Store Coming Soon Discovery Banner (Secondary Nudge) */}
-          <div className="mt-10 p-5 sm:p-6 rounded-3xl bg-[#F2ECE1] border border-[#E3D9C8] text-[#1D231E] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
-            <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-                <Store className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-sm font-bold text-[#1D231E]">
-                    Looking for ready-made kits and individual items?
-                  </h4>
-                  <span className="inline-flex px-2 py-0.5 rounded-full bg-[#E06C38]/10 text-[#E06C38] text-[10px] font-bold uppercase tracking-wider">
-                    Launching Soon
-                  </span>
-                </div>
-                <p className="text-xs text-[#5A6659] mt-0.5">
-                  Our Store is launching soon — take a peek at what&apos;s coming.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('store');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF6EE] text-[#1D231E] font-bold text-xs flex items-center gap-1.5 border border-[#D5CDC0] shadow-2xs hover:shadow-xs transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Store className="w-3.5 h-3.5 text-[#E06C38]" />
-              <span>Preview Store</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#70806E]" />
-            </button>
-          </div>
-
           {/* Studio Tier 15% Discount Promotional Banner (Visible ONLY for logged-in free/pro users) */}
           {showStudioPromo && (
             <div className="mt-12 p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#2D5A43] via-[#244835] to-[#1D3B2C] text-white border border-[#3D6E54] shadow-md relative overflow-hidden animate-fade-in">
@@ -541,45 +463,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           )}
 
         </div>
-      )}
-
-      {/* Tab 2: Store Tab Content (Coming Soon State) */}
-      {activeTab === 'store' && (
-        <div className="max-w-4xl mx-auto px-6 lg:px-8 py-20 animate-fade-in">
-          <div className="bg-white rounded-3xl p-10 sm:p-16 border border-[#E8E1D2] shadow-xs text-center flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-[#E06C38]/5 rounded-bl-full pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#3D5239]/5 rounded-tr-full pointer-events-none" />
-            
-            <div className="w-16 h-16 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center mb-6 shadow-xs">
-              <Store className="w-8 h-8" />
-            </div>
-
-            <span className="text-xs font-bold uppercase tracking-widest text-[#E06C38] bg-[#E06C38]/10 px-3.5 py-1 rounded-full inline-block mb-3">
-              Coming Soon
-            </span>
-
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#1D231E] mb-3 font-serif">
-              Thread Artisan Store
-            </h2>
-
-            <p className="text-sm sm:text-base text-[#5A6659] max-w-md mx-auto leading-relaxed mb-6">
-              Individual items and ready-made kits will be available here soon.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('custom-orders');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="px-5 py-2.5 rounded-xl bg-[#FAF6EE] hover:bg-[#EFE7D8] text-[#1D231E] font-semibold text-xs flex items-center gap-2 border border-[#D5CDC0] transition-colors cursor-pointer"
-            >
-              <Package className="w-4 h-4 text-[#E06C38]" />
-              <span>Explore Custom Orders</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Quote Request Modal */}
       {activeModal && typeof document !== 'undefined' && createPortal(

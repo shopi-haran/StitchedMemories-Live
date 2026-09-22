@@ -192,7 +192,7 @@ export const BlogPreview: React.FC<BlogPreviewProps> = ({ onNavigateToBlogPage, 
             if (onNavigateToShop) {
               onNavigateToShop();
             } else {
-              window.history.pushState({}, '', '/marketplace');
+              window.history.pushState({}, '', '/custom-order');
               window.dispatchEvent(new PopStateEvent('popstate'));
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }

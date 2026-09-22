@@ -38,7 +38,7 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#2B342C] border border-[#3D4B3E] text-xs font-semibold text-[#E06C38] mb-2">
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Store Policies</span>
+                <span>Order Policies</span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white flex items-center gap-3">
                 Return & Refund Policy
@@ -89,7 +89,7 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
                   3. Custom Stitched Products
                 </button>
                 <button onClick={() => scrollToAnchor('store-items')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
-                  4. Store Items (Ready-Made)
+                  4. Physical Craft Products & Supplies
                 </button>
                 <button onClick={() => scrollToAnchor('damaged-items')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
                   5. Damaged, Defective, or Incorrect
@@ -199,13 +199,13 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
               </ul>
             </section>
 
-            {/* 4. Store Items */}
+            {/* 4. Physical Craft Products & Supplies */}
             <section id="store-items" className="space-y-3 bg-white p-6 sm:p-8 rounded-3xl border border-[#E8E1D2] shadow-xs">
               <h2 className="text-xl font-bold text-[#1D231E] flex items-center gap-2.5">
                 <span className="w-7 h-7 rounded-xl bg-[#FAF6EE] text-[#E06C38] flex items-center justify-center text-xs font-black border border-[#E8E1D2]">4</span>
-                Store Items (Ready-Made Products)
+                Physical Craft Products & Supplies
               </h2>
-              <p>For any pre-made/in-stock items purchased through our store:</p>
+              <p>For any physical craft products or materials purchased through our platform:</p>
               <ul className="list-disc pl-5 space-y-1.5 text-[#4D5A4C]">
                 <li>You may request a return within <strong>7 days of delivery</strong>, provided the item is unused and in its original condition/packaging.</li>
                 <li>Return shipping costs are the responsibility of the customer unless the item was damaged, defective, or incorrect.</li>
@@ -220,7 +220,7 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
                 Damaged, Defective, or Incorrect Items
               </h2>
               <p>
-                If any item you receive — kit, custom stitched product, or store item — arrives damaged, defective, or different from what you ordered, contact us within <strong>7 days of delivery</strong> with photos of the issue. We will offer a replacement, repair, or full refund at our discretion, at no cost to you.
+                If any item you receive — kit, custom stitched product, or physical craft supply — arrives damaged, defective, or different from what you ordered, contact us within <strong>7 days of delivery</strong> with photos of the issue. We will offer a replacement, repair, or full refund at our discretion, at no cost to you.
               </p>
             </section>
 

@@ -224,7 +224,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               <h3 className="text-2xl font-bold text-[#FAF6EE] mb-2">Studio Plan</h3>
               <p className="text-xs text-[#A5B3A2] leading-relaxed mb-6">
-                For pattern designers, shop owners & artists wanting built-in image editing & store discounts.
+                For pattern designers, shop owners & artists wanting built-in image editing & custom order discounts.
               </p>
 
               {/* Price */}
@@ -259,7 +259,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Percent className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
-                  <span><strong className="text-[#E06C38]">15% Discount on all purchases</strong> in the Marketplace</span>
+                  <span><strong className="text-[#E06C38]">15% Discount on all Custom Orders</strong></span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <RefreshCw className="w-4 h-4 text-[#93A28F] shrink-0 mt-0.5" />

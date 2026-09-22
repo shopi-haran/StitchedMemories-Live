@@ -319,7 +319,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onGoHome, onOpenConverter, o
           if (onNavigateToShop) {
             onNavigateToShop();
           } else {
-            window.history.pushState({}, '', '/marketplace');
+            window.history.pushState({}, '', '/custom-order');
             window.dispatchEvent(new PopStateEvent('popstate'));
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }

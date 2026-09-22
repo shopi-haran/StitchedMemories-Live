@@ -717,7 +717,6 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                   <option value="all">All Types</option>
                   <option value="custom_stitched">Hand-Stitched Keepsake</option>
                   <option value="custom_kit">Custom Kit Only</option>
-                  <option value="store">Store Purchases</option>
                 </select>
               </div>
 
@@ -805,7 +804,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
             const isStoreOrder = (order.order_type || '').toLowerCase() === 'store' || (details.order_type || '').toLowerCase() === 'store';
             const activeStagesList = isStoreOrder ? STORE_ORDER_STAGES : ORDER_STAGES;
             const currentStageIndex = isStoreOrder ? getStoreStageIndex(rawStatus) : getStageIndex(rawStatus);
-            const orderTitle = order.title || order.title_name || (isStoreOrder ? 'Store Order' : `Custom Order #${order.id}`);
+            const orderTitle = order.title || order.title_name || (isStoreOrder ? 'Craft Order' : `Custom Order #${order.id}`);
             
             // Check if custom stitched product
             const isCustomStitched = !isStoreOrder && (
@@ -858,7 +857,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         )}
                         {isStoreOrder && (
                           <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                            <ShoppingBag className="w-2.5 h-2.5" /> Store Order
+                            <ShoppingBag className="w-2.5 h-2.5" /> Kit Order
                           </span>
                         )}
                       </div>
@@ -1064,7 +1063,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         const details = order.request_details || {};
         const isStoreOrder = (order.order_type || '').toLowerCase() === 'store' || (details.order_type || '').toLowerCase() === 'store';
         const currentStageIndex = isStoreOrder ? getStoreStageIndex(rawStatus) : getStageIndex(rawStatus);
-        const orderTitle = order.title || order.title_name || (isStoreOrder ? 'Store Order' : `Custom Order #${order.id}`);
+        const orderTitle = order.title || order.title_name || (isStoreOrder ? 'Craft Order' : `Custom Order #${order.id}`);
         const storeItems: any[] = (Array.isArray(order.items) ? order.items : details.items) || [];
         const isQuotedState = !isStoreOrder && rawStatus === 'quoted';
         const isAwaitingPayment = !isStoreOrder && rawStatus === 'awaiting_payment';
@@ -1265,7 +1264,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold uppercase tracking-wider text-[#5A6659] flex items-center gap-1.5">
-                      <ShoppingBag className="w-4 h-4 text-[#E06C38]" /> Store Order Items
+                      <ShoppingBag className="w-4 h-4 text-[#E06C38]" /> Ordered Items
                     </h4>
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       Paid & Confirmed
@@ -1290,7 +1289,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                   </div>
                                 )}
                                 <div>
-                                  <h5 className="text-xs font-bold text-[#1D231E]">{it.title || it.name || 'Store Item'}</h5>
+                                  <h5 className="text-xs font-bold text-[#1D231E]">{it.title || it.name || 'Craft Item'}</h5>
                                   <p className="text-[11px] text-[#5A6659]">Qty: {itQty} × {formatDualPrice(itPrice)}</p>
                                 </div>
                               </div>

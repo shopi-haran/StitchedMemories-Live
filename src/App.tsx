@@ -83,8 +83,11 @@ export default function App() {
         }
       } else if (path.startsWith('/blog')) {
         setCurrentPage('blog');
-      } else if (path.startsWith('/shop') || path.startsWith('/marketplace')) {
+      } else if (path.startsWith('/custom-order') || path.startsWith('/shop') || path.startsWith('/marketplace')) {
         setCurrentPage('shop');
+        if (path.startsWith('/shop') || path.startsWith('/marketplace')) {
+          window.history.replaceState({}, '', '/custom-order');
+        }
       } else if (path.startsWith('/about') || path.startsWith('/contact')) {
         setCurrentPage('about-contact');
       } else if (path === '/') {
@@ -267,8 +270,8 @@ export default function App() {
       return;
     }
 
-    if (sectionId === 'shop-page' || sectionId === 'shop-kits-section' || sectionId === 'shop-section' || sectionId === 'marketplace' || sectionId === 'marketplace-page') {
-      navigateToPage('shop', '/marketplace');
+    if (sectionId === 'custom-order' || sectionId === 'custom-order-page' || sectionId === 'shop-page' || sectionId === 'shop-kits-section' || sectionId === 'shop-section' || sectionId === 'marketplace' || sectionId === 'marketplace-page') {
+      navigateToPage('shop', '/custom-order');
       return;
     }
 
@@ -324,11 +327,11 @@ export default function App() {
               onNavigateToSection={handleNavigateToSection}
             />
 
-            {/* Three Entry Points (Convert a Photo, Browse Blog, Shop Kits) */}
+            {/* Three Entry Points (Convert a Photo, Browse Blog, Custom Order) */}
             <ThreeEntryPoints
               onOpenConverter={() => setIsConverterOpen(true)}
               onNavigateToBlog={() => handleNavigateToSection('blog-page')}
-              onNavigateToShop={() => handleNavigateToSection('marketplace-page')}
+              onNavigateToShop={() => handleNavigateToSection('custom-order-page')}
             />
 
             {/* Pricing & Subscription Section */}
@@ -343,10 +346,10 @@ export default function App() {
             <BlogPreview
               onNavigateToBlogPage={() => handleNavigateToSection('blog-page')}
               onOpenConverter={() => setIsConverterOpen(true)}
-              onNavigateToShop={() => handleNavigateToSection('marketplace-page')}
+              onNavigateToShop={() => handleNavigateToSection('custom-order-page')}
             />
-            {/* Future Shop Kits Preview */}
-            <ShopKitsPreview onNavigateToShopPage={() => handleNavigateToSection('shop-page')} />
+            {/* Custom Order Preview */}
+            <ShopKitsPreview onNavigateToShopPage={() => handleNavigateToSection('custom-order-page')} />
 
             {/* Community & Reviews Gallery (Invitation banner & empty visual grid) */}
             <CommunityGallery posts={[]} />
@@ -376,7 +379,7 @@ export default function App() {
           <BlogPage
             onGoHome={() => handleNavigateToSection('home')}
             onOpenConverter={() => setIsConverterOpen(true)}
-            onNavigateToShop={() => handleNavigateToSection('marketplace-page')}
+            onNavigateToShop={() => handleNavigateToSection('custom-order-page')}
           />
         )}
 
