@@ -43,12 +43,14 @@ import {
   acceptCustomerQuote,
   requestQuoteRevision,
   cancelCustomerOrder,
-  ArchivedQuote
+  ArchivedQuote,
+  updateAdminOrderStatus
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { formatDualPrice } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
+import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../../lib/payhere';
 
 interface UserProfile {
   id?: string;
@@ -130,6 +132,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
   const [error, setError] = useState<string | null>(null);
   const [isRealtimeActive, setIsRealtimeActive] = useState<boolean>(false);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | number | null>(null);
+  const [paymentErrorOrderId, setPaymentErrorOrderId] = useState<string | number | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
   const [copiedTracking, setCopiedTracking] = useState<string | null>(null);
 
@@ -460,27 +463,99 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
   }, [user.id, user.email, loadOrders]);
 
   const handleConfirmQuote = async (order: SupabaseStitchOrderRow) => {
-    const targetId = order.raw_order_id || order.id;
-    setConfirmingOrderId(targetId);
+    const realOrderId = order.raw_order_id || order.id;
+    setConfirmingOrderId(realOrderId);
+    setPaymentErrorOrderId(null);
+
     try {
-      const res = await acceptCustomerQuote(targetId);
-      if (res.success) {
-        setFeedbackMsg({
-          text: 'Quote accepted! Your order is now awaiting payment processing. Our studio team will reach out with payment confirmation.',
-          type: 'success'
-        });
-        await loadOrders(true);
-      } else {
-        setFeedbackMsg({
-          text: 'Unable to confirm order at this moment. Please try again.',
-          type: 'info'
-        });
-      }
-    } catch (err) {
-      console.error('Error accepting quote:', err);
-    } finally {
+      // 1. Generate order_id as required: order-${order.id}
+      const orderId = `order-${realOrderId}`;
+      const totalAmount = Number(order.total_amount || order.quoted_price || 0);
+
+      // 2. Call create-payhere-hash Edge Function
+      const hashRes = await createPayHereHash({
+        order_id: orderId,
+        amount: totalAmount,
+        currency: 'USD',
+      });
+
+      const nameParts = (order.customer_name || user?.name || 'Crafter').trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Crafter';
+      const lastName = nameParts.slice(1).join(' ') || 'Customer';
+
+      // 3. Open PayHere checkout (one-time payment, no recurrence fields)
+      await startPayHereCheckout(
+        {
+          sandbox: true,
+          merchant_id: hashRes.merchant_id,
+          return_url: window.location.href,
+          cancel_url: window.location.href,
+          notify_url: PAYHERE_NOTIFY_URL,
+          order_id: orderId,
+          items: order.title || `Custom Keepsake #${realOrderId}`,
+          amount: totalAmount.toFixed(2),
+          currency: 'USD',
+          hash: hashRes.hash,
+          first_name: firstName,
+          last_name: lastName,
+          email: order.customer_email || user?.email || '',
+          phone: order.customer_phone || '0771234567',
+          address: order.shipping_address || 'Online Order',
+          city: 'Colombo',
+          country: 'Sri Lanka',
+        },
+        {
+          onCompleted: async (completedOrderId) => {
+            console.log('[CustomOrdersTab] PayHere onCompleted:', completedOrderId);
+            try {
+              // Update order status in Supabase to processing & paid
+              await updateAdminOrderStatus(realOrderId, {
+                fulfillment_status: 'processing',
+                payment_status: 'paid',
+                status_note: 'Payment completed via PayHere. Handcrafted production underway.',
+              });
+              window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { id: realOrderId } }));
+            } catch (err) {
+              console.warn('[CustomOrdersTab] updateAdminOrderStatus error:', err);
+            }
+            // Immediately refetch orders so dashboard reflects new fulfillment_status without page refresh
+            await loadOrders(true);
+            setConfirmingOrderId(null);
+            setFeedbackMsg({
+              text: `Payment completed successfully for Order #${realOrderId}! Your order is now in production.`,
+              type: 'success',
+            });
+          },
+          onDismissed: () => {
+            console.log('[CustomOrdersTab] PayHere onDismissed');
+            // Order stays in 'quoted' status
+            setConfirmingOrderId(null);
+            setPaymentErrorOrderId(realOrderId);
+            setFeedbackMsg({
+              text: `Payment checkout was cancelled. Order #${realOrderId} remains in quoted status. You can retry checkout anytime.`,
+              type: 'info',
+            });
+          },
+          onError: (error) => {
+            console.error('[CustomOrdersTab] PayHere onError:', error);
+            // Order stays in 'quoted' status
+            setConfirmingOrderId(null);
+            setPaymentErrorOrderId(realOrderId);
+            setFeedbackMsg({
+              text: `Payment could not be completed (${typeof error === 'string' ? error : 'Transaction error'}). Order stays in quoted status. Please try again.`,
+              type: 'info',
+            });
+          },
+        }
+      );
+    } catch (err: any) {
+      console.error('[CustomOrdersTab] Checkout error:', err);
       setConfirmingOrderId(null);
-      setTimeout(() => setFeedbackMsg(null), 5000);
+      setPaymentErrorOrderId(realOrderId);
+      setFeedbackMsg({
+        text: `Unable to open checkout: ${err?.message || 'Error occurred'}. Please retry.`,
+        type: 'info',
+      });
     }
   };
 
@@ -1550,21 +1625,30 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         </button>
                       </div>
 
-                      {/* Confirm Order Button */}
+                      {/* Confirm Order Button with PayHere */}
                       <button
                         onClick={() => handleConfirmQuote(order)}
                         disabled={confirmingOrderId === (order.raw_order_id || order.id)}
-                        className="px-6 py-2.5 bg-[#1D231E] hover:bg-[#323D34] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
+                        className={`px-6 py-2.5 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50 ${
+                          paymentErrorOrderId === (order.raw_order_id || order.id)
+                            ? 'bg-[#E06C38] hover:bg-[#d05c28]'
+                            : 'bg-[#1D231E] hover:bg-[#323D34]'
+                        }`}
                       >
                         {confirmingOrderId === (order.raw_order_id || order.id) ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Confirming Order...</span>
+                            <span>Opening PayHere Checkout...</span>
+                          </>
+                        ) : paymentErrorOrderId === (order.raw_order_id || order.id) ? (
+                          <>
+                            <RotateCcw className="w-3.5 h-3.5 text-white" />
+                            <span>Retry Payment with PayHere</span>
                           </>
                         ) : (
                           <>
                             <Check className="w-3.5 h-3.5 text-[#E06C38]" />
-                            <span>Confirm Order</span>
+                            <span>Confirm & Pay Order</span>
                           </>
                         )}
                       </button>
@@ -1573,16 +1657,36 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
                   {/* Awaiting Payment Banner */}
                   {isAwaitingPayment && (
-                    <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3">
-                      <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 animate-spin" />
-                      <div>
-                        <h4 className="text-xs font-bold text-amber-900">
-                          Quote Confirmed — Awaiting Payment Verification
-                        </h4>
-                        <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                          We have recorded your confirmation. Please proceed with payment or await our studio coordinator to finalize the processing receipt.
-                        </p>
+                    <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <Clock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-900">
+                            Quote Confirmed — Ready for Payment
+                          </h4>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            Click below to complete your checkout with PayHere sandbox to begin crafting immediately.
+                          </p>
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmQuote(order)}
+                        disabled={confirmingOrderId === (order.raw_order_id || order.id)}
+                        className="px-5 py-2 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all flex items-center justify-center gap-2 shrink-0 shadow-sm cursor-pointer disabled:opacity-50"
+                      >
+                        {confirmingOrderId === (order.raw_order_id || order.id) ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Opening Checkout...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="w-3.5 h-3.5 text-white" />
+                            <span>Pay Now with PayHere</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>

@@ -145,10 +145,10 @@ export default function App() {
         window.history.pushState({}, '', '/dashboard');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        console.log('[App:handleSelectPlanFromPricing] Selecting paid plan (' + plan + '), setting isPaymentModalOpen=true, isUpgradeModalOpen=false');
-        setIsUpgradeModalOpen(false);
-        setUpgradeModalTargetPlan(null);
-        setIsPaymentModalOpen(true);
+        console.log('[App:handleSelectPlanFromPricing] Selecting paid plan (' + plan + '), opening UpgradePlanModal for PayHere checkout');
+        setUpgradeModalTargetPlan(plan === 'studio' ? 'studio' : null);
+        setIsPaymentModalOpen(false);
+        setIsUpgradeModalOpen(true);
       }
     } else {
       console.log('[App:handleSelectPlanFromPricing] Guest selected ' + plan + ', opening AuthModal (setIsPricingAuthModalOpen=true)');
