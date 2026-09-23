@@ -13,10 +13,17 @@ import {
   Sliders,
   Crown,
   ArrowRight,
-  HeartHandshake
+  HeartHandshake,
+  Loader2,
+  AlertCircle,
+  RotateCcw,
+  CheckCircle2
 } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
 import { DualPrice } from './DualPrice';
+import { useAuth } from '../context/AuthContext';
+import { updateUserTier, updateUserPlanSelection } from '../lib/supabase';
+import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -36,6 +43,16 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   targetPlan = null,
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [selectedPlanInProgress, setSelectedPlanInProgress] = useState<'pro' | 'studio' | null>(null);
+  const [paymentError, setPaymentError] = useState<{
+    type: 'dismissed' | 'error';
+    message: string;
+    plan: 'pro' | 'studio';
+  } | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const { user, isLoggedIn, refreshProfile } = useAuth();
 
   // Stacking z-index and body scroll lock
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'upgrade-plan-modal' });
@@ -63,6 +80,134 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       ? 'max-w-4xl' 
       : 'max-w-xl';
 
+  const handleFreePlan = async () => {
+    if (!isLoggedIn || !user) {
+      onSelectPlan('free', billingCycle);
+      return;
+    }
+    try {
+      if (isOnboarding || user.has_selected_plan === false) {
+        await updateUserPlanSelection(user.id, user.email, true);
+      }
+      await refreshProfile();
+      if (onClose) onClose();
+    } catch (err) {
+      console.error('Error selecting free plan:', err);
+      onSelectPlan('free', billingCycle);
+    }
+  };
+
+  const handleSubscribe = async (plan: 'pro' | 'studio') => {
+    // If guest, open login / signup modal first
+    if (!isLoggedIn || !user) {
+      onSelectPlan(plan, billingCycle);
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setSelectedPlanInProgress(plan);
+    setPaymentError(null);
+
+    try {
+      // Pro: $9/mo, or $84/yr ($7/mo billed annually)
+      // Studio: $19/mo, or $180/yr ($15/mo billed annually)
+      const amount = billingCycle === 'annual'
+        ? (plan === 'pro' ? 84 : 180)
+        : (plan === 'pro' ? 9 : 19);
+
+      // Generate order_id as required: sub-${profile.id}-${Date.now()}
+      const orderId = `sub-${user.id}-${Date.now()}`;
+
+      // Call the create-payhere-hash Edge Function
+      const hashResult = await createPayHereHash({
+        order_id: orderId,
+        amount,
+        currency: 'USD',
+      });
+
+      const nameParts = (user.name || 'Crafter Member').trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Crafter';
+      const lastName = nameParts.slice(1).join(' ') || 'Member';
+
+      // Open PayHere checkout with recurrence: "1 Month" (or "1 Year") and duration: "Forever"
+      await startPayHereCheckout(
+        {
+          sandbox: true,
+          merchant_id: hashResult.merchant_id,
+          return_url: window.location.href,
+          cancel_url: window.location.href,
+          notify_url: PAYHERE_NOTIFY_URL,
+          order_id: orderId,
+          items: `StitchedMemories ${plan === 'pro' ? 'Pro Crafter' : 'Studio'} Membership (${billingCycle})`,
+          amount: amount.toFixed(2),
+          currency: 'USD',
+          recurrence: billingCycle === 'annual' ? '1 Year' : '1 Month',
+          duration: 'Forever',
+          hash: hashResult.hash,
+          first_name: firstName,
+          last_name: lastName,
+          email: user.email,
+          phone: '0771234567',
+          address: 'Digital Crafter Membership',
+          city: 'Colombo',
+          country: 'Sri Lanka',
+        },
+        {
+          onCompleted: async (completedOrderId) => {
+            console.log('[UpgradePlanModal] PayHere onCompleted:', completedOrderId);
+            try {
+              // Update user subscription tier
+              await updateUserTier(user.id, user.email, plan);
+              if (isOnboarding || user.has_selected_plan === false) {
+                await updateUserPlanSelection(user.id, user.email, true);
+              }
+              await refreshProfile();
+              setIsSuccess(true);
+              setTimeout(() => {
+                setIsProcessingPayment(false);
+                setSelectedPlanInProgress(null);
+                if (onClose) onClose();
+              }, 1200);
+            } catch (err) {
+              console.error('[UpgradePlanModal] Error updating subscription after payment:', err);
+              await refreshProfile();
+              if (onClose) onClose();
+            }
+          },
+          onDismissed: () => {
+            console.log('[UpgradePlanModal] PayHere onDismissed');
+            setIsProcessingPayment(false);
+            setSelectedPlanInProgress(null);
+            setPaymentError({
+              type: 'dismissed',
+              message: 'Checkout was dismissed. No charges were made and your subscription remains unchanged.',
+              plan,
+            });
+          },
+          onError: (error) => {
+            console.error('[UpgradePlanModal] PayHere onError:', error);
+            setIsProcessingPayment(false);
+            setSelectedPlanInProgress(null);
+            setPaymentError({
+              type: 'error',
+              message: typeof error === 'string' ? error : 'Payment could not be completed. Please try again.',
+              plan,
+            });
+          },
+        }
+      );
+    } catch (err: any) {
+      console.error('[UpgradePlanModal] Checkout initialization error:', err);
+      setIsProcessingPayment(false);
+      setSelectedPlanInProgress(null);
+      setPaymentError({
+        type: 'error',
+        message: err?.message || 'Failed to initialize PayHere checkout. Please try again.',
+        plan,
+      });
+    }
+  };
+
   return createPortal(
     <div 
       data-modal-overlay="true"
@@ -70,7 +215,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       style={{ zIndex }}
       className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn"
       onClick={() => {
-        if (onClose) {
+        if (!isProcessingPayment && onClose) {
           onClose();
         }
       }}
@@ -122,11 +267,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             </div>
           </div>
 
-          {/* Close button: Available in all modes */}
+          {/* Close button */}
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-[#6B7869] hover:text-[#1D231E] hover:bg-[#E8E1D2]/60 rounded-full transition-colors cursor-pointer"
+              disabled={isProcessingPayment}
+              className="p-2 text-[#6B7869] hover:text-[#1D231E] hover:bg-[#E8E1D2]/60 rounded-full transition-colors cursor-pointer disabled:opacity-50"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -137,6 +283,49 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         {/* Modal Scrollable Body */}
         <div data-modal-scroll="true" className="p-6 sm:p-8 overflow-y-auto flex-1 overscroll-contain space-y-6">
           
+          {/* Payment Feedback Banner */}
+          {paymentError && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-[#1D231E]">
+                    {paymentError.type === 'dismissed' ? 'Payment Cancelled' : 'Payment Issue'}
+                  </p>
+                  <p className="text-[#5A6659] mt-0.5">{paymentError.message}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPaymentError(null)}
+                  className="px-3 py-1.5 rounded-lg border border-[#D5CDBC] text-xs font-semibold text-[#5A6659] hover:bg-white transition-colors cursor-pointer"
+                >
+                  Dismiss
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubscribe(paymentError.plan)}
+                  disabled={isProcessingPayment}
+                  className="px-4 py-1.5 rounded-lg bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Retry Checkout</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs text-emerald-900 animate-fadeIn">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div>
+                <p className="font-bold">Subscription Activated!</p>
+                <p className="text-emerald-700">Thank you for joining. Updating your dashboard...</p>
+              </div>
+            </div>
+          )}
+
           {/* Billing Cycle Toggle */}
           <div className="flex justify-center">
             <div className="inline-flex items-center gap-2 bg-white p-1 rounded-full border border-[#E2DAD0] shadow-xs">
@@ -232,8 +421,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => onSelectPlan('free', billingCycle)}
-                  className="w-full py-3 px-5 rounded-full bg-[#323D34] hover:bg-[#425245] border border-[#445246] text-[#FAF6EE] font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+                  disabled={isProcessingPayment}
+                  onClick={handleFreePlan}
+                  className="w-full py-3 px-5 rounded-full bg-[#323D34] hover:bg-[#425245] border border-[#445246] text-[#FAF6EE] font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02] disabled:opacity-50"
                 >
                   <span>Continue with Free</span>
                   <ArrowRight className="w-4 h-4" />
@@ -241,7 +431,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               </div>
             )}
 
-            {/* 2. Pro Plan Card (Shown in Onboarding mode OR when currentTier === 'free' in upgrade mode) */}
+            {/* 2. Pro Plan Card */}
             {showPro && (
               <div className="bg-[#1D231E] border-2 border-[#E06C38] rounded-3xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 bg-[#E06C38] text-white text-[9px] font-extrabold uppercase tracking-wider px-3.5 py-1 rounded-bl-xl shadow-xs">
@@ -301,19 +491,26 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    console.log('[UpgradePlanModal] Pro button clicked! billingCycle:', billingCycle);
-                    onSelectPlan('pro', billingCycle);
-                  }}
-                  className="w-full py-3 px-5 rounded-full bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-md cursor-pointer hover:scale-[1.02]"
+                  disabled={isProcessingPayment}
+                  onClick={() => handleSubscribe('pro')}
+                  className="w-full py-3 px-5 rounded-full bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-md cursor-pointer hover:scale-[1.02] disabled:opacity-60"
                 >
-                  <span>{isOnboarding ? 'Choose Pro Plan' : 'Upgrade to Pro'}</span>
-                  <Sparkles className="w-4 h-4" />
+                  {selectedPlanInProgress === 'pro' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Preparing Checkout...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{isOnboarding ? 'Choose Pro Plan' : 'Upgrade to Pro'}</span>
+                      <Sparkles className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             )}
 
-            {/* 3. Studio Plan Card (Shown in Onboarding mode OR when upgrading from free/pro) */}
+            {/* 3. Studio Plan Card */}
             {showStudio && (
               <div className={`bg-[#1D231E] border rounded-3xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden group ${
                 !showPro || isOnboarding ? 'border-2 border-[#323D34]' : 'border-[#323D34]'
@@ -384,18 +581,25 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    console.log('[UpgradePlanModal] Studio button clicked! billingCycle:', billingCycle);
-                    onSelectPlan('studio', billingCycle);
-                  }}
-                  className={`w-full py-3 px-5 rounded-full font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02] ${
+                  disabled={isProcessingPayment}
+                  onClick={() => handleSubscribe('studio')}
+                  className={`w-full py-3 px-5 rounded-full font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02] disabled:opacity-60 ${
                     !showPro && !isOnboarding
                       ? 'bg-[#E06C38] hover:bg-[#d05c28] text-white shadow-md'
                       : 'bg-[#323D34] hover:bg-[#425245] border border-[#445246] text-[#FAF6EE]'
                   }`}
                 >
-                  <span>{isOnboarding ? 'Choose Studio Plan' : 'Upgrade to Studio'}</span>
-                  <Sparkles className="w-4 h-4" />
+                  {selectedPlanInProgress === 'studio' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Preparing Checkout...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{isOnboarding ? 'Choose Studio Plan' : 'Upgrade to Studio'}</span>
+                      <Sparkles className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             )}
