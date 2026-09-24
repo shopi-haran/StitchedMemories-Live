@@ -79,7 +79,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGoHome }
               display_name: name || email.split('@')[0],
               has_selected_plan: false,
               subscription_tier: 'free',
-              subscription_status: 'active',
+              subscription_status: 'inactive',
               updated_at: new Date().toISOString(),
             });
           } catch (e) {

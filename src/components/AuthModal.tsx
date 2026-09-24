@@ -105,7 +105,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               role: 'user',
               has_selected_plan: false,
               subscription_tier: 'free',
-              subscription_status: 'active',
+              subscription_status: 'inactive',
             });
             if (upsertErr) {
               console.error('[AuthModal] Profile upsert error:', upsertErr);

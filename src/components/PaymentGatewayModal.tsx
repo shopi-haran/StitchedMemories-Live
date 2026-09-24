@@ -12,7 +12,7 @@ import {
   RotateCcw,
   Loader2 
 } from 'lucide-react';
-import { updateUserTier, updateUserPlanSelection } from '../lib/supabase';
+import { fetchUserProfile } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
 import { DualPrice } from './DualPrice';
 import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
@@ -37,6 +37,8 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'payment-gateway-modal' });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(initialBillingCycle);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [paymentError, setPaymentError] = useState<{
     type: 'dismissed' | 'error';
@@ -94,14 +96,44 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         {
           onCompleted: async (completedOrderId) => {
             console.log('[PaymentGatewayModal] PayHere completed:', completedOrderId);
-            if (user?.id || user?.email) {
-              await updateUserTier(user.id || user.email, user.email, plan);
-              await updateUserPlanSelection(user.id || user.email, user.email, true);
+            setIsProcessing(true);
+            setIsVerifying(true);
+            setPaymentError(null);
+            setPendingNotice(null);
+
+            // Poll/refetch user's profile every 2 seconds, up to ~15 seconds total (8 attempts = ~16s)
+            // checking if subscription_tier and subscription_status have actually been updated by the webhook
+            const pollIntervalMs = 2000;
+            const maxAttempts = 8;
+            let confirmed = false;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+              try {
+                const latestProfile = await fetchUserProfile(user?.id);
+                const currentTier = (latestProfile?.subscription_tier || '').toLowerCase();
+                const currentStatus = (latestProfile?.subscription_status || '').toLowerCase();
+
+                if (currentStatus === 'active' && (currentTier === plan || (plan === 'pro' && currentTier === 'studio'))) {
+                  confirmed = true;
+                  break;
+                }
+              } catch (pollErr) {
+                console.warn('[PaymentGatewayModal] Error polling profile:', pollErr);
+              }
             }
-            setIsSuccess(true);
-            setTimeout(() => {
-              onPaymentSuccess(plan);
-            }, 1200);
+
+            setIsVerifying(false);
+
+            if (confirmed) {
+              setIsSuccess(true);
+              setTimeout(() => {
+                onPaymentSuccess(plan);
+              }, 1200);
+            } else {
+              setIsProcessing(false);
+              setPendingNotice('Payment received — your subscription will activate shortly, refresh in a moment');
+            }
           },
           onDismissed: () => {
             console.log('[PaymentGatewayModal] PayHere dismissed');
@@ -210,6 +242,31 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             </div>
           )}
 
+          {/* Pending Webhook Verification Banner */}
+          {pendingNotice && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-[#1D231E]">Pending Confirmation</p>
+                  <p className="text-[#5A6659] mt-0.5">{pendingNotice}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingNotice(null);
+                    onClose();
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-[#D5CDBC] text-xs font-semibold text-[#5A6659] hover:bg-white transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Plan Summary Card */}
           <div className="bg-white border border-[#E8E1D2] rounded-2xl p-5 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E1D2]">
@@ -269,7 +326,17 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
           </div>
 
           {/* Payment Action */}
-          {isSuccess ? (
+          {isVerifying ? (
+            <div className="p-8 bg-blue-50 border border-blue-200 rounded-2xl text-center space-y-3 animate-fade-in">
+              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                <Loader2 className="w-7 h-7 animate-spin" />
+              </div>
+              <h3 className="text-xl font-bold text-blue-900">Verifying your payment...</h3>
+              <p className="text-xs text-blue-700 max-w-sm mx-auto">
+                Waiting for secure webhook confirmation from PayHere. This will take just a moment.
+              </p>
+            </div>
+          ) : isSuccess ? (
             <div className="p-8 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-3 animate-fade-in">
               <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-7 h-7" />

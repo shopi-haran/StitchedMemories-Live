@@ -134,7 +134,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   };
 
   const effectiveTier = getEffectiveTier(profile);
-  const status = (profile?.subscription_status || 'active').toLowerCase();
+  const status = (profile?.subscription_status || 'inactive').toLowerCase();
   const accessUntil = profile?.access_until;
 
   const displayTierTitle = status === 'active' 

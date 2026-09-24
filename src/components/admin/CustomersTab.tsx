@@ -126,12 +126,12 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({
                       <td className="py-4 px-4 align-middle">
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            (p.subscription_status || 'active').toLowerCase() === 'active'
+                            (p.subscription_status || 'inactive').toLowerCase() === 'active'
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-rose-100 text-rose-800'
                           }`}
                         >
-                          {(p.subscription_status || 'active').toUpperCase()}
+                          {(p.subscription_status || 'inactive').toUpperCase()}
                         </span>
                       </td>
 
