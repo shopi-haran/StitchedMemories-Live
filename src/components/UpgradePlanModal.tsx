@@ -22,7 +22,7 @@ import {
 import { useModalStack } from '../hooks/useModalStack';
 import { DualPrice } from './DualPrice';
 import { useAuth } from '../context/AuthContext';
-import { updateUserTier, updateUserPlanSelection } from '../lib/supabase';
+import { fetchUserProfile, updateUserPlanSelection } from '../lib/supabase';
 import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
 export interface UpgradePlanModalProps {
@@ -44,6 +44,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationPendingMsg, setVerificationPendingMsg] = useState<string | null>(null);
   const [selectedPlanInProgress, setSelectedPlanInProgress] = useState<'pro' | 'studio' | null>(null);
   const [paymentError, setPaymentError] = useState<{
     type: 'dismissed' | 'error';
@@ -155,23 +157,49 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         {
           onCompleted: async (completedOrderId) => {
             console.log('[UpgradePlanModal] PayHere onCompleted:', completedOrderId);
-            try {
-              // Update user subscription tier
-              await updateUserTier(user.id, user.email, plan);
-              if (isOnboarding || user.has_selected_plan === false) {
-                await updateUserPlanSelection(user.id, user.email, true);
+            setIsVerifying(true);
+            setIsProcessingPayment(true);
+            setPaymentError(null);
+            setVerificationPendingMsg(null);
+
+            // Poll/refetch the user's profile every 2 seconds, up to ~15 seconds total (8 attempts = ~16s)
+            // checking if subscription_tier and subscription_status have actually been updated by the webhook
+            const pollIntervalMs = 2000;
+            const maxAttempts = 8;
+            let confirmed = false;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+              try {
+                const latestProfile = await fetchUserProfile(user.id);
+                const currentTier = (latestProfile?.subscription_tier || '').toLowerCase();
+                const currentStatus = (latestProfile?.subscription_status || '').toLowerCase();
+
+                if (currentStatus === 'active' && (currentTier === plan || (plan === 'pro' && currentTier === 'studio'))) {
+                  confirmed = true;
+                  await refreshProfile();
+                  break;
+                }
+              } catch (pollErr) {
+                console.warn('[UpgradePlanModal] Error polling profile:', pollErr);
               }
-              await refreshProfile();
+            }
+
+            setIsVerifying(false);
+
+            if (confirmed) {
               setIsSuccess(true);
               setTimeout(() => {
                 setIsProcessingPayment(false);
                 setSelectedPlanInProgress(null);
                 if (onClose) onClose();
               }, 1200);
-            } catch (err) {
-              console.error('[UpgradePlanModal] Error updating subscription after payment:', err);
-              await refreshProfile();
-              if (onClose) onClose();
+            } else {
+              setIsProcessingPayment(false);
+              setSelectedPlanInProgress(null);
+              setVerificationPendingMsg(
+                'Payment received — your subscription will activate shortly, refresh in a moment'
+              );
             }
           },
           onDismissed: () => {
@@ -311,6 +339,51 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Retry Checkout</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isVerifying && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 animate-fadeIn">
+              <Loader2 className="w-5 h-5 text-blue-600 shrink-0 animate-spin" />
+              <div>
+                <p className="font-bold">Verifying your payment...</p>
+                <p className="text-blue-700">Waiting for secure confirmation from PayHere. This takes just a moment.</p>
+              </div>
+            </div>
+          )}
+
+          {verificationPendingMsg && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-[#1D231E]">Pending Confirmation</p>
+                  <p className="text-[#5A6659] mt-0.5">{verificationPendingMsg}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerificationPendingMsg(null);
+                    if (onClose) onClose();
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-[#D5CDBC] text-xs font-semibold text-[#5A6659] hover:bg-white transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await refreshProfile();
+                    if (onClose) onClose();
+                  }}
+                  className="px-4 py-1.5 rounded-lg bg-[#1D231E] hover:bg-[#323D34] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh Now</span>
                 </button>
               </div>
             </div>

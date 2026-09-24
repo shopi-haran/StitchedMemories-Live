@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           '';
 
         const tier = profile?.subscription_tier || 'free';
-        const status = profile?.subscription_status || 'active';
+        const status = profile?.subscription_status || 'inactive';
         const role = profile?.role || 'user';
 
         // Profiles table is the single source of truth for plan selection.
@@ -92,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           avatar_url: userMeta.avatar_url || '',
           role: 'user',
           subscription_tier: 'free',
-          subscription_status: 'active',
+          subscription_status: 'inactive',
           subscription_period_end: null,
           has_selected_plan: false,
         });
@@ -193,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleLocalTierChanged = (e: CustomEvent) => {
       if (!isMounted) return;
       const tier = e.detail || 'free';
-      setUser((prev) => prev ? { ...prev, subscription_tier: tier, subscription_status: 'active', has_selected_plan: true } : null);
+      setUser((prev) => prev ? { ...prev, subscription_tier: tier, has_selected_plan: true } : null);
     };
 
     window.addEventListener('plan-selection-changed', handleLocalPlanChanged as EventListener);

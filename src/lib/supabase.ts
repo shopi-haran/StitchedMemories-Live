@@ -2532,8 +2532,6 @@ export async function updateUserProfile(
           id: userId,
           display_name: updates.display_name || 'Crafter',
           role: 'user',
-          subscription_tier: 'free',
-          subscription_status: 'active',
           ...validUpdates,
         });
 
@@ -2567,8 +2565,6 @@ export async function updateUserPlanSelection(
   try {
     const updatePayload = {
       has_selected_plan: hasSelected,
-      subscription_tier: 'free',
-      subscription_status: 'active',
     };
 
     const { error: updateError } = await supabase
@@ -2599,8 +2595,14 @@ export async function updateUserPlanSelection(
   }
 }
 
+/**
+ * Local dev helper for testing UI tier rendering in-session.
+ * NOTE: subscription_tier and subscription_status can ONLY be mutated in the
+ * database by the verified server-side payhere-notify Edge Function.
+ * Client-side direct database writes to these columns are completely disabled.
+ */
 export async function updateUserTier(
-  userId: string,
+  _userId: string,
   _userEmail: string,
   tier: 'free' | 'pro' | 'studio',
   _periodEnd?: string | null
@@ -2608,35 +2610,6 @@ export async function updateUserTier(
   window.dispatchEvent(new CustomEvent('dev-tier-changed', { detail: tier }));
   window.dispatchEvent(new CustomEvent('tierChanged', { detail: { tier } }));
   window.dispatchEvent(new CustomEvent('plan-selection-changed', { detail: { hasSelected: true } }));
-
-  if (!userId) return false;
-
-  try {
-    const updatePayload = {
-      subscription_tier: tier,
-      subscription_status: 'active',
-      has_selected_plan: true,
-    };
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update(updatePayload)
-      .eq('id', userId);
-
-    if (updateError) {
-      console.warn('[updateUserTier] Update failed, attempting upsert:', updateError.message);
-      await supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          role: 'user',
-          ...updatePayload,
-        });
-    }
-  } catch (err) {
-    console.error('Error updating tier in Supabase:', err);
-  }
-
   return true;
 }
 
