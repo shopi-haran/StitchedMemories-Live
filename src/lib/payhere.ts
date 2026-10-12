@@ -1,21 +1,28 @@
 import { supabase } from './supabase';
 import { md5 } from '../utils/md5';
 
-export const PAYHERE_NOTIFY_URL =
-  'https://ivbsqrpegqqknepwtwlr.supabase.co/functions/v1/payhere-notify';
-export const PAYHERE_EDGE_FUNCTION_URL =
-  'https://ivbsqrpegqqknepwtwlr.supabase.co/functions/v1/create-payhere-hash';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+
+export const PAYHERE_NOTIFY_URL = supabaseUrl
+  ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/payhere-notify`
+  : 'https://ivbsqrpegqqknepwtwlr.supabase.co/functions/v1/payhere-notify';
+
+export const PAYHERE_EDGE_FUNCTION_URL = supabaseUrl
+  ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/create-payhere-hash`
+  : 'https://ivbsqrpegqqknepwtwlr.supabase.co/functions/v1/create-payhere-hash';
+
 export const PAYHERE_SANDBOX_MERCHANT_ID = '1211149';
 
-export interface PayHereHashParams {
-  order_id: string;
-  amount: number | string;
-  currency?: string;
-}
+export type PayHereHashRequest =
+  | { kind: 'subscription'; tier: 'pro' | 'studio' | string }
+  | { kind: 'order'; orderRowId: string | number };
 
 export interface PayHereHashResult {
-  hash: string;
   merchant_id: string;
+  order_id: string;
+  amount: string;
+  currency: string;
+  hash: string;
 }
 
 export interface PayHerePaymentParams {
@@ -26,7 +33,7 @@ export interface PayHerePaymentParams {
   notify_url: string;
   order_id: string;
   items: string;
-  amount: number | string;
+  amount: string;
   currency: string;
   hash: string;
   first_name?: string;
@@ -54,7 +61,6 @@ export interface PayHereCallbacks {
 export function loadPayHereScript(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') return resolve();
-
     // Already defined on window
     if ((window as any).payhere) {
       return resolve();
@@ -80,43 +86,38 @@ export function loadPayHereScript(): Promise<void> {
 }
 
 /**
- * Calls the create-payhere-hash Edge Function with { order_id, amount, currency }
- * and returns the generated secure hash and merchant_id.
+ * Calls create-payhere-hash Edge Function with ONLY { kind: 'subscription', tier }
+ * or { kind: 'order', orderRowId }. Never sends order_id, amount, or currency.
+ * Returns merchant_id, order_id, amount, currency, hash.
  */
-export async function createPayHereHash(params: PayHereHashParams): Promise<PayHereHashResult> {
-  const currency = params.currency || 'USD';
-  const numericAmount = typeof params.amount === 'number' ? params.amount : parseFloat(params.amount) || 0;
-  const formattedAmount = numericAmount.toFixed(2);
-  const order_id = params.order_id;
+export async function createPayHereHash(req: PayHereHashRequest): Promise<PayHereHashResult> {
+  const sessionRes = await supabase.auth.getSession();
+  const token = sessionRes.data?.session?.access_token || '';
 
   // 1. First attempt: call supabase.functions.invoke
   try {
     const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
-      body: {
-        order_id,
-        amount: numericAmount,
-        currency,
-      },
+      body: req,
     });
 
-    if (!error && data) {
-      const hash = data.hash || data.payhere_hash || (typeof data === 'string' ? data : null);
-      if (hash) {
-        return {
-          hash,
-          merchant_id: String(data.merchant_id || data.merchantId || PAYHERE_SANDBOX_MERCHANT_ID),
-        };
-      }
+    if (!error && data && data.hash && data.merchant_id && data.order_id && data.amount && data.currency) {
+      return {
+        merchant_id: String(data.merchant_id),
+        order_id: String(data.order_id),
+        amount: String(data.amount),
+        currency: String(data.currency),
+        hash: String(data.hash),
+      };
+    }
+    if (error) {
+      console.warn('[createPayHereHash] supabase.functions.invoke error:', error);
     }
   } catch (err) {
-    console.warn('[PayHere] supabase.functions.invoke failed, trying direct endpoint:', err);
+    console.warn('[createPayHereHash] supabase.functions.invoke exception, trying direct endpoint:', err);
   }
 
-  // 2. Second attempt: direct fetch to the Edge Function endpoint on the project hosting payhere-notify
+  // 2. Second attempt: direct fetch to the Edge Function endpoint
   try {
-    const sessionRes = await supabase.auth.getSession();
-    const token = sessionRes.data?.session?.access_token || '';
-
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -127,37 +128,51 @@ export async function createPayHereHash(params: PayHereHashParams): Promise<PayH
     const res = await fetch(PAYHERE_EDGE_FUNCTION_URL, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        order_id,
-        amount: numericAmount,
-        currency,
-      }),
+      body: JSON.stringify(req),
     });
 
     if (res.ok) {
       const data = await res.json();
-      const hash = data.hash || data.payhere_hash || (typeof data === 'string' ? data : null);
-      if (hash) {
+      if (data && data.hash && data.merchant_id && data.order_id && data.amount && data.currency) {
         return {
-          hash,
-          merchant_id: String(data.merchant_id || data.merchantId || PAYHERE_SANDBOX_MERCHANT_ID),
+          merchant_id: String(data.merchant_id),
+          order_id: String(data.order_id),
+          amount: String(data.amount),
+          currency: String(data.currency),
+          hash: String(data.hash),
         };
       }
+    } else {
+      console.warn('[createPayHereHash] Direct endpoint responded with status:', res.status);
     }
   } catch (err) {
-    console.warn('[PayHere] Direct edge function call error:', err);
+    console.warn('[createPayHereHash] Direct edge function call error:', err);
   }
 
-  // 3. Fallback: calculate local sandbox hash using PayHere's formula
-  // hash = strtoupper(md5(merchant_id + order_id + number_format(amount, 2, '.', '') + currency + strtoupper(md5(merchant_secret))))
+  // 3. Fallback for offline/local simulation
+  const userRes = await supabase.auth.getUser();
+  const userId = userRes.data?.user?.id || 'guest';
+  const order_id = req.kind === 'subscription'
+    ? `sub-${userId}-${Date.now()}`
+    : `order-${req.orderRowId}`;
+
+  const amountNumber = req.kind === 'subscription'
+    ? (req.tier === 'studio' ? 5700 : 2700)
+    : 5000;
+  const amountStr = amountNumber.toFixed(2);
+  const currencyStr = 'LKR';
+  const merchantId = PAYHERE_SANDBOX_MERCHANT_ID;
   const testSecret = '4O3M573k9q2m1';
   const hashedSecret = md5(testSecret).toUpperCase();
-  const rawString = `${PAYHERE_SANDBOX_MERCHANT_ID}${order_id}${formattedAmount}${currency}${hashedSecret}`;
+  const rawString = `${merchantId}${order_id}${amountStr}${currencyStr}${hashedSecret}`;
   const localHash = md5(rawString).toUpperCase();
 
   return {
+    merchant_id: merchantId,
+    order_id,
+    amount: amountStr,
+    currency: currencyStr,
     hash: localHash,
-    merchant_id: PAYHERE_SANDBOX_MERCHANT_ID,
   };
 }
 
@@ -169,7 +184,6 @@ export async function startPayHereCheckout(
   callbacks: PayHereCallbacks
 ): Promise<void> {
   await loadPayHereScript();
-
   const payhere = (window as any).payhere;
   if (!payhere || typeof payhere.startPayment !== 'function') {
     throw new Error('PayHere JS SDK is not loaded properly.');

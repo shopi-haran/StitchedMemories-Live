@@ -468,33 +468,26 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
     setPaymentErrorOrderId(null);
 
     try {
-      // 1. Generate order_id as required: order-${order.id}
-      const orderId = `order-${realOrderId}`;
-      const totalAmount = Number(order.total_amount || order.quoted_price || 0);
-
-      // 2. Call create-payhere-hash Edge Function
+      // 1. Call create-payhere-hash with ONLY { kind: 'order', orderRowId }
+      // Never send order_id, amount, or currency
       const hashRes = await createPayHereHash({
-        order_id: orderId,
-        amount: totalAmount,
-        currency: 'USD',
+        kind: 'order',
+        orderRowId: realOrderId,
       });
 
       const nameParts = (order.customer_name || user?.name || 'Crafter').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Crafter';
       const lastName = nameParts.slice(1).join(' ') || 'Customer';
 
-      // 3. Open PayHere checkout (one-time payment, no recurrence fields)
+      // 2. Open PayHere checkout with returned values exactly as given
       await startPayHereCheckout(
         {
           sandbox: true,
           merchant_id: hashRes.merchant_id,
-          return_url: window.location.href,
-          cancel_url: window.location.href,
-          notify_url: PAYHERE_NOTIFY_URL,
-          order_id: orderId,
+          order_id: hashRes.order_id,
           items: order.title || `Custom Keepsake #${realOrderId}`,
-          amount: totalAmount.toFixed(2),
-          currency: 'USD',
+          amount: hashRes.amount,
+          currency: hashRes.currency,
           hash: hashRes.hash,
           first_name: firstName,
           last_name: lastName,
@@ -503,48 +496,69 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
           address: order.shipping_address || 'Online Order',
           city: 'Colombo',
           country: 'Sri Lanka',
+          return_url: window.location.href,
+          cancel_url: window.location.href,
+          notify_url: PAYHERE_NOTIFY_URL,
         },
         {
           onCompleted: async (completedOrderId) => {
             console.log('[CustomOrdersTab] PayHere onCompleted:', completedOrderId);
-            try {
-              // Update order status in Supabase to processing & paid
-              await updateAdminOrderStatus(realOrderId, {
-                fulfillment_status: 'processing',
-                payment_status: 'paid',
-                status_note: 'Payment completed via PayHere. Handcrafted production underway.',
-              });
-              window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { id: realOrderId } }));
-            } catch (err) {
-              console.warn('[CustomOrdersTab] updateAdminOrderStatus error:', err);
+            setFeedbackMsg({
+              text: 'Confirming payment... please wait while we verify your transaction.',
+              type: 'info',
+            });
+
+            // Poll/refetch the order every 2s for up to 30s until payment_status === 'paid'
+            const pollIntervalMs = 2000;
+            const maxAttempts = 15; // 30 seconds
+            let confirmed = false;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+              try {
+                const refreshedOrders = await fetchUserStitchOrders(user.id, user.email);
+                const currentOrder = refreshedOrders.find(
+                  (o) => String(o.raw_order_id || o.id) === String(realOrderId)
+                );
+                if (
+                  currentOrder &&
+                  (currentOrder.payment_status === 'paid' ||
+                    currentOrder.fulfillment_status === 'processing')
+                ) {
+                  confirmed = true;
+                  break;
+                }
+              } catch (pollErr) {
+                console.warn('[CustomOrdersTab] Error polling order status:', pollErr);
+              }
             }
-            // Immediately refetch orders so dashboard reflects new fulfillment_status without page refresh
+
             await loadOrders(true);
             setConfirmingOrderId(null);
-            setFeedbackMsg({
-              text: `Payment completed successfully for Order #${realOrderId}! Your order is now in production.`,
-              type: 'success',
-            });
+
+            if (confirmed) {
+              setFeedbackMsg({
+                text: `Payment completed successfully for Order #${realOrderId}! Your order is now in production.`,
+                type: 'success',
+              });
+              // 6. After order payment confirms, navigate to the dashboard's Custom Orders tab
+              window.dispatchEvent(new CustomEvent('navigate-dashboard-tab', { detail: 'orders' }));
+            } else {
+              setFeedbackMsg({
+                text: 'payment not confirmed yet, check your dashboard shortly',
+                type: 'info',
+              });
+            }
           },
           onDismissed: () => {
             console.log('[CustomOrdersTab] PayHere onDismissed');
-            // Order stays in 'quoted' status
+            // Close checkout without changing state or showing success
             setConfirmingOrderId(null);
-            setPaymentErrorOrderId(realOrderId);
-            setFeedbackMsg({
-              text: `Payment checkout was cancelled. Order #${realOrderId} remains in quoted status. You can retry checkout anytime.`,
-              type: 'info',
-            });
           },
           onError: (error) => {
             console.error('[CustomOrdersTab] PayHere onError:', error);
-            // Order stays in 'quoted' status
+            // Close checkout without changing state or showing success
             setConfirmingOrderId(null);
-            setPaymentErrorOrderId(realOrderId);
-            setFeedbackMsg({
-              text: `Payment could not be completed (${typeof error === 'string' ? error : 'Transaction error'}). Order stays in quoted status. Please try again.`,
-              type: 'info',
-            });
           },
         }
       );

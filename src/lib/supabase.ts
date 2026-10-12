@@ -2803,3 +2803,32 @@ export async function updateExchangeRateInDb(rate: number): Promise<{ success: b
 
 
 
+
+
+export interface SubscriptionPlanRow {
+  id?: string | number;
+  tier: string;
+  price_lkr: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Fetches subscription plan prices from public.subscription_plans table.
+ */
+export async function fetchSubscriptionPlans(): Promise<SubscriptionPlanRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('subscription_plans')
+      .select('*');
+
+    if (error) {
+      console.warn('[fetchSubscriptionPlans] Error fetching subscription plans:', error);
+      return [];
+    }
+    return (data as SubscriptionPlanRow[]) || [];
+  } catch (err) {
+    console.warn('[fetchSubscriptionPlans] Exception fetching subscription plans:', err);
+    return [];
+  }
+}

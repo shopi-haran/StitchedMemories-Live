@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, 
@@ -12,9 +12,9 @@ import {
   RotateCcw,
   Loader2 
 } from 'lucide-react';
-import { fetchUserProfile } from '../lib/supabase';
+import { fetchUserProfile, fetchSubscriptionPlans } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
-import { DualPrice } from './DualPrice';
+import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
 interface PaymentGatewayModalProps {
@@ -45,45 +45,70 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     message: string;
   } | null>(null);
 
+  // Dynamic plan prices from database
+  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
+    pro: 2700,
+    studio: 5700,
+  });
+
+  useEffect(() => {
+    let active = true;
+    async function loadPrices() {
+      try {
+        const rows = await fetchSubscriptionPlans();
+        if (active && rows.length > 0) {
+          const map: Record<string, number> = {};
+          rows.forEach((r) => {
+            if (r.tier && r.price_lkr !== undefined) {
+              map[r.tier.toLowerCase().trim()] = Number(r.price_lkr);
+            }
+          });
+          setPlanPrices((prev) => ({ ...prev, ...map }));
+        }
+      } catch (e) {
+        console.warn('[PaymentGatewayModal] Error loading subscription plans:', e);
+      }
+    }
+    if (isOpen) {
+      loadPrices();
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+
   if (!isOpen || typeof document === 'undefined') return null;
 
   const planName = plan === 'pro' ? 'Pro Crafter Plan' : 'Studio Plan';
-  const monthlyPrice = plan === 'pro' ? 9 : 19;
-  const annualPrice = plan === 'pro' ? 7 : 15;
-  const currentMonthlyRate = billingCycle === 'annual' ? annualPrice : monthlyPrice;
-  const totalBilled = billingCycle === 'annual' ? annualPrice * 12 : monthlyPrice;
+  const baseMonthlyLkr = planPrices[plan] || (plan === 'pro' ? 2700 : 5700);
+  const annualMonthlyLkr = Math.round(baseMonthlyLkr * 0.8);
+  const activePriceLkr = billingCycle === 'annual' ? annualMonthlyLkr : baseMonthlyLkr;
 
   const handlePayHerePayment = async () => {
     setIsProcessing(true);
     setPaymentError(null);
+    setPendingNotice(null);
 
     try {
-      const orderId = `sub-${user?.id || 'guest'}-${Date.now()}`;
-      const amount = totalBilled;
-
+      // 1. Call create-payhere-hash with ONLY { kind: 'subscription', tier }
       const hashRes = await createPayHereHash({
-        order_id: orderId,
-        amount,
-        currency: 'USD',
+        kind: 'subscription',
+        tier: plan,
       });
 
       const nameParts = (user?.name || 'Crafter Member').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Crafter';
       const lastName = nameParts.slice(1).join(' ') || 'Member';
 
+      // 2. Open PayHere checkout with returned values exactly as given
       await startPayHereCheckout(
         {
           sandbox: true,
           merchant_id: hashRes.merchant_id,
-          return_url: window.location.href,
-          cancel_url: window.location.href,
-          notify_url: PAYHERE_NOTIFY_URL,
-          order_id: orderId,
+          order_id: hashRes.order_id,
           items: `StitchedMemories ${planName} (${billingCycle})`,
-          amount: amount.toFixed(2),
-          currency: 'USD',
-          recurrence: billingCycle === 'annual' ? '1 Year' : '1 Month',
-          duration: 'Forever',
+          amount: hashRes.amount,
+          currency: hashRes.currency,
           hash: hashRes.hash,
           first_name: firstName,
           last_name: lastName,
@@ -92,6 +117,9 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
           address: 'Digital Subscription',
           city: 'Colombo',
           country: 'Sri Lanka',
+          return_url: window.location.href,
+          cancel_url: window.location.href,
+          notify_url: PAYHERE_NOTIFY_URL,
         },
         {
           onCompleted: async (completedOrderId) => {
@@ -101,10 +129,10 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             setPaymentError(null);
             setPendingNotice(null);
 
-            // Poll/refetch user's profile every 2 seconds, up to ~15 seconds total (8 attempts = ~16s)
-            // checking if subscription_tier and subscription_status have actually been updated by the webhook
+            // Poll/refetch user's profile every 2 seconds for up to 30 seconds
+            // until subscription_status is 'active' and subscription_tier matches the purchased tier
             const pollIntervalMs = 2000;
-            const maxAttempts = 8;
+            const maxAttempts = 15; // 15 * 2s = 30 seconds
             let confirmed = false;
 
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -124,7 +152,6 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             }
 
             setIsVerifying(false);
-
             if (confirmed) {
               setIsSuccess(true);
               setTimeout(() => {
@@ -132,24 +159,22 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               }, 1200);
             } else {
               setIsProcessing(false);
-              setPendingNotice('Payment received — your subscription will activate shortly, refresh in a moment');
+              setPendingNotice('payment not confirmed yet, check your dashboard shortly');
             }
           },
           onDismissed: () => {
             console.log('[PaymentGatewayModal] PayHere dismissed');
+            // Close checkout without changing state or showing success
             setIsProcessing(false);
-            setPaymentError({
-              type: 'dismissed',
-              message: 'Payment checkout was dismissed. You can retry checkout anytime.',
-            });
+            setIsVerifying(false);
+            setPendingNotice(null);
           },
           onError: (error) => {
             console.error('[PaymentGatewayModal] PayHere error:', error);
+            // Close checkout without changing state or showing success
             setIsProcessing(false);
-            setPaymentError({
-              type: 'error',
-              message: typeof error === 'string' ? error : 'Payment could not be completed. Please try again.',
-            });
+            setIsVerifying(false);
+            setPendingNotice(null);
           },
         }
       );
@@ -168,251 +193,182 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       data-modal-overlay="true"
       data-modal-id={modalId}
       style={{ zIndex }}
-      className="fixed inset-0 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
       onClick={() => {
         if (!isProcessing && onClose) onClose();
       }}
     >
       <div 
-        className="relative w-full max-w-2xl bg-[#FAF6EE] border border-[#E8E1D2] rounded-3xl shadow-2xl overflow-hidden text-[#1D231E] max-h-[90vh] flex flex-col"
+        className="relative w-full max-w-lg bg-[#FAF6EE] rounded-3xl shadow-2xl border border-[#E8E1D2] overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Header Bar */}
-        <div className="p-5 sm:p-6 bg-[#1D231E] text-white flex items-center justify-between relative shrink-0">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-[#E8E1D2] flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#E06C38]/20 text-[#E06C38] flex items-center justify-center border border-[#E06C38]/30">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-[#E06C38]/10 text-[#E06C38] flex items-center justify-center">
+              <CreditCard className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-[#FAF6EE]">PayHere Checkout</h2>
-                <span className="text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                  Sandbox Active
-                </span>
-              </div>
-              <p className="text-xs text-[#A5B3A2]">
-                Complete your upgrade to the <strong className="text-white">{planName}</strong>
-              </p>
+              <h3 className="text-lg font-bold text-[#1D231E]">Complete Your Membership</h3>
+              <p className="text-xs text-[#6B7869] mt-0.5">Pay securely via PayHere with Card, Genie or FriMi</p>
             </div>
           </div>
-
           <button
             onClick={onClose}
             disabled={isProcessing}
-            className="p-2 text-[#A5B3A2] hover:text-white hover:bg-white/10 rounded-full transition-all cursor-pointer disabled:opacity-50"
-            aria-label="Close modal"
+            className="p-2 text-[#6B7869] hover:text-[#1D231E] hover:bg-[#E8E1D2]/60 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+            aria-label="Close payment modal"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Scrollable Body */}
-        <div data-modal-scroll="true" className="p-6 sm:p-8 overflow-y-auto space-y-6">
-          
-          {/* Payment Feedback Banner */}
-          {paymentError && (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-[#1D231E]">
-                    {paymentError.type === 'dismissed' ? 'Payment Dismissed' : 'Payment Issue'}
-                  </p>
-                  <p className="text-[#5A6659] mt-0.5">{paymentError.message}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPaymentError(null)}
-                  className="px-3 py-1.5 rounded-lg border border-[#D5CDBC] text-xs font-semibold text-[#5A6659] hover:bg-white transition-colors cursor-pointer"
-                >
-                  Dismiss
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePayHerePayment}
-                  disabled={isProcessing}
-                  className="px-4 py-1.5 rounded-lg bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Retry Payment</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Pending Webhook Verification Banner */}
-          {pendingNotice && (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-[#1D231E]">Pending Confirmation</p>
-                  <p className="text-[#5A6659] mt-0.5">{pendingNotice}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingNotice(null);
-                    onClose();
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-[#D5CDBC] text-xs font-semibold text-[#5A6659] hover:bg-white transition-colors cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          )}
-
+        <div data-modal-scroll="true" className="p-6 overflow-y-auto space-y-5 flex-1">
           {/* Plan Summary Card */}
-          <div className="bg-white border border-[#E8E1D2] rounded-2xl p-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E1D2]">
+          <div className="p-5 rounded-2xl bg-[#1D231E] text-white border border-[#323D34] shadow-md relative overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#A5B3A2] bg-[#2A342B] px-2.5 py-1 rounded-full border border-[#3B483C]">
+                Selected Membership
+              </span>
+              <span className="text-xs font-semibold text-[#E06C38] flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Instant Activation</span>
+              </span>
+            </div>
+
+            <div className="flex items-baseline justify-between mb-4">
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#E06C38] bg-[#E06C38]/10 px-2.5 py-1 rounded-full">
-                  Selected Membership
-                </span>
-                <h3 className="text-xl font-bold text-[#1D231E] mt-1.5">{planName}</h3>
-                <p className="text-xs text-[#5A6659]">
-                  {plan === 'pro' 
-                    ? 'Ad-free experience, unlimited grid sizes, 150 thread colors & watermark-free exports.'
-                    : 'Full studio suite with unlimited colors, DMC/Anchor color editor & 15% discount on custom orders.'}
+                <h4 className="text-xl font-extrabold text-[#FAF6EE]">{planName}</h4>
+                <p className="text-xs text-[#A5B3A2] mt-0.5">
+                  Billed {billingCycle === 'annual' ? 'annually' : 'monthly'} • Cancel anytime
                 </p>
               </div>
-
-              <div className="text-left sm:text-right shrink-0">
-                <DualPrice
-                  amount={currentMonthlyRate}
-                  period="/mo"
+              <div className="text-right">
+                <LkrPriceDisplay
+                  priceLkr={activePriceLkr}
+                  period="/ mo"
                   layout="stacked"
-                  usdClassName="text-xl sm:text-2xl font-extrabold text-[#1D231E]"
-                  periodClassName="text-xs text-[#5A6659] font-normal"
-                  lkrClassName="text-xs text-[#70806E] font-normal"
+                  lkrClassName="text-2xl font-black text-[#FAF6EE]"
+                  usdClassName="text-[11px] text-[#A5B3A2]"
+                  periodClassName="text-xs text-[#A5B3A2]"
                 />
-                <div className="text-[11px] text-[#8A9588] font-medium mt-1">
-                  {billingCycle === 'annual' ? (
-                    <span>Billed annually: <DualPrice amount={totalBilled} layout="inline" usdClassName="font-semibold text-[#1D231E]" lkrClassName="text-[10px] text-[#8A9588]" /></span>
-                  ) : 'Billed monthly'}
-                </div>
               </div>
             </div>
 
-            {/* Billing Cycle Toggle */}
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <span className="font-bold text-[#3A4538]">Billing Frequency:</span>
-              <div className="inline-flex bg-[#FAF6EE] p-1 rounded-full border border-[#E8E1D2] flex-wrap gap-1">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('monthly')}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                    billingCycle === 'monthly' ? 'bg-[#1D231E] text-white' : 'text-[#6B7869]'
-                  }`}
-                >
-                  Monthly (<DualPrice amount={monthlyPrice} period="/mo" layout="inline" usdClassName="font-semibold" lkrClassName={billingCycle === 'monthly' ? 'text-white/70' : 'text-[#6B7869]'} />)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('annual')}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                    billingCycle === 'annual' ? 'bg-[#E06C38] text-white' : 'text-[#6B7869]'
-                  }`}
-                >
-                  Annual (<DualPrice amount={annualPrice} period="/mo" layout="inline" usdClassName="font-semibold" lkrClassName={billingCycle === 'annual' ? 'text-white/80' : 'text-[#6B7869]'} /> - Save 20%)
-                </button>
-              </div>
+            {/* Cycle Selector */}
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#323D34] text-xs">
+              <button
+                type="button"
+                onClick={() => setBillingCycle('monthly')}
+                disabled={isProcessing}
+                className={`py-2 px-3 rounded-xl font-semibold transition-all cursor-pointer flex flex-col items-center justify-center ${
+                  billingCycle === 'monthly'
+                    ? 'bg-[#E06C38] text-white shadow-xs'
+                    : 'bg-[#2A342B] text-[#A5B3A2] hover:text-white'
+                }`}
+              >
+                <span>Monthly</span>
+                <span className="text-[10px] opacity-80">LKR {baseMonthlyLkr.toLocaleString()} / mo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('annual')}
+                disabled={isProcessing}
+                className={`py-2 px-3 rounded-xl font-semibold transition-all cursor-pointer flex flex-col items-center justify-center ${
+                  billingCycle === 'annual'
+                    ? 'bg-[#E06C38] text-white shadow-xs'
+                    : 'bg-[#2A342B] text-[#A5B3A2] hover:text-white'
+                }`}
+              >
+                <span>Annual (Save 20%)</span>
+                <span className="text-[10px] opacity-80">LKR {annualMonthlyLkr.toLocaleString()} / mo</span>
+              </button>
             </div>
           </div>
 
-          {/* Payment Action */}
-          {isVerifying ? (
-            <div className="p-8 bg-blue-50 border border-blue-200 rounded-2xl text-center space-y-3 animate-fade-in">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
-                <Loader2 className="w-7 h-7 animate-spin" />
+          {/* Feedback & Notice Banners */}
+          {paymentError && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-xs text-amber-900 animate-fadeIn">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-[#1D231E]">Payment Issue</p>
+                <p className="text-[#5A6659] mt-0.5">{paymentError.message}</p>
               </div>
-              <h3 className="text-xl font-bold text-blue-900">Verifying your payment...</h3>
-              <p className="text-xs text-blue-700 max-w-sm mx-auto">
-                Waiting for secure webhook confirmation from PayHere. This will take just a moment.
-              </p>
             </div>
-          ) : isSuccess ? (
-            <div className="p-8 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-3 animate-fade-in">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-7 h-7" />
+          )}
+
+          {isVerifying && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 animate-fadeIn">
+              <Loader2 className="w-5 h-5 text-blue-600 shrink-0 animate-spin" />
+              <div>
+                <p className="font-bold">Confirming payment...</p>
+                <p className="text-blue-700">Waiting for webhook verification. Please wait a moment.</p>
               </div>
-              <h3 className="text-xl font-bold text-emerald-900">Payment Successful!</h3>
-              <p className="text-xs text-emerald-700 max-w-sm mx-auto">
-                Your account has been upgraded to <strong>{planName}</strong>. Redirecting you to your Crafter Dashboard...
-              </p>
             </div>
-          ) : (
-            <div className="bg-white border border-[#E8E1D2] rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-[#E8E1D2] pb-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-[#1D231E]">
-                  <CreditCard className="w-4 h-4 text-[#E06C38]" />
-                  <span>Secure PayHere Gateway</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-[#6B7869] font-semibold">
-                  <Lock className="w-3 h-3 text-emerald-600" />
-                  <span>256-Bit SSL Encrypted</span>
-                </div>
-              </div>
+          )}
 
-              <div className="p-4 bg-[#FAF6EE] border border-[#E8E1D2] rounded-xl text-xs text-[#5A6659] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span>Subscriber Account:</span>
-                  <strong className="text-[#1D231E]">{user?.email || 'Active User'}</strong>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Recurrence Schedule:</span>
-                  <strong className="text-[#1D231E]">{billingCycle === 'annual' ? '1 Year (Recurring)' : '1 Month (Recurring)'}</strong>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Payment Gateway:</span>
-                  <span className="font-semibold text-emerald-700">PayHere Payment Engine (Sandbox Mode)</span>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-[#E8E1D2] space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-[#1D231E]">
-                  <span>Total Amount Due Today:</span>
-                  <DualPrice
-                    amount={totalBilled}
-                    layout="inline"
-                    usdClassName="text-base font-extrabold text-[#E06C38]"
-                    lkrClassName="text-xs font-normal text-[#8A9588]"
-                  />
-                </div>
-
+          {pendingNotice && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-xs text-amber-900 animate-fadeIn">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-[#1D231E]">Pending Confirmation</p>
+                <p className="text-[#5A6659] mt-0.5">{pendingNotice}</p>
                 <button
                   type="button"
-                  disabled={isProcessing}
-                  onClick={handlePayHerePayment}
-                  className="w-full py-3.5 bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  onClick={onClose}
+                  className="mt-2 text-xs font-bold text-[#E06C38] hover:underline"
                 >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Opening PayHere Checkout...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Pay Securely with PayHere (${totalBilled})</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  Close and check later
                 </button>
               </div>
             </div>
           )}
 
-        </div>
+          {isSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs text-emerald-900 animate-fadeIn">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div>
+                <p className="font-bold">Payment Confirmed!</p>
+                <p className="text-emerald-700">Your membership is now active. Refreshing your session...</p>
+              </div>
+            </div>
+          )}
 
-        {/* Footer Guarantee Note */}
-        <div className="p-4 bg-[#F2EBDC] border-t border-[#E8E1D2] text-center text-[11px] text-[#6B7869] flex items-center justify-center gap-2 shrink-0">
-          <ShieldCheck className="w-4 h-4 text-emerald-700" />
-          <span>7-Day Money-Back Guarantee. Cancel anytime from your Crafter Dashboard.</span>
+          {/* PayHere Checkout Action Button */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handlePayHerePayment}
+              disabled={isProcessing}
+              className="w-full py-4 px-6 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#E06C38]/25 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{isVerifying ? 'Confirming payment...' : 'Opening PayHere...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>Proceed to Pay with PayHere</span>
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Trust Badges */}
+          <div className="flex items-center justify-center gap-4 text-[11px] text-[#5A6659] pt-2">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Verified PayHere Gateway</span>
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              <Lock className="w-3.5 h-3.5 text-[#5A6659]" />
+              <span>256-bit TLS Encryption</span>
+            </span>
+          </div>
         </div>
       </div>
     </div>,
