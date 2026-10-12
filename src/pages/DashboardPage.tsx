@@ -80,11 +80,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       }
     };
 
+    const handleTabNavigate = (e: any) => {
+      const target = e?.detail;
+      if (target && ['overview', 'patterns', 'purchases', 'orders', 'profile'].includes(target)) {
+        setActiveTab(target as DashboardTab);
+      }
+    };
+    window.addEventListener('navigate-dashboard-tab', handleTabNavigate);
     window.addEventListener('tierChanged', handleTierChange);
     window.addEventListener('dev-tier-changed', handleTierChange);
 
     return () => {
       active = false;
+      window.removeEventListener('navigate-dashboard-tab', handleTabNavigate);
       window.removeEventListener('tierChanged', handleTierChange);
       window.removeEventListener('dev-tier-changed', handleTierChange);
     };

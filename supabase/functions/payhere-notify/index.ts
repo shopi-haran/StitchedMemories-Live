@@ -1,6 +1,5 @@
 // Supabase Edge Function: payhere-notify
 // Receives server-to-server webhook notifications from PayHere upon completed payment or recurring charge
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 import { crypto } from 'https://deno.land/std@0.168.0/crypto/mod.ts';
@@ -47,26 +46,71 @@ serve(async (req) => {
 
     // Status 2 is Success in PayHere
     if (status_code === '2') {
+      // 1. Look up pending_payments row to get profile_id and tier if available
+      let matchedTier = '';
+      let profileId = '';
+      try {
+        const { data: pending } = await supabase
+          .from('pending_payments')
+          .select('*')
+          .eq('order_id', order_id)
+          .maybeSingle();
+
+        if (pending) {
+          matchedTier = pending.tier || '';
+          profileId = pending.profile_id || '';
+          await supabase
+            .from('pending_payments')
+            .update({ status: 'completed', updated_at: new Date().toISOString() })
+            .eq('order_id', order_id);
+        }
+      } catch (err) {
+        console.warn('[payhere-notify] pending_payments lookup error:', err);
+      }
+
       if (order_id.startsWith('sub-')) {
-        // Subscription payment: extract profile id
         // sub-${profile.id}-${timestamp}
-        const parts = order_id.split('-');
-        if (parts.length >= 2) {
-          const profileId = parts[1];
+        if (!profileId) {
+          const parts = order_id.split('-');
+          if (parts.length >= 2) {
+            profileId = parts[1];
+          }
+        }
+
+        const updatePayload: Record<string, any> = {
+          subscription_status: 'active',
+          has_selected_plan: true,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (matchedTier) {
+          updatePayload.subscription_tier = matchedTier;
+        }
+
+        if (profileId) {
           await supabase
             .from('profiles')
-            .update({
-              subscription_status: 'active',
-              has_selected_plan: true,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updatePayload)
             .eq('id', profileId);
         }
       } else if (order_id.startsWith('order-')) {
         // Order payment: extract order id
         const rawOrderId = order_id.replace('order-', '');
+
+        // Update custom_orders
         await supabase
           .from('custom_orders')
+          .update({
+            fulfillment_status: 'processing',
+            payment_status: 'paid',
+            status_note: 'Payment completed via PayHere.',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', rawOrderId);
+
+        // Also update orders table if it exists
+        await supabase
+          .from('orders')
           .update({
             fulfillment_status: 'processing',
             payment_status: 'paid',

@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchSubscriptionPlans } from '../lib/supabase';
+import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { Check, Sparkles, Zap, Shield, Image, Percent, RefreshCw, Calculator, ArrowRight, Sliders } from 'lucide-react';
 import { DualPrice } from './DualPrice';
 
@@ -14,6 +16,37 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
   isLoggedIn = false 
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
+    pro: 2700,
+    studio: 5700,
+  });
+
+  useEffect(() => {
+    let active = true;
+    async function loadPrices() {
+      try {
+        const rows = await fetchSubscriptionPlans();
+        if (active && rows.length > 0) {
+          const map: Record<string, number> = {};
+          rows.forEach((r) => {
+            if (r.tier && r.price_lkr !== undefined) {
+              map[r.tier.toLowerCase().trim()] = Number(r.price_lkr);
+            }
+          });
+          setPlanPrices((prev) => ({ ...prev, ...map }));
+        }
+      } catch (err) {
+        console.warn('[PricingSection] Error fetching subscription plans:', err);
+      }
+    }
+    loadPrices();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const proPriceLkr = planPrices.pro ?? 2700;
+  const studioPriceLkr = planPrices.studio ?? 5700;
 
   return (
     <section id="pricing-section" className="py-24 bg-[#FAF6EE] text-[#1D231E] relative overflow-hidden">
@@ -88,13 +121,13 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <DualPrice
-                  amount={0}
+                <LkrPriceDisplay
+                  priceLkr={0}
                   period="/ forever free"
                   layout="stacked"
-                  usdClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                  lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                  usdClassName="text-xs text-[#8A9B87] font-normal"
                   periodClassName="text-xs text-[#A5B3A2] font-medium"
-                  lkrClassName="text-xs text-[#8A9B87] font-normal"
                 />
               </div>
 
@@ -158,13 +191,13 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <DualPrice
-                  amount={billingCycle === 'monthly' ? 9 : 7}
+                <LkrPriceDisplay
+                  priceLkr={billingCycle === 'annual' ? Math.round(proPriceLkr * 0.8) : proPriceLkr}
                   period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
                   layout="stacked"
-                  usdClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                  lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                  usdClassName="text-xs text-[#A5B3A2] font-normal"
                   periodClassName="text-xs text-[#A5B3A2] font-medium"
-                  lkrClassName="text-xs text-[#A5B3A2] font-normal"
                 />
               </div>
 
@@ -229,13 +262,13 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <DualPrice
-                  amount={billingCycle === 'monthly' ? 19 : 15}
+                <LkrPriceDisplay
+                  priceLkr={billingCycle === 'annual' ? Math.round(studioPriceLkr * 0.8) : studioPriceLkr}
                   period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
                   layout="stacked"
-                  usdClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                  lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                  usdClassName="text-xs text-[#8A9B87] font-normal"
                   periodClassName="text-xs text-[#A5B3A2] font-medium"
-                  lkrClassName="text-xs text-[#8A9B87] font-normal"
                 />
               </div>
 

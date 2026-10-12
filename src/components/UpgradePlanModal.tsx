@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, 
@@ -20,9 +20,9 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
-import { DualPrice } from './DualPrice';
+import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { useAuth } from '../context/AuthContext';
-import { fetchUserProfile, updateUserPlanSelection } from '../lib/supabase';
+import { fetchUserProfile, updateUserPlanSelection, fetchSubscriptionPlans } from '../lib/supabase';
 import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
 export interface UpgradePlanModalProps {
@@ -54,10 +54,41 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   } | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const { user, isLoggedIn, refreshProfile } = useAuth();
+  // Plan prices fetched dynamically from public.subscription_plans
+  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
+    pro: 2700,
+    studio: 5700,
+  });
 
-  // Stacking z-index and body scroll lock
+  const { user, isLoggedIn, refreshProfile } = useAuth();
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'upgrade-plan-modal' });
+
+  // Fetch prices from database
+  useEffect(() => {
+    let active = true;
+    async function loadPrices() {
+      try {
+        const rows = await fetchSubscriptionPlans();
+        if (active && rows.length > 0) {
+          const map: Record<string, number> = {};
+          rows.forEach((r) => {
+            if (r.tier && r.price_lkr !== undefined) {
+              map[r.tier.toLowerCase().trim()] = Number(r.price_lkr);
+            }
+          });
+          setPlanPrices((prev) => ({ ...prev, ...map }));
+        }
+      } catch (e) {
+        console.warn('[UpgradePlanModal] Error loading subscription plans:', e);
+      }
+    }
+    if (isOpen) {
+      loadPrices();
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -65,17 +96,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   const isStudioOnly = targetPlan === 'studio';
   const normalizedTier = (currentTier || 'free').toLowerCase();
 
-  // In onboarding mode, show all 3 plans: Free, Pro, Studio
-  // In studio-only mode (e.g. from Marketplace discount CTA): show ONLY Studio
-  // In regular upgrade mode:
-  // - free tier: show Pro and Studio
-  // - pro tier: show only Studio
-  // - studio tier: show none
   const showFree = isOnboarding && !isStudioOnly;
   const showPro = !isStudioOnly && (isOnboarding || normalizedTier === 'free');
   const showStudio = isStudioOnly || isOnboarding || normalizedTier === 'free' || normalizedTier === 'pro';
 
-  // Responsive container width
   const modalMaxWidth = isOnboarding && !isStudioOnly
     ? 'max-w-6xl' 
     : showPro 
@@ -87,6 +111,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       onSelectPlan('free', billingCycle);
       return;
     }
+
     try {
       if (isOnboarding || user.has_selected_plan === false) {
         await updateUserPlanSelection(user.id, user.email, true);
@@ -100,7 +125,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   };
 
   const handleSubscribe = async (plan: 'pro' | 'studio') => {
-    // If guest, open login / signup modal first
     if (!isLoggedIn || !user) {
       onSelectPlan(plan, billingCycle);
       return;
@@ -109,42 +133,28 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     setIsProcessingPayment(true);
     setSelectedPlanInProgress(plan);
     setPaymentError(null);
+    setVerificationPendingMsg(null);
 
     try {
-      // Pro: $9/mo, or $84/yr ($7/mo billed annually)
-      // Studio: $19/mo, or $180/yr ($15/mo billed annually)
-      const amount = billingCycle === 'annual'
-        ? (plan === 'pro' ? 84 : 180)
-        : (plan === 'pro' ? 9 : 19);
-
-      // Generate order_id as required: sub-${profile.id}-${Date.now()}
-      const orderId = `sub-${user.id}-${Date.now()}`;
-
-      // Call the create-payhere-hash Edge Function
+      // 1. Call create-payhere-hash with ONLY { kind: 'subscription', tier }
       const hashResult = await createPayHereHash({
-        order_id: orderId,
-        amount,
-        currency: 'USD',
+        kind: 'subscription',
+        tier: plan,
       });
 
       const nameParts = (user.name || 'Crafter Member').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Crafter';
       const lastName = nameParts.slice(1).join(' ') || 'Member';
 
-      // Open PayHere checkout with recurrence: "1 Month" (or "1 Year") and duration: "Forever"
+      // 2. Open PayHere checkout using returned merchant_id, order_id, amount, currency, and hash exactly as given
       await startPayHereCheckout(
         {
           sandbox: true,
           merchant_id: hashResult.merchant_id,
-          return_url: window.location.href,
-          cancel_url: window.location.href,
-          notify_url: PAYHERE_NOTIFY_URL,
-          order_id: orderId,
+          order_id: hashResult.order_id,
           items: `StitchedMemories ${plan === 'pro' ? 'Pro Crafter' : 'Studio'} Membership (${billingCycle})`,
-          amount: amount.toFixed(2),
-          currency: 'USD',
-          recurrence: billingCycle === 'annual' ? '1 Year' : '1 Month',
-          duration: 'Forever',
+          amount: hashResult.amount,
+          currency: hashResult.currency,
           hash: hashResult.hash,
           first_name: firstName,
           last_name: lastName,
@@ -153,6 +163,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           address: 'Digital Crafter Membership',
           city: 'Colombo',
           country: 'Sri Lanka',
+          return_url: window.location.href,
+          cancel_url: window.location.href,
+          notify_url: PAYHERE_NOTIFY_URL,
         },
         {
           onCompleted: async (completedOrderId) => {
@@ -162,10 +175,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             setPaymentError(null);
             setVerificationPendingMsg(null);
 
-            // Poll/refetch the user's profile every 2 seconds, up to ~15 seconds total (8 attempts = ~16s)
-            // checking if subscription_tier and subscription_status have actually been updated by the webhook
+            // Poll/refetch the user's profile every 2 seconds for up to 30 seconds
+            // until subscription_status is 'active' and subscription_tier matches the purchased tier
             const pollIntervalMs = 2000;
-            const maxAttempts = 8;
+            const maxAttempts = 15; // 15 * 2s = 30 seconds
             let confirmed = false;
 
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -186,7 +199,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             }
 
             setIsVerifying(false);
-
             if (confirmed) {
               setIsSuccess(true);
               setTimeout(() => {
@@ -198,29 +210,25 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               setIsProcessingPayment(false);
               setSelectedPlanInProgress(null);
               setVerificationPendingMsg(
-                'Payment received — your subscription will activate shortly, refresh in a moment'
+                'Payment not confirmed yet, check your dashboard shortly'
               );
             }
           },
           onDismissed: () => {
             console.log('[UpgradePlanModal] PayHere onDismissed');
+            // Close checkout without changing state or showing success
             setIsProcessingPayment(false);
             setSelectedPlanInProgress(null);
-            setPaymentError({
-              type: 'dismissed',
-              message: 'Checkout was dismissed. No charges were made and your subscription remains unchanged.',
-              plan,
-            });
+            setIsVerifying(false);
+            setVerificationPendingMsg(null);
           },
           onError: (error) => {
             console.error('[UpgradePlanModal] PayHere onError:', error);
+            // Close checkout without changing state or showing success
             setIsProcessingPayment(false);
             setSelectedPlanInProgress(null);
-            setPaymentError({
-              type: 'error',
-              message: typeof error === 'string' ? error : 'Payment could not be completed. Please try again.',
-              plan,
-            });
+            setIsVerifying(false);
+            setVerificationPendingMsg(null);
           },
         }
       );
@@ -235,6 +243,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       });
     }
   };
+
+  const proPriceLkr = planPrices.pro ?? 2700;
+  const studioPriceLkr = planPrices.studio ?? 5700;
 
   return createPortal(
     <div 
@@ -317,9 +328,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold text-[#1D231E]">
-                    {paymentError.type === 'dismissed' ? 'Payment Cancelled' : 'Payment Issue'}
-                  </p>
+                  <p className="font-bold text-[#1D231E]">Payment Issue</p>
                   <p className="text-[#5A6659] mt-0.5">{paymentError.message}</p>
                 </div>
               </div>
@@ -348,8 +357,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 animate-fadeIn">
               <Loader2 className="w-5 h-5 text-blue-600 shrink-0 animate-spin" />
               <div>
-                <p className="font-bold">Verifying your payment...</p>
-                <p className="text-blue-700">Waiting for secure confirmation from PayHere. This takes just a moment.</p>
+                <p className="font-bold">Confirming payment...</p>
+                <p className="text-blue-700">Waiting for webhook verification. Please wait a moment.</p>
               </div>
             </div>
           )}
@@ -359,7 +368,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold text-[#1D231E]">Pending Confirmation</p>
+                  <p className="font-bold text-[#1D231E]">Payment Notice</p>
                   <p className="text-[#5A6659] mt-0.5">{verificationPendingMsg}</p>
                 </div>
               </div>
@@ -451,23 +460,20 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       Starter
                     </span>
                   </div>
-
                   <h4 className="text-xl font-bold text-[#FAF6EE] mb-1">Free Plan</h4>
                   <p className="text-xs text-[#A5B3A2] leading-relaxed mb-5">
                     Essential pattern creation tools to start your stitching journey.
                   </p>
-
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <DualPrice
-                      amount={0}
+                    <LkrPriceDisplay
+                      priceLkr={0}
                       period="/ forever"
                       layout="stacked"
-                      usdClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      usdClassName="text-xs text-[#8A9B87] font-normal"
                       periodClassName="text-xs text-[#A5B3A2] font-medium"
-                      lkrClassName="text-xs text-[#8A9B87] font-normal"
                     />
                   </div>
-
                   <ul className="space-y-3 text-xs text-[#E0E8DF] mb-6">
                     <li className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-[#93A28F] shrink-0 mt-0.5" />
@@ -491,7 +497,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </li>
                   </ul>
                 </div>
-
                 <button
                   type="button"
                   disabled={isProcessingPayment}
@@ -510,30 +515,26 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <div className="absolute top-0 right-0 bg-[#E06C38] text-white text-[9px] font-extrabold uppercase tracking-wider px-3.5 py-1 rounded-bl-xl shadow-xs">
                   Most Popular
                 </div>
-
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[#E06C38] bg-[#E06C38]/20 px-3 py-1 rounded-full border border-[#E06C38]/40">
                       Pro Crafter
                     </span>
                   </div>
-
                   <h4 className="text-xl font-bold text-[#FAF6EE] mb-1">Pro Plan</h4>
                   <p className="text-xs text-[#C5D3C2] leading-relaxed mb-5">
                     For stitchers wanting unlimited grid sizes and an ad-free workflow.
                   </p>
-
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <DualPrice
-                      amount={billingCycle === 'monthly' ? 9 : 7}
+                    <LkrPriceDisplay
+                      priceLkr={billingCycle === 'annual' ? Math.round(proPriceLkr * 0.8) : proPriceLkr}
                       period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
                       layout="stacked"
-                      usdClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      usdClassName="text-xs text-[#A5B3A2] font-normal"
                       periodClassName="text-xs text-[#A5B3A2] font-medium"
-                      lkrClassName="text-xs text-[#A5B3A2] font-normal"
                     />
                   </div>
-
                   <ul className="space-y-3 text-xs text-[#FAF6EE] mb-6">
                     <li className="flex items-start gap-2">
                       <Shield className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
@@ -561,7 +562,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </li>
                   </ul>
                 </div>
-
                 <button
                   type="button"
                   disabled={isProcessingPayment}
@@ -593,7 +593,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     Recommended Upgrade
                   </div>
                 )}
-
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[#93A28F] bg-[#323D34] px-3 py-1 rounded-full border border-[#445246]">
@@ -603,23 +602,20 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       Full Toolkit
                     </span>
                   </div>
-
                   <h4 className="text-xl font-bold text-[#FAF6EE] mb-1">Studio Plan</h4>
                   <p className="text-xs text-[#A5B3A2] leading-relaxed mb-5">
                     For pattern designers wanting image editing & 15% custom order discounts.
                   </p>
-
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <DualPrice
-                      amount={billingCycle === 'monthly' ? 19 : 15}
+                    <LkrPriceDisplay
+                      priceLkr={billingCycle === 'annual' ? Math.round(studioPriceLkr * 0.8) : studioPriceLkr}
                       period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
                       layout="stacked"
-                      usdClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                      usdClassName="text-xs text-[#8A9B87] font-normal"
                       periodClassName="text-xs text-[#A5B3A2] font-medium"
-                      lkrClassName="text-xs text-[#8A9B87] font-normal"
                     />
                   </div>
-
                   <ul className="space-y-3 text-xs text-[#E0E8DF] mb-6">
                     <li className="flex items-start gap-2 text-white">
                       <Check className="w-4 h-4 text-[#93A28F] shrink-0 mt-0.5" />
@@ -651,7 +647,6 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </li>
                   </ul>
                 </div>
-
                 <button
                   type="button"
                   disabled={isProcessingPayment}
@@ -676,11 +671,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 </button>
               </div>
             )}
-
           </div>
-
         </div>
-
       </div>
     </div>,
     document.body
