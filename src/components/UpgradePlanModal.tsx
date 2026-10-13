@@ -22,8 +22,8 @@ import {
 import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { useAuth } from '../context/AuthContext';
-import { fetchUserProfile, updateUserPlanSelection, fetchSubscriptionPlans } from '../lib/supabase';
-import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
+import { supabase, fetchUserProfile, updateUserPlanSelection, fetchSubscriptionPlans } from '../lib/supabase';
+import { startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -137,10 +137,44 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
     try {
       // 1. Call create-payhere-hash with ONLY { kind: 'subscription', tier }
-      const hashResult = await createPayHereHash({
-        kind: 'subscription',
-        tier: plan,
+      const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
+        body: {
+          kind: 'subscription',
+          tier: plan,
+        },
       });
+
+      // If the create-payhere-hash call returns an error or a non-2xx response,
+      // or the response is missing hash, merchant_id, order_id, amount or currency,
+      // do NOT start the PayHere checkout. Close loading state and show a clear error message.
+      if (
+        error ||
+        !data ||
+        !data.hash ||
+        !data.merchant_id ||
+        !data.order_id ||
+        !data.amount ||
+        !data.currency
+      ) {
+        let errorPayload = error || data;
+        if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+          try {
+            const errJson = await error.context.clone().json();
+            errorPayload = { status: error.context.status, body: errJson, error };
+          } catch {
+            errorPayload = { status: error.context.status, error };
+          }
+        }
+        console.error('[create-payhere-hash error response]:', errorPayload);
+        setIsProcessingPayment(false);
+        setSelectedPlanInProgress(null);
+        setPaymentError({
+          type: 'error',
+          message: 'Could not start payment, please try again',
+          plan,
+        });
+        return;
+      }
 
       const nameParts = (user.name || 'Crafter Member').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Crafter';
@@ -150,12 +184,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       await startPayHereCheckout(
         {
           sandbox: true,
-          merchant_id: hashResult.merchant_id,
-          order_id: hashResult.order_id,
+          merchant_id: String(data.merchant_id),
+          order_id: String(data.order_id),
           items: `StitchedMemories ${plan === 'pro' ? 'Pro Crafter' : 'Studio'} Membership (${billingCycle})`,
-          amount: hashResult.amount,
-          currency: hashResult.currency,
-          hash: hashResult.hash,
+          amount: String(data.amount),
+          currency: String(data.currency),
+          hash: String(data.hash),
           first_name: firstName,
           last_name: lastName,
           email: user.email,
@@ -233,12 +267,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         }
       );
     } catch (err: any) {
-      console.error('[UpgradePlanModal] Checkout initialization error:', err);
+      console.error('[create-payhere-hash error response]:', err);
       setIsProcessingPayment(false);
       setSelectedPlanInProgress(null);
       setPaymentError({
         type: 'error',
-        message: err?.message || 'Failed to initialize PayHere checkout. Please try again.',
+        message: 'Could not start payment, please try again',
         plan,
       });
     }
