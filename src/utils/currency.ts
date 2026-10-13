@@ -124,3 +124,46 @@ export function formatDualPrice(
   const approx = approxSymbol ? '≈ ' : '';
   return `${usdPart} (${approx}${lkrPart})`;
 }
+
+/**
+ * Format a numeric/string LKR amount to standard string with thousand separators & 2 decimals
+ * e.g. 7500 -> "LKR 7,500.00"
+ */
+export function formatLkrPrice(
+  priceLkr: number | string | undefined | null,
+  decimals: boolean = true
+): string {
+  const num = typeof priceLkr === 'number' ? priceLkr : parseFloat(String(priceLkr ?? 0));
+  const valid = isNaN(num) ? 0 : num;
+  const dec = decimals ? 2 : (Number.isInteger(valid) ? 0 : 2);
+  return `LKR ${valid.toLocaleString('en-US', {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
+ * Format secondary USD amount prefixed with "≈", e.g. 7500 LKR @ 300 rate -> "≈ $25.00"
+ */
+export function formatUsdEquivalent(
+  priceLkr: number | string | undefined | null,
+  rate?: number | null
+): string {
+  const num = typeof priceLkr === 'number' ? priceLkr : parseFloat(String(priceLkr ?? 0));
+  const valid = isNaN(num) ? 0 : num;
+  const effectiveRate = rate && rate > 0 ? rate : (cachedRate || 300);
+  const usd = valid > 0 ? (valid / effectiveRate).toFixed(2) : '0.00';
+  return `≈ $${usd}`;
+}
+
+/**
+ * Combined LKR-primary string helper for orders:
+ * Returns "LKR 7,500.00 (≈ $25.00)"
+ */
+export function formatOrderDualPrice(
+  priceLkr: number | string | undefined | null,
+  rate?: number | null
+): string {
+  return `${formatLkrPrice(priceLkr)} (${formatUsdEquivalent(priceLkr, rate)})`;
+}
+

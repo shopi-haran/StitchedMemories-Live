@@ -48,8 +48,10 @@ import {
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { formatDualPrice } from '../../utils/currency';
+import { formatDualPrice, formatLkrPrice, formatOrderDualPrice } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
+import { LkrPriceDisplay } from '../LkrPriceDisplay';
+import { PaymentGatewayModal } from '../PaymentGatewayModal';
 import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../../lib/payhere';
 
 interface UserProfile {
@@ -133,7 +135,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
   const [isRealtimeActive, setIsRealtimeActive] = useState<boolean>(false);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | number | null>(null);
   const [paymentErrorOrderId, setPaymentErrorOrderId] = useState<string | number | null>(null);
-  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [copiedTracking, setCopiedTracking] = useState<string | null>(null);
 
   // Detail View Modal state
@@ -152,8 +154,11 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Order Payment Modal state
+  const [payingOrder, setPayingOrder] = useState<SupabaseStitchOrderRow | null>(null);
+
   // Lock body scroll when any modal is open in CustomOrdersTab
-  useBodyScrollLock(Boolean(selectedDetailOrder || revisionModalOrder || cancelModalOrder));
+  useBodyScrollLock(Boolean(selectedDetailOrder || revisionModalOrder || cancelModalOrder || payingOrder));
 
   // Customer View-Only Stitch Tracker state
   const [viewOnlyTrackerOrder, setViewOnlyTrackerOrder] = useState<SupabaseStitchOrderRow | null>(null);
@@ -464,6 +469,17 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
   const handleConfirmQuote = async (order: SupabaseStitchOrderRow) => {
     const realOrderId = order.raw_order_id || order.id;
+    const quoteObj: any = order.quote || order.request_details?.quote;
+
+    // Reject legacy quotes without LKR currency
+    if (quoteObj && (!quoteObj.currency || quoteObj.currency !== 'LKR')) {
+      setFeedbackMsg({
+        text: 'This quote is being updated, please check back shortly',
+        type: 'error',
+      });
+      return;
+    }
+
     setConfirmingOrderId(realOrderId);
     setPaymentErrorOrderId(null);
 
@@ -742,9 +758,17 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         <div className={`p-4 rounded-2xl border text-xs font-medium flex items-center gap-3 animate-fadeIn ${
           feedbackMsg.type === 'success' 
             ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+            : feedbackMsg.type === 'error'
+            ? 'bg-rose-50 border-rose-200 text-rose-800'
             : 'bg-amber-50 border-amber-200 text-amber-800'
         }`}>
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+          {feedbackMsg.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+          ) : feedbackMsg.type === 'error' ? (
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+          ) : (
+            <Clock className="w-4 h-4 shrink-0 text-amber-600" />
+          )}
           <span>{feedbackMsg.text}</span>
         </div>
       )}
@@ -1094,11 +1118,11 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                     ) : hasQuotedAmount ? (
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-xs font-semibold text-[#5A6659]">Total Amount:</span>
-                        <DualPrice
-                          amount={totalAmount}
+                        <LkrPriceDisplay
+                          priceLkr={totalAmount}
                           layout="inline"
-                          usdClassName="text-lg sm:text-xl font-black font-serif text-[#1D231E]"
-                          lkrClassName="text-xs font-normal text-[#7A8877]"
+                          lkrClassName="text-lg sm:text-xl font-black font-serif text-[#1D231E]"
+                          usdClassName="text-xs font-normal text-[#7A8877]"
                         />
                       </div>
                     ) : isRevisionRequested ? (
@@ -1207,6 +1231,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         const deliveryCharge = Number(quote.delivery_charge) || Number(order.delivery_charge) || 0;
         const discountableAmount = itemsSubtotal + craftingCharge;
         const totalAmount = Number(quote.total_amount) || Number(order.quoted_price) || Number(order.total_amount) || (discountableAmount - discountAmount + deliveryCharge);
+        const isLegacyQuote = !isStoreOrder && Boolean(order.quote && (!quote.currency || quote.currency !== 'LKR'));
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
@@ -1379,10 +1404,12 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                 )}
                                 <div>
                                   <h5 className="text-xs font-bold text-[#1D231E]">{it.title || it.name || 'Craft Item'}</h5>
-                                  <p className="text-[11px] text-[#5A6659]">Qty: {itQty} × {formatDualPrice(itPrice)}</p>
+                                  <p className="text-[11px] text-[#5A6659]">
+                                    Qty: {itQty} × <LkrPriceDisplay priceLkr={itPrice} layout="inline" lkrClassName="font-semibold text-xs text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                                  </p>
                                 </div>
                               </div>
-                              <span className="font-mono text-xs font-bold text-[#1D231E]">{formatDualPrice(itQty * itPrice)}</span>
+                              <LkrPriceDisplay priceLkr={itQty * itPrice} layout="inline" lkrClassName="font-mono text-xs font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                             </div>
                           );
                         })}
@@ -1399,16 +1426,12 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                           <span className="flex items-center gap-1.5">
                             <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery:
                           </span>
-                          <span className="font-semibold font-mono text-[#1D231E]">
-                            {formatDualPrice(deliveryCharge)}
-                          </span>
+                          <LkrPriceDisplay priceLkr={deliveryCharge} layout="inline" lkrClassName="font-semibold font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                         </div>
                       )}
                       <div className="flex justify-between pt-2 border-t border-[#D5CDBC] text-sm font-bold text-[#1D231E]">
                         <span>Total Paid:</span>
-                        <span className="text-base font-black font-serif text-[#E06C38]">
-                          {formatDualPrice(totalAmount)}
-                        </span>
+                        <LkrPriceDisplay priceLkr={totalAmount} layout="inline" lkrClassName="text-base font-black font-serif text-[#E06C38]" usdClassName="text-xs text-[#5A6659]" />
                       </div>
                     </div>
                   </div>
@@ -1460,11 +1483,11 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                 <td className="py-3 px-3 text-center font-medium text-[#1D231E]">
                                   {item.quantity} {item.unit ? `(${item.unit})` : ''}
                                 </td>
-                                <td className="py-3 px-3 text-right text-[#5A6659] font-mono">
-                                  {formatDualPrice(Number(item.unit_price) || 0)}
+                                <td className="py-3 px-3 text-right">
+                                  <LkrPriceDisplay priceLkr={Number(item.unit_price) || 0} layout="inline" lkrClassName="font-medium text-xs text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                                 </td>
-                                <td className="py-3 px-4 text-right font-bold text-[#1D231E] font-mono">
-                                  {formatDualPrice(Number(item.total) || 0)}
+                                <td className="py-3 px-4 text-right">
+                                  <LkrPriceDisplay priceLkr={Number(item.total) || 0} layout="inline" lkrClassName="font-bold text-xs font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                                 </td>
                               </tr>
                             ))}
@@ -1475,7 +1498,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       /* Fallback for legacy flat quotes */
                       <div className="p-4 bg-white border-b border-[#E8E1D2] text-xs flex justify-between items-center">
                         <span className="font-semibold text-[#1D231E]">Custom Materials & Crafting</span>
-                        <span className="font-bold text-[#1D231E] font-mono">{formatDualPrice(itemsSubtotal)}</span>
+                        <LkrPriceDisplay priceLkr={itemsSubtotal} layout="inline" lkrClassName="font-bold text-[#1D231E] font-mono" usdClassName="text-xs text-[#5A6659]" />
                       </div>
                     )}
 
@@ -1485,31 +1508,23 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         <>
                           <div className="flex justify-between text-[#5A6659]">
                             <span>Items Subtotal:</span>
-                            <span className="font-semibold font-mono text-[#1D231E]">
-                              {formatDualPrice(itemsSubtotal)}
-                            </span>
+                            <LkrPriceDisplay priceLkr={itemsSubtotal} layout="inline" lkrClassName="font-semibold font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                           </div>
                           <div className="flex justify-between text-[#5A6659]">
                             <span className="flex items-center gap-1.5">
                               <Scissors className="w-3.5 h-3.5 text-[#2D5A43]" /> Crafting Charge:
                             </span>
-                            <span className="font-semibold font-mono text-[#1D231E]">
-                              {formatDualPrice(craftingCharge)}
-                            </span>
+                            <LkrPriceDisplay priceLkr={craftingCharge} layout="inline" lkrClassName="font-semibold font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                           </div>
                           <div className="flex justify-between text-[#1D231E] font-medium pt-1 border-t border-[#E8E1D2]/60">
                             <span>Items + Crafting Subtotal:</span>
-                            <span className="font-semibold font-mono text-[#1D231E]">
-                              {formatDualPrice(itemsSubtotal + craftingCharge)}
-                            </span>
+                            <LkrPriceDisplay priceLkr={itemsSubtotal + craftingCharge} layout="inline" lkrClassName="font-semibold font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                           </div>
                         </>
                       ) : (
                         <div className="flex justify-between text-[#5A6659]">
                           <span>Items Subtotal:</span>
-                          <span className="font-semibold font-mono text-[#1D231E]">
-                            {formatDualPrice(itemsSubtotal)}
-                          </span>
+                          <LkrPriceDisplay priceLkr={itemsSubtotal} layout="inline" lkrClassName="font-semibold font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                         </div>
                       )}
 
@@ -1519,7 +1534,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                             <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Studio member discount ({discountPercent || 15}%):
                           </span>
                           <span className="font-bold font-mono text-emerald-700">
-                            -{formatDualPrice(discountAmount)}
+                            -<LkrPriceDisplay priceLkr={discountAmount} layout="inline" lkrClassName="font-bold font-mono text-emerald-700" usdClassName="text-[10px] text-emerald-600" />
                           </span>
                         </div>
                       )}
@@ -1528,18 +1543,16 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         <span className="flex items-center gap-1.5">
                           <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery:
                         </span>
-                        <span className="font-semibold font-mono text-[#1D231E]">
-                          {formatDualPrice(deliveryCharge)}
-                        </span>
+                        <LkrPriceDisplay priceLkr={deliveryCharge} layout="inline" lkrClassName="font-semibold font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                       </div>
 
                       <div className="flex justify-between pt-2.5 border-t border-[#D5CDBC] text-sm font-bold text-[#1D231E]">
                         <span>Total:</span>
-                        <DualPrice
-                          amount={totalAmount}
+                        <LkrPriceDisplay
+                          priceLkr={totalAmount}
                           layout="inline"
-                          usdClassName="text-base font-black font-serif text-[#E06C38]"
-                          lkrClassName="text-xs font-normal text-[#8A9588]"
+                          lkrClassName="text-base font-black font-serif text-[#E06C38]"
+                          usdClassName="text-xs font-normal text-[#8A9588]"
                         />
                       </div>
                     </div>
@@ -1640,32 +1653,43 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       </div>
 
                       {/* Confirm Order Button with PayHere */}
-                      <button
-                        onClick={() => handleConfirmQuote(order)}
-                        disabled={confirmingOrderId === (order.raw_order_id || order.id)}
-                        className={`px-6 py-2.5 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50 ${
-                          paymentErrorOrderId === (order.raw_order_id || order.id)
-                            ? 'bg-[#E06C38] hover:bg-[#d05c28]'
-                            : 'bg-[#1D231E] hover:bg-[#323D34]'
-                        }`}
-                      >
-                        {confirmingOrderId === (order.raw_order_id || order.id) ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Opening PayHere Checkout...</span>
-                          </>
-                        ) : paymentErrorOrderId === (order.raw_order_id || order.id) ? (
-                          <>
-                            <RotateCcw className="w-3.5 h-3.5 text-white" />
-                            <span>Retry Payment with PayHere</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-[#E06C38]" />
-                            <span>Confirm & Pay Order</span>
-                          </>
-                        )}
-                      </button>
+                      {isLegacyQuote ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="px-6 py-2.5 bg-gray-200 text-gray-500 text-xs font-semibold rounded-full cursor-not-allowed border border-gray-300 shadow-none"
+                          title="This quote is being updated, please check back shortly"
+                        >
+                          This quote is being updated, please check back shortly
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleConfirmQuote(order)}
+                          disabled={confirmingOrderId === (order.raw_order_id || order.id)}
+                          className={`px-6 py-2.5 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50 ${
+                            paymentErrorOrderId === (order.raw_order_id || order.id)
+                              ? 'bg-[#E06C38] hover:bg-[#d05c28]'
+                              : 'bg-[#1D231E] hover:bg-[#323D34]'
+                          }`}
+                        >
+                          {confirmingOrderId === (order.raw_order_id || order.id) ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Opening PayHere Checkout...</span>
+                            </>
+                          ) : paymentErrorOrderId === (order.raw_order_id || order.id) ? (
+                            <>
+                              <RotateCcw className="w-3.5 h-3.5 text-white" />
+                              <span>Retry Payment with PayHere</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-[#E06C38]" />
+                              <span>Confirm & Pay Order</span>
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -1683,24 +1707,35 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                           </p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleConfirmQuote(order)}
-                        disabled={confirmingOrderId === (order.raw_order_id || order.id)}
-                        className="px-5 py-2 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all flex items-center justify-center gap-2 shrink-0 shadow-sm cursor-pointer disabled:opacity-50"
-                      >
-                        {confirmingOrderId === (order.raw_order_id || order.id) ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Opening Checkout...</span>
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="w-3.5 h-3.5 text-white" />
-                            <span>Pay Now with PayHere</span>
-                          </>
-                        )}
-                      </button>
+                      {isLegacyQuote ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="px-5 py-2 bg-gray-200 text-gray-500 text-xs font-semibold rounded-full cursor-not-allowed border border-gray-300 shrink-0 shadow-none"
+                          title="This quote is being updated, please check back shortly"
+                        >
+                          This quote is being updated, please check back shortly
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmQuote(order)}
+                          disabled={confirmingOrderId === (order.raw_order_id || order.id)}
+                          className="px-5 py-2 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all flex items-center justify-center gap-2 shrink-0 shadow-sm cursor-pointer disabled:opacity-50"
+                        >
+                          {confirmingOrderId === (order.raw_order_id || order.id) ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Opening Checkout...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-3.5 h-3.5 text-white" />
+                              <span>Pay Now with PayHere</span>
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1826,9 +1861,19 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#1D231E]">Request Quote Revision</h3>
-                  <p className="text-xs text-[#6B7869]">
-                    Order #{String(revisionModalOrder.raw_order_id || revisionModalOrder.id).replace('order_', '').slice(-8)}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[#6B7869] mt-0.5">
+                    <span>
+                      Order #{String(revisionModalOrder.raw_order_id || revisionModalOrder.id).replace('order_', '').slice(-8)}
+                    </span>
+                    {(revisionModalOrder.quote?.total_amount !== undefined || revisionModalOrder.quoted_price !== undefined) && (
+                      <>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1 text-[#1D231E]">
+                          Quote: <LkrPriceDisplay priceLkr={revisionModalOrder.quote?.total_amount ?? revisionModalOrder.quoted_price} layout="inline" lkrClassName="font-bold text-xs text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <button

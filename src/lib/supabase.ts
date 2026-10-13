@@ -1028,6 +1028,7 @@ export interface AdminQuoteLineItem {
 }
 
 export interface AdminQuoteData {
+  currency?: string;
   line_items?: AdminQuoteLineItem[];
   items_subtotal?: number;
   crafting_charge?: number;
@@ -1386,6 +1387,7 @@ export async function fetchAllAdminOrders(): Promise<SupabaseStitchOrderRow[]> {
 export async function submitAdminQuote(
   orderId: string | number,
   quoteData: {
+    currency?: string;
     line_items?: AdminQuoteLineItem[];
     items_subtotal?: number;
     crafting_charge?: number;
@@ -1434,6 +1436,7 @@ export async function submitAdminQuote(
       : Number((discountableAmount - discountAmount + deliveryCharge).toFixed(2));
 
     const quoteJson = {
+      currency: 'LKR',
       line_items: normalizedLineItems,
       items_subtotal: Number(itemsSubtotal.toFixed(2)),
       crafting_charge: Number(craftingCharge.toFixed(2)),
