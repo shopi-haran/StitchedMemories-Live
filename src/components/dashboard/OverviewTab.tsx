@@ -31,6 +31,8 @@ interface UserProfile {
   id?: string;
   name: string;
   email: string;
+  access_until?: string | null;
+  accessUntil?: string | null;
 }
 
 interface OverviewTabProps {
@@ -118,24 +120,24 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     }
   };
 
-  const formatDate = (rawDateStr?: string) => {
+  const formatDate = (rawDateStr?: string | null) => {
     if (!rawDateStr) return 'N/A';
     try {
       const d = new Date(rawDateStr);
-      if (isNaN(d.getTime())) return rawDateStr;
-      return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
+      if (isNaN(d.getTime())) return 'N/A';
+      const day = d.getDate();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      return `${day} ${month} ${year}`;
     } catch {
-      return rawDateStr;
+      return 'N/A';
     }
   };
 
   const effectiveTier = getEffectiveTier(profile);
   const status = (profile?.subscription_status || 'inactive').toLowerCase();
-  const accessUntil = profile?.access_until;
+  const accessUntil = profile?.access_until || profile?.accessUntil || (user as any)?.access_until || (user as any)?.accessUntil;
 
   const displayTierTitle = status === 'active' 
     ? getEffectiveTierLabel(profile)
@@ -205,7 +207,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <div className="flex items-center gap-2 text-xs text-[#A2B0A0]">
               <Calendar className="w-4 h-4 text-[#E06C38]" />
               <span>
-                Access Period Until: <strong className="text-white font-semibold">{formatDate(accessUntil)}</strong>
+                Access Period: <strong className="text-white font-semibold">
+                  {accessUntil && formatDate(accessUntil) !== 'N/A'
+                    ? `Active until ${formatDate(accessUntil)}`
+                    : 'N/A'}
+                </strong>
               </span>
             </div>
           </div>

@@ -2066,7 +2066,8 @@ export interface SupabaseProfileRow {
   subscription_tier?: string;
   subscription_status?: string;
   subscription_period_end?: string | null;
-  access_until?: string;
+  access_until?: string | null;
+  accessUntil?: string | null;
   email?: string;
   created_at?: string;
   has_selected_plan?: boolean;
@@ -2485,7 +2486,7 @@ export async function fetchUserProfile(userId?: string, _userEmail?: string): Pr
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, display_name, role, subscription_tier, subscription_status, has_selected_plan, avatar_url, created_at')
+      .select('id, display_name, role, subscription_tier, subscription_status, has_selected_plan, avatar_url, created_at, access_until')
       .eq('id', userId)
       .maybeSingle();
 
@@ -2502,6 +2503,9 @@ export async function fetchUserProfile(userId?: string, _userEmail?: string): Pr
 
   if (profile) {
     profile.has_selected_plan = profile.has_selected_plan === true;
+    const resolvedAccessUntil = (profile as any).access_until || (profile as any).accessUntil || null;
+    profile.access_until = resolvedAccessUntil;
+    profile.accessUntil = resolvedAccessUntil;
   }
 
   return profile;

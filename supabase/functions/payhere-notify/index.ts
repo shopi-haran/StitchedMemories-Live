@@ -77,9 +77,13 @@ serve(async (req) => {
           }
         }
 
+        const accessUntilDate = new Date();
+        accessUntilDate.setDate(accessUntilDate.getDate() + 30);
+
         const updatePayload: Record<string, any> = {
           subscription_status: 'active',
           has_selected_plan: true,
+          access_until: accessUntilDate.toISOString(),
           updated_at: new Date().toISOString(),
         };
 

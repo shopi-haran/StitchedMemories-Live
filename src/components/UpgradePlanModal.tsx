@@ -235,6 +235,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             setIsVerifying(false);
             if (confirmed) {
               setIsSuccess(true);
+              await refreshProfile();
+              window.dispatchEvent(new CustomEvent('tierChanged'));
               setTimeout(() => {
                 setIsProcessingPayment(false);
                 setSelectedPlanInProgress(null);
