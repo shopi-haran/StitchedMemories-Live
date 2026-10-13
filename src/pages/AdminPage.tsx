@@ -66,7 +66,8 @@ import {
   fetchExchangeRate,
   updateExchangeRateInDb,
 } from '../lib/supabase';
-import { formatDualPrice, formatUsd, formatLkr } from '../utils/currency';
+import { formatDualPrice, formatUsd, formatLkr, formatLkrPrice, formatOrderDualPrice } from '../utils/currency';
+import { LkrPriceDisplay } from '../components/LkrPriceDisplay';
 import { UserProfile } from '../context/AuthContext';
 import { BlogPost, ContactMessage, ContactMessageStatus, Product } from '../types';
 import { BlogPostsTab } from '../components/admin/BlogPostsTab';
@@ -167,7 +168,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     hex?: string;
   }>>([]);
   const [craftingChargeInput, setCraftingChargeInput] = useState<string>('0');
-  const [deliveryChargeInput, setDeliveryChargeInput] = useState<string>('5.00');
+  const [deliveryChargeInput, setDeliveryChargeInput] = useState<string>('1500.00');
   const [adminNotesInput, setAdminNotesInput] = useState<string>('');
   const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
 
@@ -517,13 +518,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         })
       );
       setCraftingChargeInput(existingQuote.crafting_charge !== undefined ? String(existingQuote.crafting_charge) : '0');
-      setDeliveryChargeInput(existingQuote.delivery_charge !== undefined ? String(existingQuote.delivery_charge) : '5.00');
+      setDeliveryChargeInput(existingQuote.delivery_charge !== undefined ? String(existingQuote.delivery_charge) : '1500.00');
       setAdminNotesInput(existingQuote.admin_notes || order.admin_notes || '');
     } else if (threadReqs && threadReqs.length > 0) {
-      // 2. Pre-populate from converter thread requirements
+      // 2. Pre-populate from converter thread requirements (LKR amounts)
       const populatedItems = threadReqs.map((item: any, idx: number) => {
         const skeins = item.skeins_needed || (item.stitch_count ? Math.max(1, Math.ceil(Number(item.stitch_count) / 1800)) : 1);
-        const unitPrice = 1.20;
+        const unitPrice = 360.00;
         return {
           id: `item_dmc_${idx + 1}`,
           description: `DMC ${item.dmc_code || ''} - ${item.color_name || 'Embroidery Floss'}`,
@@ -537,7 +538,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         };
       });
 
-      // Add pre-filled row for fabric (Aida cloth)
+      // Add pre-filled row for fabric (Aida cloth) in LKR
       const fabricDetails = details.fabric_details || {};
       const fabricCount = details.fabric_count || fabricDetails.fabric_count || 14;
       const fabricDesc = fabricDetails.fabric_type || `${fabricCount}-Count Aida Cloth`;
@@ -549,20 +550,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         reference_qty: 'Fabric base',
         quantity: 1,
         unit: 'pcs',
-        unit_price: '8.00',
-        total: 8.00,
+        unit_price: '2400.00',
+        total: 2400.00,
       });
 
       setQuoteLineItems(populatedItems);
       const isCustomStitched = order.order_type === 'custom_stitched' || (order.title && order.title.toLowerCase().includes('stitched'));
-      setCraftingChargeInput(isCustomStitched ? '35.00' : '0');
-      setDeliveryChargeInput('5.00');
+      setCraftingChargeInput(isCustomStitched ? '10500.00' : '0');
+      setDeliveryChargeInput('1500.00');
       setAdminNotesInput(
         order.admin_notes ||
         `Custom kit prepared with ${threadReqs.length} DMC stranded floss skeins, premium Zweigart Aida fabric, needle pack & full-color chart guide.`
       );
     } else {
-      // 3. Assisted kit or custom keepsake without predefined thread array
+      // 3. Assisted kit or custom keepsake without predefined thread array (LKR amounts)
       const defaultDesc = order.order_type === 'custom_stitched'
         ? 'Handcrafted Bespoke Embroidery Keepsake'
         : order.order_type === 'custom_kit_assisted'
@@ -583,8 +584,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           total: numPrice,
         },
       ]);
-      setCraftingChargeInput(order.order_type === 'custom_stitched' ? (existingQuote?.crafting_charge !== undefined ? String(existingQuote.crafting_charge) : '35.00') : '0');
-      setDeliveryChargeInput(existingQuote?.delivery_charge !== undefined ? String(existingQuote.delivery_charge) : '5.00');
+      setCraftingChargeInput(order.order_type === 'custom_stitched' ? (existingQuote?.crafting_charge !== undefined ? String(existingQuote.crafting_charge) : '10500.00') : '0');
+      setDeliveryChargeInput(existingQuote?.delivery_charge !== undefined ? String(existingQuote.delivery_charge) : '1500.00');
       setAdminNotesInput(existingQuote?.admin_notes || order.admin_notes || '');
     }
   };
@@ -699,6 +700,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
     setIsSubmittingQuote(true);
     try {
       const result = await submitAdminQuote(selectedQuoteOrder.id, {
+        currency: 'LKR',
         line_items: processedLineItems,
         items_subtotal: itemsSubtotal,
         crafting_charge: numCraftingCharge,
@@ -710,7 +712,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       });
 
       if (result.success) {
-        showToast(`Itemized quote for Order #${selectedQuoteOrder.id} saved & published! (${processedLineItems.length} items, ${formatDualPrice(calculatedGrandTotal)}${quoteDiscountAmount > 0 ? ` incl. 15% Studio discount -${formatDualPrice(quoteDiscountAmount)}` : ''})`);
+        showToast(`Itemized quote for Order #${selectedQuoteOrder.id} saved & published! (${processedLineItems.length} items, ${formatOrderDualPrice(calculatedGrandTotal)}${quoteDiscountAmount > 0 ? ` incl. 15% Studio discount -${formatOrderDualPrice(quoteDiscountAmount)}` : ''})`);
         setSelectedQuoteOrder(null);
         await loadData(true);
       } else {
@@ -1359,9 +1361,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   )}
                   {selectedQuoteOrder.quote_history && selectedQuoteOrder.quote_history.length > 0 && (
                     <p className="text-[11px] text-amber-800/80 pt-1 border-t border-amber-200">
-                      Previous quote of {formatDualPrice(selectedQuoteOrder.quote_history[selectedQuoteOrder.quote_history.length - 1].total_amount || 0)} is archived in history.
+                      Previous quote of {formatOrderDualPrice(selectedQuoteOrder.quote_history[selectedQuoteOrder.quote_history.length - 1].total_amount || 0)} is archived in history.
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Legacy Quote Badge in Admin Quote Form */}
+              {selectedQuoteOrder.quote && selectedQuoteOrder.quote.currency !== 'LKR' && (
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-300 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-amber-900 font-medium">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>This quote was created prior to LKR migration. Saving will republish it as LKR.</span>
+                  </div>
+                  <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                    Legacy quote, needs re-quote
+                  </span>
                 </div>
               )}
 
@@ -1404,7 +1419,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   </div>
                   {isQuoteCustomerStudio && quoteDiscountAmount > 0 && (
                     <span className="font-mono font-bold text-xs text-emerald-700 shrink-0">
-                      -{formatDualPrice(quoteDiscountAmount)} (15% OFF)
+                      -<LkrPriceDisplay priceLkr={quoteDiscountAmount} layout="inline" lkrClassName="font-mono font-bold text-xs text-emerald-700" usdClassName="text-[10px] text-emerald-600" /> (15% OFF)
                     </span>
                   )}
                 </div>
@@ -1455,8 +1470,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                           <th className="py-2.5 px-2 min-w-[110px]">Reference</th>
                           <th className="py-2.5 px-2 w-20">Qty</th>
                           <th className="py-2.5 px-2 w-20">Unit</th>
-                          <th className="py-2.5 px-2 w-24">Unit ($)</th>
-                          <th className="py-2.5 px-3 w-24 text-right">Total ($)</th>
+                          <th className="py-2.5 px-2 w-28">Unit (LKR)</th>
+                          <th className="py-2.5 px-3 w-32 text-right">Total</th>
                           <th className="py-2.5 px-2 w-10 text-center"></th>
                         </tr>
                       </thead>
@@ -1520,7 +1535,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                               <td className="py-2 px-2">
                                 <input
                                   type="number"
-                                  step="0.01"
+                                  step="any"
                                   min="0"
                                   required
                                   placeholder="0.00"
@@ -1529,8 +1544,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                                   className="w-full p-1.5 bg-[#FAF6EE] border border-[#1D231E]/10 rounded-lg text-xs font-mono font-bold text-[#1D231E] focus:outline-none focus:ring-1 focus:ring-[#E06C38]"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-right font-bold text-xs font-mono text-[#1D231E]">
-                                {formatDualPrice(item.total || 0)}
+                              <td className="py-2 px-3 text-right">
+                                <LkrPriceDisplay
+                                  priceLkr={item.total || 0}
+                                  layout="inline"
+                                  lkrClassName="font-bold text-xs font-mono text-[#1D231E]"
+                                  usdClassName="text-[10px] text-[#5A6659]"
+                                />
                               </td>
                               <td className="py-2 px-2 text-center">
                                 <button
@@ -1555,40 +1575,40 @@ export const AdminPage: React.FC<AdminPageProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#1D231E] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Scissors className="w-3.5 h-3.5 text-[#2D5A43]" /> Crafting / Artisan Charge ($)
+                    <Scissors className="w-3.5 h-3.5 text-[#2D5A43]" /> Crafting / Artisan Charge (LKR)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-500">
-                      $
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500">
+                      LKR
                     </span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="any"
                       min="0"
                       placeholder="0.00"
                       value={craftingChargeInput}
                       onChange={(e) => setCraftingChargeInput(e.target.value)}
-                      className="w-full pl-8 pr-4 py-2.5 bg-[#FAF6EE] border border-[#1D231E]/15 rounded-xl text-sm font-bold text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                      className="w-full pl-12 pr-4 py-2.5 bg-[#FAF6EE] border border-[#1D231E]/15 rounded-xl text-sm font-bold text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-[#1D231E] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery / Shipping Charge ($)
+                    <Truck className="w-3.5 h-3.5 text-[#E06C38]" /> Delivery / Shipping Charge (LKR)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-500">
-                      $
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500">
+                      LKR
                     </span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="any"
                       min="0"
-                      placeholder="5.00"
+                      placeholder="1500.00"
                       value={deliveryChargeInput}
                       onChange={(e) => setDeliveryChargeInput(e.target.value)}
-                      className="w-full pl-8 pr-4 py-2.5 bg-[#FAF6EE] border border-[#1D231E]/15 rounded-xl text-sm font-bold text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                      className="w-full pl-12 pr-4 py-2.5 bg-[#FAF6EE] border border-[#1D231E]/15 rounded-xl text-sm font-bold text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
                     />
                   </div>
                 </div>
@@ -1606,23 +1626,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60 font-mono">
-                    <span>Items ({formatDualPrice(itemsSubtotal)})</span>
+                    <span>Items (<LkrPriceDisplay priceLkr={itemsSubtotal} layout="inline" lkrClassName="font-bold text-white font-mono" usdClassName="text-[10px] text-white/70" />)</span>
                     <span>+</span>
-                    <span>Crafting ({formatDualPrice(numCraftingCharge)})</span>
+                    <span>Crafting (<LkrPriceDisplay priceLkr={numCraftingCharge} layout="inline" lkrClassName="font-bold text-white font-mono" usdClassName="text-[10px] text-white/70" />)</span>
                     {isQuoteCustomerStudio && quoteDiscountAmount > 0 && (
                       <>
                         <span className="text-emerald-400 font-bold">-</span>
-                        <span className="text-emerald-400 font-bold">Studio 15% (-{formatDualPrice(quoteDiscountAmount)})</span>
+                        <span className="text-emerald-400 font-bold">Studio 15% (-<LkrPriceDisplay priceLkr={quoteDiscountAmount} layout="inline" lkrClassName="font-bold text-emerald-400 font-mono" usdClassName="text-[10px] text-emerald-300" />)</span>
                       </>
                     )}
                     <span>+</span>
-                    <span>Shipping ({formatDualPrice(numDeliveryCharge)})</span>
+                    <span>Shipping (<LkrPriceDisplay priceLkr={numDeliveryCharge} layout="inline" lkrClassName="font-bold text-white font-mono" usdClassName="text-[10px] text-white/70" />)</span>
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
-                  <span className="text-xl sm:text-2xl font-bold font-serif text-[#E06C38]">
-                    {formatDualPrice(calculatedGrandTotal)}
-                  </span>
+                  <LkrPriceDisplay
+                    priceLkr={calculatedGrandTotal}
+                    layout="inline"
+                    lkrClassName="text-xl sm:text-2xl font-bold font-serif text-[#E06C38]"
+                    usdClassName="text-xs text-white/70"
+                  />
                 </div>
               </div>
 
@@ -1652,7 +1675,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmittingQuote}
-                  className="px-6 py-2.5 rounded-xl bg-[#E06C38] hover:bg-[#c95927] text-white text-xs font-bold shadow-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-xl bg-[#E06C38] hover:bg-[#c95927] text-white text-xs font-bold shadow-md transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                 >
                   {isSubmittingQuote ? (
                     <>
@@ -1661,7 +1684,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     </>
                   ) : (
                     <>
-                      <Check className="w-4 h-4" /> Save & Publish Quote ({formatDualPrice(calculatedGrandTotal)})
+                      <Check className="w-4 h-4" /> Save & Publish Quote ({formatOrderDualPrice(calculatedGrandTotal)})
                     </>
                   )}
                 </button>
@@ -1756,10 +1779,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                   {/* Itemized Quotation Breakdown Card if Quote exists */}
                   {selectedOrderForEdit.quote && (
                     <div className="bg-white p-3.5 rounded-xl border border-[#1D231E]/10 space-y-2">
-                      <div className="flex items-center justify-between border-b border-[#1D231E]/10 pb-1.5">
-                        <span className="font-bold text-[#1D231E] flex items-center gap-1.5 text-xs">
-                          <DollarSign className="w-3.5 h-3.5 text-[#E06C38]" /> Itemized Studio Quotation
-                        </span>
+                      <div className="flex items-center justify-between border-b border-[#1D231E]/10 pb-1.5 flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#1D231E] flex items-center gap-1.5 text-xs">
+                            <DollarSign className="w-3.5 h-3.5 text-[#E06C38]" /> Itemized Studio Quotation
+                          </span>
+                          {selectedOrderForEdit.quote.currency !== 'LKR' && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                              Legacy quote, needs re-quote
+                            </span>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
@@ -1786,35 +1816,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                                     />
                                   )}
                                   <span className="font-medium text-[#1D231E]">{it.description}</span>
-                                  <span className="text-[#1D231E]/50">({it.quantity} {it.unit || 'pcs'} @ {formatDualPrice(Number(it.unit_price))})</span>
+                                  <span className="text-[#1D231E]/50">
+                                    ({it.quantity} {it.unit || 'pcs'} @ <LkrPriceDisplay priceLkr={Number(it.unit_price)} layout="inline" lkrClassName="font-medium text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />)
+                                  </span>
                                 </div>
-                                <span className="font-mono font-bold text-[#1D231E]">{formatDualPrice(Number(it.total))}</span>
+                                <LkrPriceDisplay priceLkr={Number(it.total)} layout="inline" lkrClassName="font-mono font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                               </div>
                             ))}
                           </div>
                           <div className="pt-1.5 border-t border-[#1D231E]/10 flex flex-wrap items-center justify-between text-[11px] font-medium text-[#1D231E]/70 gap-2">
-                            <span>Subtotal: {formatDualPrice(selectedOrderForEdit.quote.items_subtotal ?? 0)}</span>
+                            <span>Subtotal: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.items_subtotal ?? 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
                             {Number(selectedOrderForEdit.quote.crafting_charge || 0) > 0 && (
-                              <span>Crafting: {formatDualPrice(selectedOrderForEdit.quote.crafting_charge)}</span>
+                              <span>Crafting: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.crafting_charge} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
                             )}
                             {Number(selectedOrderForEdit.quote.discount_amount || 0) > 0 && (
                               <span className="text-emerald-700 font-bold">
-                                Studio ({selectedOrderForEdit.quote.discount_percent || 15}%): -{formatDualPrice(Number(selectedOrderForEdit.quote.discount_amount))}
+                                Studio ({selectedOrderForEdit.quote.discount_percent || 15}%): -<LkrPriceDisplay priceLkr={Number(selectedOrderForEdit.quote.discount_amount)} layout="inline" lkrClassName="font-bold text-emerald-700" usdClassName="text-[10px] text-emerald-600" />
                               </span>
                             )}
-                            <span>Ship: {formatDualPrice(selectedOrderForEdit.quote.delivery_charge || 0)}</span>
+                            <span>Ship: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.delivery_charge || 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
                             <span className="font-bold text-[#E06C38] text-xs">
-                              Total: {formatDualPrice(selectedOrderForEdit.quote.total_amount || 0)}
+                              Total: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.total_amount || 0} layout="inline" lkrClassName="font-bold text-[#E06C38] text-xs" usdClassName="text-[10px] text-[#8A9588]" />
                             </span>
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-[#1D231E]/70">
-                            Item: {formatDualPrice(selectedOrderForEdit.quote.item_price || 0)} + Ship: {formatDualPrice(selectedOrderForEdit.quote.delivery_charge || 0)}
+                            Item: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.item_price || 0} layout="inline" /> + Ship: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.delivery_charge || 0} layout="inline" />
                           </span>
                           <span className="font-bold text-[#E06C38]">
-                            Total: {formatDualPrice(selectedOrderForEdit.quote.total_amount || 0)}
+                            Total: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.total_amount || 0} layout="inline" lkrClassName="font-bold text-[#E06C38]" usdClassName="text-[10px] text-[#8A9588]" />
                           </span>
                         </div>
                       )}

@@ -1,27 +1,34 @@
 import React from 'react';
-import { getExchangeRate } from '../utils/currency';
+import { getExchangeRate, formatLkrPrice, formatUsdEquivalent, formatOrderDualPrice } from '../utils/currency';
 import { useCurrency } from '../context/CurrencyContext';
 
-interface LkrPriceDisplayProps {
-  priceLkr: number;
+export { formatLkrPrice, formatUsdEquivalent, formatOrderDualPrice };
+
+export interface LkrPriceDisplayProps {
+  priceLkr: number | string | undefined | null;
   period?: React.ReactNode;
   layout?: 'stacked' | 'inline';
   lkrClassName?: string;
   usdClassName?: string;
   periodClassName?: string;
+  showDecimals?: boolean;
+  wrapInParens?: boolean;
 }
 
 /**
- * Renders LKR-primary and USD-secondary price display.
- * Computes USD from the current usd_to_lkr_rate.
+ * Renders LKR as primary amount (bold, e.g. "LKR 7,500.00")
+ * and USD as secondary amount (muted, smaller, prefixed with "≈", e.g. "≈ $24.50")
+ * computed on the fly as LKR ÷ usd_to_lkr_rate from app_settings / context.
  */
 export const LkrPriceDisplay: React.FC<LkrPriceDisplayProps> = ({
   priceLkr,
   period,
   layout = 'stacked',
-  lkrClassName = 'text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]',
-  usdClassName = 'text-xs text-[#A5B3A2] font-normal',
+  lkrClassName,
+  usdClassName,
   periodClassName = 'text-xs text-[#A5B3A2] font-medium',
+  showDecimals = true,
+  wrapInParens,
 }) => {
   let rate = 300;
   try {
@@ -32,20 +39,34 @@ export const LkrPriceDisplay: React.FC<LkrPriceDisplayProps> = ({
     if (cached && cached > 0) rate = cached;
   }
 
-  const usdAmount = priceLkr > 0 ? (priceLkr / rate).toFixed(2) : '0.00';
-  const lkrFormatted = `LKR ${Number(priceLkr).toLocaleString('en-US')}`;
-  const usdFormatted = `≈ $${usdAmount} USD`;
+  const num = typeof priceLkr === 'number' ? priceLkr : parseFloat(String(priceLkr ?? 0));
+  const validNum = isNaN(num) ? 0 : num;
+
+  const defaultLkrClass = layout === 'stacked'
+    ? 'text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]'
+    : 'font-bold text-[#1D231E]';
+  const defaultUsdClass = layout === 'stacked'
+    ? 'text-xs text-[#A5B3A2] font-normal'
+    : 'text-xs text-[#5A6659] font-normal';
+
+  const finalLkrClass = lkrClassName !== undefined ? lkrClassName : defaultLkrClass;
+  const finalUsdClass = usdClassName !== undefined ? usdClassName : defaultUsdClass;
+  const shouldWrap = wrapInParens !== undefined ? wrapInParens : (layout === 'stacked');
+
+  const lkrFormatted = formatLkrPrice(validNum, showDecimals);
+  const rawUsdFormatted = formatUsdEquivalent(validNum, rate);
+  const usdFormatted = shouldWrap ? `(${rawUsdFormatted})` : rawUsdFormatted;
 
   if (layout === 'stacked') {
     return (
       <div className="inline-flex flex-col items-start">
         <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className={lkrClassName}>{lkrFormatted}</span>
+          <span className={finalLkrClass}>{lkrFormatted}</span>
           {period && <span className={periodClassName}>{period}</span>}
         </div>
-        {priceLkr > 0 && (
-          <span className={`mt-0.5 ${usdClassName}`}>
-            ({usdFormatted})
+        {validNum > 0 && (
+          <span className={`mt-0.5 ${finalUsdClass}`}>
+            {usdFormatted}
           </span>
         )}
       </div>
@@ -54,11 +75,12 @@ export const LkrPriceDisplay: React.FC<LkrPriceDisplayProps> = ({
 
   return (
     <span className="inline-flex items-baseline flex-wrap gap-x-1.5">
-      <span className={lkrClassName}>{lkrFormatted}</span>
+      <span className={finalLkrClass}>{lkrFormatted}</span>
       {period && <span className={periodClassName}>{period}</span>}
-      {priceLkr > 0 && <span className={usdClassName}>({usdFormatted})</span>}
+      {validNum > 0 && <span className={finalUsdClass}>{usdFormatted}</span>}
     </span>
   );
 };
 
 export default LkrPriceDisplay;
+
