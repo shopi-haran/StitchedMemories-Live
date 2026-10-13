@@ -12,10 +12,10 @@ import {
   RotateCcw,
   Loader2 
 } from 'lucide-react';
-import { fetchUserProfile, fetchSubscriptionPlans } from '../lib/supabase';
+import { supabase, fetchUserProfile, fetchSubscriptionPlans } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
-import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
+import { startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
 interface PaymentGatewayModalProps {
   isOpen: boolean;
@@ -91,10 +91,42 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
 
     try {
       // 1. Call create-payhere-hash with ONLY { kind: 'subscription', tier }
-      const hashRes = await createPayHereHash({
-        kind: 'subscription',
-        tier: plan,
+      const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
+        body: {
+          kind: 'subscription',
+          tier: plan,
+        },
       });
+
+      // If the create-payhere-hash call returns an error or a non-2xx response,
+      // or the response is missing hash, merchant_id, order_id, amount or currency,
+      // do NOT start the PayHere checkout. Close loading state and show a clear error message.
+      if (
+        error ||
+        !data ||
+        !data.hash ||
+        !data.merchant_id ||
+        !data.order_id ||
+        !data.amount ||
+        !data.currency
+      ) {
+        let errorPayload = error || data;
+        if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+          try {
+            const errJson = await error.context.clone().json();
+            errorPayload = { status: error.context.status, body: errJson, error };
+          } catch {
+            errorPayload = { status: error.context.status, error };
+          }
+        }
+        console.error('[create-payhere-hash error response]:', errorPayload);
+        setIsProcessing(false);
+        setPaymentError({
+          type: 'error',
+          message: 'Could not start payment, please try again',
+        });
+        return;
+      }
 
       const nameParts = (user?.name || 'Crafter Member').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Crafter';
@@ -104,12 +136,12 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       await startPayHereCheckout(
         {
           sandbox: true,
-          merchant_id: hashRes.merchant_id,
-          order_id: hashRes.order_id,
+          merchant_id: String(data.merchant_id),
+          order_id: String(data.order_id),
           items: `StitchedMemories ${planName} (${billingCycle})`,
-          amount: hashRes.amount,
-          currency: hashRes.currency,
-          hash: hashRes.hash,
+          amount: String(data.amount),
+          currency: String(data.currency),
+          hash: String(data.hash),
           first_name: firstName,
           last_name: lastName,
           email: user?.email || '',
@@ -179,11 +211,11 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         }
       );
     } catch (err: any) {
-      console.error('[PaymentGatewayModal] Checkout launch error:', err);
+      console.error('[create-payhere-hash error response]:', err);
       setIsProcessing(false);
       setPaymentError({
         type: 'error',
-        message: err?.message || 'Failed to start payment checkout. Please try again.',
+        message: 'Could not start payment, please try again',
       });
     }
   };
