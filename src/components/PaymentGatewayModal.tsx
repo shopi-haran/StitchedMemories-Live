@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase, fetchUserProfile, fetchSubscriptionPlans } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
+import { useAuth } from '../context/AuthContext';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
 
@@ -35,6 +36,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   onPaymentSuccess,
 }) => {
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'payment-gateway-modal' });
+  const { refreshProfile } = useAuth();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(initialBillingCycle);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -186,6 +188,8 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             setIsVerifying(false);
             if (confirmed) {
               setIsSuccess(true);
+              await refreshProfile();
+              window.dispatchEvent(new CustomEvent('tierChanged'));
               setTimeout(() => {
                 onPaymentSuccess(plan);
               }, 1200);

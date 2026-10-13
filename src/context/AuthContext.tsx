@@ -11,6 +11,8 @@ export interface UserProfile {
   subscription_tier?: string;
   subscription_status?: string;
   subscription_period_end?: string | null;
+  access_until?: string | null;
+  accessUntil?: string | null;
   has_selected_plan?: boolean;
 }
 
@@ -63,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const tier = profile?.subscription_tier || 'free';
         const status = profile?.subscription_status || 'inactive';
         const role = profile?.role || 'user';
+        const accessUntil = profile?.access_until || profile?.accessUntil || null;
 
         // Profiles table is the single source of truth for plan selection.
         // If profile row exists and has_selected_plan is true -> true
@@ -78,7 +81,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: role,
           subscription_tier: tier,
           subscription_status: status,
-          subscription_period_end: null,
+          subscription_period_end: accessUntil,
+          access_until: accessUntil,
+          accessUntil: accessUntil,
           has_selected_plan: hasSelectedPlan,
         });
       } catch (err) {
@@ -94,6 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           subscription_tier: 'free',
           subscription_status: 'inactive',
           subscription_period_end: null,
+          access_until: null,
+          accessUntil: null,
           has_selected_plan: false,
         });
       }
