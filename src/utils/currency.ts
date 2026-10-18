@@ -167,3 +167,23 @@ export function formatOrderDualPrice(
   return `${formatLkrPrice(priceLkr)} (${formatUsdEquivalent(priceLkr, rate)})`;
 }
 
+/**
+ * Resolves a stored quote amount to LKR.
+ * If the quote currency is 'LKR', the amount is already in LKR.
+ * If the quote currency is missing or not 'LKR' (older legacy USD quote),
+ * treats the amount as USD and converts to LKR on the fly using the exchange rate.
+ */
+export function resolveQuoteAmountToLkr(
+  amount: number | string | undefined | null,
+  currency?: string | null,
+  rate?: number | null
+): number {
+  const num = typeof amount === 'number' ? amount : parseFloat(String(amount ?? 0));
+  const valid = isNaN(num) ? 0 : num;
+  if (currency === 'LKR') {
+    return valid;
+  }
+  const effectiveRate = rate && rate > 0 ? rate : (cachedRate || 300);
+  return Number((valid * effectiveRate).toFixed(2));
+}
+

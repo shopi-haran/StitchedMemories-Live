@@ -18,12 +18,12 @@ import {
   Clock,
   Layers,
   ShieldCheck,
-  CreditCard,
+  Receipt,
   Check,
   X
 } from 'lucide-react';
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
-import { formatDualPrice } from '../../utils/currency';
+import { resolveQuoteAmountToLkr } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 
@@ -175,14 +175,15 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
               <Truck className="w-3 h-3 text-orange-700" /> TRK: {order.tracking_number}
             </span>
           )}
-          {totalAmount > 0 && (
-            <DualPrice
-              amount={Number(totalAmount)}
-              layout="stacked"
-              usdClassName="text-xs sm:text-sm font-black font-mono text-[#1D231E]"
-              lkrClassName="text-[10px] font-mono text-[#7A8877]"
-              className="items-end"
-            />
+          {(Number(order.quote?.total_amount) > 0 || totalAmount > 0) && (
+            <div className="flex flex-col items-start sm:items-end">
+              <LkrPriceDisplay
+                priceLkr={resolveQuoteAmountToLkr(order.quote?.total_amount ?? totalAmount, order.quote?.currency)}
+                layout="stacked"
+                lkrClassName="text-xs sm:text-sm font-black font-mono text-[#1D231E]"
+                usdClassName="text-[10px] font-mono text-[#7A8877]"
+              />
+            </div>
           )}
         </div>
       </div>
@@ -327,7 +328,7 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
       {order.quote && (
         <div className="p-3.5 bg-[#FAF6EE] rounded-2xl border border-[#1D231E]/10 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
-            <DollarSign className="w-4 h-4 text-[#E06C38]" />
+            <Receipt className="w-4 h-4 text-[#E06C38]" />
             {order.quote.currency !== 'LKR' && (
               <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300">
                 Legacy quote, needs re-quote
@@ -336,21 +337,21 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
             <span>
               {order.quote.line_items && order.quote.line_items.length > 0 ? (
                 <>
-                  <strong>{order.quote.line_items.length} Line Items:</strong> Subtotal <LkrPriceDisplay priceLkr={order.quote.items_subtotal ?? 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /> + Crafting <LkrPriceDisplay priceLkr={order.quote.crafting_charge ?? 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                  <strong>{order.quote.line_items.length} Line Items:</strong> Subtotal <LkrPriceDisplay priceLkr={resolveQuoteAmountToLkr(order.quote.items_subtotal, order.quote.currency)} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /> + Crafting <LkrPriceDisplay priceLkr={resolveQuoteAmountToLkr(order.quote.crafting_charge, order.quote.currency)} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                   {Number(order.quote.discount_amount || 0) > 0 && (
-                    <span className="text-emerald-700 font-semibold"> - Studio 15% (-<LkrPriceDisplay priceLkr={Number(order.quote.discount_amount)} layout="inline" lkrClassName="font-bold text-emerald-700" usdClassName="text-[10px] text-emerald-600" />)</span>
+                    <span className="text-emerald-700 font-semibold"> - Studio 15% (-<LkrPriceDisplay priceLkr={resolveQuoteAmountToLkr(order.quote.discount_amount, order.quote.currency)} layout="inline" lkrClassName="font-bold text-emerald-700" usdClassName="text-[10px] text-emerald-600" />)</span>
                   )}
-                  {` + Delivery `}<LkrPriceDisplay priceLkr={order.quote.delivery_charge ?? 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                  {` + Delivery `}<LkrPriceDisplay priceLkr={resolveQuoteAmountToLkr(order.quote.delivery_charge, order.quote.currency)} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                 </>
               ) : (
                 <>
-                  Quoted: <LkrPriceDisplay priceLkr={order.quote.total_amount ?? totalAmount} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                  Quoted: <LkrPriceDisplay priceLkr={resolveQuoteAmountToLkr(order.quote.total_amount ?? totalAmount, order.quote.currency)} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                 </>
               )}
             </span>
           </div>
           <span className="font-bold text-[#E06C38] font-mono text-xs sm:text-sm">
-            Total: <LkrPriceDisplay priceLkr={order.quote.total_amount ?? totalAmount} layout="inline" lkrClassName="font-bold text-[#E06C38]" usdClassName="text-[10px] text-[#8A9588]" />
+            Total: <LkrPriceDisplay priceLkr={resolveQuoteAmountToLkr(order.quote.total_amount ?? totalAmount, order.quote.currency)} layout="inline" lkrClassName="font-bold text-[#E06C38]" usdClassName="text-[10px] text-[#8A9588]" />
           </span>
         </div>
       )}

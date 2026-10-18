@@ -101,8 +101,8 @@ export const DevTierSwitcher: React.FC<DevTierSwitcherProps> = ({ user }) => {
             className="bg-[#2A332B] hover:bg-[#354136] text-white text-xs font-bold py-1.5 pl-2.5 pr-7 rounded-xl border border-[#445246] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/50 cursor-pointer appearance-none transition-all disabled:opacity-50"
           >
             <option value="free">Free Tier</option>
-            <option value="pro">Pro Plan ($9/mo)</option>
-            <option value="studio">Studio Suite ($19/mo)</option>
+            <option value="pro">Pro Plan (LKR 2,700/mo)</option>
+            <option value="studio">Studio Suite (LKR 5,700/mo)</option>
           </select>
           <ChevronDown className="w-3.5 h-3.5 text-[#93A28F] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>

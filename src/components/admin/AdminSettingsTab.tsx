@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Sparkles
 } from 'lucide-react';
+import { LkrPriceDisplay } from '../LkrPriceDisplay';
 
 interface AdminSettingsTabProps {
   currentRateInput: string;
@@ -34,16 +35,9 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   rateError,
   onRefresh,
 }) => {
-  const [testUsdInput, setTestUsdInput] = useState<string>('50');
+  const [testLkrInput, setTestLkrInput] = useState<string>('23340');
   const parsedRate = parseFloat(currentRateInput) || 300;
-
-  const calculatePreview = (usd: number) => {
-    const lkr = Math.round(usd * parsedRate);
-    return `$${usd.toFixed(2)} (LKR ${lkr.toLocaleString('en-US')})`;
-  };
-
-  const testUsdNumber = parseFloat(testUsdInput) || 0;
-  const testLkrNumber = Math.round(testUsdNumber * parsedRate);
+  const testLkrNumber = parseFloat(testLkrInput) || 0;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -59,7 +53,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
             </h2>
           </div>
           <p className="text-xs sm:text-sm text-white/70 max-w-2xl leading-relaxed">
-            Configure the live USD to LKR conversion rate. Stitchara displays all subscription tiers, custom kit quotes, and store items in dual currency: primary USD with Sri Lankan Rupee (LKR) in parentheses.
+            Configure the live USD to LKR conversion rate. Stitchara stores and quotes all orders in LKR. LKR is the primary currency displayed across all quotes, orders, and products, with the USD equivalent computed on the fly as LKR ÷ usd_to_lkr_rate (e.g. LKR 23,340.00 ≈ $77.80).
           </p>
         </div>
 
@@ -192,7 +186,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
         <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/80 text-xs text-amber-950 flex items-start gap-3">
           <HelpCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong>How this works:</strong> Stitchara stores and quotes orders in USD. The customer sees both currencies (e.g., <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-300 font-bold">$9.00 (LKR {Math.round(9 * parsedRate).toLocaleString()})</code>). Payment gateways process the transaction in USD.
+            <strong>How this works:</strong> Stitchara stores and quotes all orders in LKR. The customer sees LKR as the primary currency (e.g., <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-300 font-bold">LKR 23,340.00</code>) with the USD equivalent displayed as secondary (<code className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-300 font-bold">≈ $77.80</code>, computed on the fly as LKR ÷ usd_to_lkr_rate from app_settings). Payment gateways process the transaction in LKR.
           </p>
         </div>
       </div>
@@ -214,32 +208,32 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           <div className="space-y-2.5 pt-2">
             <div className="p-3 bg-[#FAF6EE] rounded-xl flex items-center justify-between text-xs">
               <span className="font-medium text-[#1D231E]">Free Starter Tier</span>
-              <span className="font-mono font-bold text-[#1D231E]">{calculatePreview(0)}</span>
+              <LkrPriceDisplay priceLkr={0} layout="inline" lkrClassName="font-mono font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
             </div>
 
             <div className="p-3 bg-[#FAF6EE] rounded-xl flex items-center justify-between text-xs">
               <span className="font-medium text-[#1D231E]">Pro Plan (Monthly)</span>
-              <span className="font-mono font-bold text-emerald-800">{calculatePreview(9)}</span>
+              <LkrPriceDisplay priceLkr={2700} layout="inline" lkrClassName="font-mono font-bold text-emerald-800" usdClassName="text-[10px] text-emerald-700" />
             </div>
 
             <div className="p-3 bg-[#FAF6EE] rounded-xl flex items-center justify-between text-xs">
               <span className="font-medium text-[#1D231E]">Studio Plan (Monthly)</span>
-              <span className="font-mono font-bold text-emerald-800">{calculatePreview(29)}</span>
+              <LkrPriceDisplay priceLkr={5700} layout="inline" lkrClassName="font-mono font-bold text-emerald-800" usdClassName="text-[10px] text-emerald-700" />
             </div>
 
             <div className="p-3 bg-[#FAF6EE] rounded-xl flex items-center justify-between text-xs">
               <span className="font-medium text-[#1D231E]">Standard Custom Kit</span>
-              <span className="font-mono font-bold text-[#E06C38]">{calculatePreview(45)}</span>
+              <LkrPriceDisplay priceLkr={13500} layout="inline" lkrClassName="font-mono font-bold text-[#E06C38]" usdClassName="text-[10px] text-[#8A9588]" />
             </div>
 
             <div className="p-3 bg-[#FAF6EE] rounded-xl flex items-center justify-between text-xs">
-              <span className="font-medium text-[#1D231E]">Artisan Framing / Crafting</span>
-              <span className="font-mono font-bold text-[#1D231E]">{calculatePreview(25)}</span>
+              <span className="font-medium text-[#1D231E]">Artisan Crafting Charge</span>
+              <LkrPriceDisplay priceLkr={10500} layout="inline" lkrClassName="font-mono font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
             </div>
 
             <div className="p-3 bg-[#FAF6EE] rounded-xl flex items-center justify-between text-xs">
               <span className="font-medium text-[#1D231E]">Island-Wide Delivery</span>
-              <span className="font-mono font-bold text-[#1D231E]">{calculatePreview(5)}</span>
+              <LkrPriceDisplay priceLkr={1500} layout="inline" lkrClassName="font-mono font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
             </div>
           </div>
         </div>
@@ -254,25 +248,25 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
               </h4>
             </div>
             <p className="text-xs text-[#1D231E]/60">
-              Input any arbitrary USD amount to check how the dual currency string formats for customers and artisans:
+              Input any arbitrary amount in LKR to verify the primary LKR and secondary USD display:
             </p>
 
             <div className="pt-2">
               <label className="block text-[11px] font-bold text-[#1D231E] uppercase tracking-wider mb-1.5">
-                Test USD Amount ($)
+                Test LKR Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-500">
-                  $
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500">
+                  LKR
                 </span>
                 <input
                   type="number"
                   step="any"
                   min="0"
-                  value={testUsdInput}
-                  onChange={(e) => setTestUsdInput(e.target.value)}
-                  placeholder="50"
-                  className="w-full pl-8 pr-4 py-2.5 bg-white border border-[#1D231E]/15 rounded-xl text-sm font-bold font-mono text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                  value={testLkrInput}
+                  onChange={(e) => setTestLkrInput(e.target.value)}
+                  placeholder="23340"
+                  className="w-full pl-12 pr-4 py-2.5 bg-white border border-[#1D231E]/15 rounded-xl text-sm font-bold font-mono text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
                 />
               </div>
             </div>
@@ -283,13 +277,15 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
               Formatted Output Preview
             </span>
             <div className="text-lg sm:text-xl font-mono font-black text-[#1D231E]">
-              ${testUsdNumber.toFixed(2)}{' '}
-              <span className="text-[#5A6659] font-semibold text-sm">
-                (LKR {testLkrNumber.toLocaleString('en-US')})
-              </span>
+              <LkrPriceDisplay
+                priceLkr={testLkrNumber}
+                layout="inline"
+                lkrClassName="text-xl sm:text-2xl font-black font-mono text-[#1D231E]"
+                usdClassName="text-sm font-normal text-[#5A6659]"
+              />
             </div>
             <p className="text-[11px] text-[#70806E]">
-              Calculation: ${testUsdNumber.toFixed(2)} × {parsedRate.toFixed(2)} = LKR {testLkrNumber.toLocaleString('en-US')}
+              Formula: LKR {testLkrNumber.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ÷ {parsedRate.toFixed(2)} = ≈ ${(testLkrNumber / parsedRate).toFixed(2)} USD
             </p>
           </div>
         </div>

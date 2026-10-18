@@ -498,10 +498,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({
 
     if (existingQuote?.line_items && Array.isArray(existingQuote.line_items) && existingQuote.line_items.length > 0) {
       // 1. Existing itemized quote
+      const isLegacy = existingQuote.currency !== 'LKR';
+      const quoteRate = parseFloat(exchangeRateInput) || 300;
+      const rateMultiplier = isLegacy ? quoteRate : 1;
+
       setQuoteLineItems(
         existingQuote.line_items.map((it, idx) => {
           const qty = it.quantity !== undefined ? it.quantity : 1;
-          const uPrice = it.unit_price !== undefined ? it.unit_price : 0;
+          const uPrice = it.unit_price !== undefined ? (Number(it.unit_price) * rateMultiplier) : 0;
           const numQty = parseFloat(String(qty)) || 0;
           const numUPrice = parseFloat(String(uPrice)) || 0;
           return {
@@ -510,15 +514,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({
             reference_qty: it.reference_qty || '',
             quantity: qty,
             unit: it.unit || 'pcs',
-            unit_price: uPrice,
-            total: it.total !== undefined ? Number(it.total) : Number((numQty * numUPrice).toFixed(2)),
+            unit_price: isLegacy ? numUPrice.toFixed(2) : uPrice,
+            total: Number((numQty * numUPrice).toFixed(2)),
             dmc_code: it.dmc_code,
             hex: it.hex,
           };
         })
       );
-      setCraftingChargeInput(existingQuote.crafting_charge !== undefined ? String(existingQuote.crafting_charge) : '0');
-      setDeliveryChargeInput(existingQuote.delivery_charge !== undefined ? String(existingQuote.delivery_charge) : '1500.00');
+      setCraftingChargeInput(existingQuote.crafting_charge !== undefined ? String(Number((Number(existingQuote.crafting_charge) * rateMultiplier).toFixed(2))) : '0');
+      setDeliveryChargeInput(existingQuote.delivery_charge !== undefined ? String(Number((Number(existingQuote.delivery_charge) * rateMultiplier).toFixed(2))) : '1500.00');
       setAdminNotesInput(existingQuote.admin_notes || order.admin_notes || '');
     } else if (threadReqs && threadReqs.length > 0) {
       // 2. Pre-populate from converter thread requirements (LKR amounts)
@@ -1359,11 +1363,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                       Customer requested adjustments to the price or materials.
                     </p>
                   )}
-                  {selectedQuoteOrder.quote_history && selectedQuoteOrder.quote_history.length > 0 && (
-                    <p className="text-[11px] text-amber-800/80 pt-1 border-t border-amber-200">
-                      Previous quote of {formatOrderDualPrice(selectedQuoteOrder.quote_history[selectedQuoteOrder.quote_history.length - 1].total_amount || 0)} is archived in history.
-                    </p>
-                  )}
+                  {selectedQuoteOrder.quote_history && selectedQuoteOrder.quote_history.length > 0 && (() => {
+                    const lastPrev = selectedQuoteOrder.quote_history[selectedQuoteOrder.quote_history.length - 1];
+                    const isPrevLegacy = lastPrev.currency !== 'LKR';
+                    const prevTotal = (Number(lastPrev.total_amount) || Number(lastPrev.quoted_price) || 0) * (isPrevLegacy ? (parseFloat(exchangeRateInput) || 300) : 1);
+                    return (
+                      <p className="text-[11px] text-amber-800/80 pt-1 border-t border-amber-200">
+                        Previous quote of {formatOrderDualPrice(prevTotal)} is archived in history.
+                      </p>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1806,48 +1815,76 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                       {selectedOrderForEdit.quote.line_items && selectedOrderForEdit.quote.line_items.length > 0 ? (
                         <div className="space-y-1.5">
                           <div className="max-h-36 overflow-y-auto divide-y divide-[#1D231E]/5 text-[11px]">
-                            {selectedOrderForEdit.quote.line_items.map((it: any, idx: number) => (
-                              <div key={it.id || idx} className="py-1 flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  {it.hex && (
-                                    <span
-                                      className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0"
-                                      style={{ backgroundColor: it.hex }}
-                                    />
-                                  )}
-                                  <span className="font-medium text-[#1D231E]">{it.description}</span>
-                                  <span className="text-[#1D231E]/50">
-                                    ({it.quantity} {it.unit || 'pcs'} @ <LkrPriceDisplay priceLkr={Number(it.unit_price)} layout="inline" lkrClassName="font-medium text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />)
-                                  </span>
+                            {selectedOrderForEdit.quote.line_items.map((it: any, idx: number) => {
+                              const isLegacy = selectedOrderForEdit.quote.currency !== 'LKR';
+                              const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+                              const unitPriceLkr = (Number(it.unit_price) || 0) * mult;
+                              const totalLkr = (Number(it.total) || 0) * mult;
+                              return (
+                                <div key={it.id || idx} className="py-1 flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    {it.hex && (
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0"
+                                        style={{ backgroundColor: it.hex }}
+                                      />
+                                    )}
+                                    <span className="font-medium text-[#1D231E]">{it.description}</span>
+                                    <span className="text-[#1D231E]/50">
+                                      ({it.quantity} {it.unit || 'pcs'} @ <LkrPriceDisplay priceLkr={unitPriceLkr} layout="inline" lkrClassName="font-medium text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />)
+                                    </span>
+                                  </div>
+                                  <LkrPriceDisplay priceLkr={totalLkr} layout="inline" lkrClassName="font-mono font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                                 </div>
-                                <LkrPriceDisplay priceLkr={Number(it.total)} layout="inline" lkrClassName="font-mono font-bold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                              );
+                            })}
+                          </div>
+                          {(() => {
+                            const isLegacy = selectedOrderForEdit.quote.currency !== 'LKR';
+                            const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+                            const itemsSubtotalLkr = (Number(selectedOrderForEdit.quote.items_subtotal) || 0) * mult;
+                            const craftingChargeLkr = (Number(selectedOrderForEdit.quote.crafting_charge) || 0) * mult;
+                            const discountAmountLkr = (Number(selectedOrderForEdit.quote.discount_amount) || 0) * mult;
+                            const deliveryChargeLkr = (Number(selectedOrderForEdit.quote.delivery_charge) || 0) * mult;
+                            const totalAmountLkr = (Number(selectedOrderForEdit.quote.total_amount) || 0) * mult;
+                            return (
+                              <div className="pt-1.5 border-t border-[#1D231E]/10 flex flex-wrap items-center justify-between text-[11px] font-medium text-[#1D231E]/70 gap-2">
+                                <span>Subtotal: <LkrPriceDisplay priceLkr={itemsSubtotalLkr} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
+                                {craftingChargeLkr > 0 && (
+                                  <span>Crafting: <LkrPriceDisplay priceLkr={craftingChargeLkr} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
+                                )}
+                                {discountAmountLkr > 0 && (
+                                  <span className="text-emerald-700 font-bold">
+                                    Studio ({selectedOrderForEdit.quote.discount_percent || 15}%): -<LkrPriceDisplay priceLkr={discountAmountLkr} layout="inline" lkrClassName="font-bold text-emerald-700" usdClassName="text-[10px] text-emerald-600" />
+                                  </span>
+                                )}
+                                <span>Ship: <LkrPriceDisplay priceLkr={deliveryChargeLkr} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
+                                <span className="font-bold text-[#E06C38] text-xs">
+                                  Total: <LkrPriceDisplay priceLkr={totalAmountLkr} layout="inline" lkrClassName="font-bold text-[#E06C38] text-xs" usdClassName="text-[10px] text-[#8A9588]" />
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                          <div className="pt-1.5 border-t border-[#1D231E]/10 flex flex-wrap items-center justify-between text-[11px] font-medium text-[#1D231E]/70 gap-2">
-                            <span>Subtotal: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.items_subtotal ?? 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
-                            {Number(selectedOrderForEdit.quote.crafting_charge || 0) > 0 && (
-                              <span>Crafting: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.crafting_charge} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
-                            )}
-                            {Number(selectedOrderForEdit.quote.discount_amount || 0) > 0 && (
-                              <span className="text-emerald-700 font-bold">
-                                Studio ({selectedOrderForEdit.quote.discount_percent || 15}%): -<LkrPriceDisplay priceLkr={Number(selectedOrderForEdit.quote.discount_amount)} layout="inline" lkrClassName="font-bold text-emerald-700" usdClassName="text-[10px] text-emerald-600" />
-                              </span>
-                            )}
-                            <span>Ship: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.delivery_charge || 0} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /></span>
-                            <span className="font-bold text-[#E06C38] text-xs">
-                              Total: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.total_amount || 0} layout="inline" lkrClassName="font-bold text-[#E06C38] text-xs" usdClassName="text-[10px] text-[#8A9588]" />
-                            </span>
-                          </div>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-[#1D231E]/70">
-                            Item: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.item_price || 0} layout="inline" /> + Ship: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.delivery_charge || 0} layout="inline" />
-                          </span>
-                          <span className="font-bold text-[#E06C38]">
-                            Total: <LkrPriceDisplay priceLkr={selectedOrderForEdit.quote.total_amount || 0} layout="inline" lkrClassName="font-bold text-[#E06C38]" usdClassName="text-[10px] text-[#8A9588]" />
-                          </span>
+                          {(() => {
+                            const isLegacy = selectedOrderForEdit.quote.currency !== 'LKR';
+                            const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+                            const itemPriceLkr = (Number(selectedOrderForEdit.quote.item_price) || 0) * mult;
+                            const deliveryLkr = (Number(selectedOrderForEdit.quote.delivery_charge) || 0) * mult;
+                            const totalLkr = (Number(selectedOrderForEdit.quote.total_amount) || 0) * mult;
+                            return (
+                              <>
+                                <span className="text-[#1D231E]/70">
+                                  Item: <LkrPriceDisplay priceLkr={itemPriceLkr} layout="inline" /> + Ship: <LkrPriceDisplay priceLkr={deliveryLkr} layout="inline" />
+                                </span>
+                                <span className="font-bold text-[#E06C38]">
+                                  Total: <LkrPriceDisplay priceLkr={totalLkr} layout="inline" lkrClassName="font-bold text-[#E06C38]" usdClassName="text-[10px] text-[#8A9588]" />
+                                </span>
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

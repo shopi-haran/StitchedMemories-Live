@@ -1,9 +1,9 @@
 import React from 'react';
-import { formatUsd, formatLkr, getExchangeRate } from '../utils/currency';
-import { useCurrency } from '../context/CurrencyContext';
+import { LkrPriceDisplay } from './LkrPriceDisplay';
 
 export interface DualPriceProps {
-  amount: number | string | undefined | null;
+  amount?: number | string | undefined | null;
+  priceLkr?: number | string | undefined | null;
   overrideRate?: number | null;
   period?: React.ReactNode;
   suffix?: React.ReactNode;
@@ -15,71 +15,44 @@ export interface DualPriceProps {
   periodClassName?: string;
   approx?: boolean;
   showLkr?: boolean;
+  showDecimals?: boolean;
+  wrapInParens?: boolean;
 }
 
+/**
+ * Standard Stitchara Money Formatter / Dual-Price Component
+ * Renders LKR as primary amount (bold, thousands separators, 2 decimals, e.g. "LKR 23,340.00")
+ * and USD as secondary amount (muted, smaller, e.g. "≈ $77.80") computed on the fly.
+ */
 export const DualPrice: React.FC<DualPriceProps> = ({
   amount,
-  overrideRate,
+  priceLkr,
   period,
   suffix,
   prefix,
   layout = 'inline',
   className = '',
-  usdClassName = '',
-  lkrClassName = '',
-  periodClassName = '',
-  approx = true,
-  showLkr = true,
+  usdClassName = 'text-xs text-[#5A6659] font-normal',
+  lkrClassName = 'font-bold text-[#1D231E]',
+  periodClassName = 'text-xs text-[#A5B3A2] font-medium',
+  showDecimals = true,
+  wrapInParens = false,
 }) => {
-  let contextRate: number | null = null;
-  try {
-    const currency = useCurrency();
-    contextRate = currency.rate;
-  } catch {
-    contextRate = getExchangeRate();
-  }
+  const targetPrice = priceLkr !== undefined ? priceLkr : amount;
 
-  const num = typeof amount === 'number' ? amount : parseFloat(String(amount ?? 0));
-  const validNum = isNaN(num) ? 0 : num;
-  const effectiveRate = overrideRate !== undefined && overrideRate !== null ? overrideRate : contextRate;
-
-  const usdText = formatUsd(validNum);
-  const hasLkr = showLkr && effectiveRate !== null && effectiveRate !== undefined && effectiveRate > 0;
-  const lkrRaw = hasLkr ? formatLkr(validNum, effectiveRate) : null;
-  const lkrText = lkrRaw ? (approx ? `≈ ${lkrRaw}` : lkrRaw) : null;
-
-  if (layout === 'stacked') {
-    return (
-      <div className={`inline-flex flex-col items-start ${className}`}>
-        <div className="flex items-baseline gap-1 flex-wrap">
-          {prefix && <span className={usdClassName}>{prefix}</span>}
-          <span className={usdClassName || 'font-bold'}>{usdText}</span>
-          {period && <span className={periodClassName || 'text-xs opacity-75 font-medium ml-0.5'}>{period}</span>}
-          {suffix && <span className={periodClassName || 'text-xs opacity-75 font-medium ml-1'}>{suffix}</span>}
-        </div>
-        {lkrText && (
-          <span className={`text-[0.75em] leading-tight font-normal opacity-70 tracking-tight mt-0.5 ${lkrClassName}`}>
-            {lkrText}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  // Inline layout
   return (
-    <span className={`inline-flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5 ${className}`}>
-      <span className="inline-flex items-baseline gap-0.5">
-        {prefix && <span className={usdClassName}>{prefix}</span>}
-        <span className={usdClassName || 'font-bold'}>{usdText}</span>
-        {period && <span className={periodClassName || 'text-xs opacity-75 font-medium ml-0.5'}>{period}</span>}
-      </span>
-      {lkrText && (
-        <span className={`text-[0.8em] font-normal opacity-65 tracking-tight whitespace-nowrap ${lkrClassName}`}>
-          ({lkrText})
-        </span>
-      )}
-      {suffix && <span className={periodClassName || 'text-xs opacity-75 font-medium ml-1'}>{suffix}</span>}
+    <span className={`inline-flex items-baseline ${className}`}>
+      {prefix && <span className="mr-1">{prefix}</span>}
+      <LkrPriceDisplay
+        priceLkr={targetPrice}
+        period={period || suffix}
+        layout={layout === 'stacked' ? 'stacked' : 'inline'}
+        lkrClassName={lkrClassName}
+        usdClassName={usdClassName}
+        periodClassName={periodClassName}
+        showDecimals={showDecimals}
+        wrapInParens={wrapInParens}
+      />
     </span>
   );
 };
