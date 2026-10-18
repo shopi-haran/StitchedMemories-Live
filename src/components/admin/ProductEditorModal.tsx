@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Product } from '../../types';
 import { uploadProductImageToSupabase, upsertProduct } from '../../lib/supabase';
 import { useModalStack } from '../../hooks/useModalStack';
+import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import {
   X,
   Save,
@@ -366,24 +367,36 @@ export const ProductEditorModal: React.FC<ProductEditorModalProps> = ({
               />
             </div>
 
-            {/* Price */}
+            {/* Price (LKR) */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-[#3D5239]">
-                Price (USD $) <span className="text-red-500">*</span>
+                Price (LKR) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <DollarSign className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500">
+                  LKR
+                </span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  placeholder="29.99"
+                  placeholder="2400.00"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-[#FAF6EE]/60 border border-[#D5CDBC] rounded-xl text-sm font-semibold text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38] focus:bg-white transition-all shadow-2xs"
+                  className="w-full pl-12 pr-4 py-2.5 bg-[#FAF6EE]/60 border border-[#D5CDBC] rounded-xl text-sm font-semibold text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38] focus:bg-white transition-all shadow-2xs"
                 />
               </div>
+              {Number(price) > 0 && (
+                <div className="text-[11px] text-[#6B7869] pt-0.5">
+                  <LkrPriceDisplay
+                    priceLkr={Number(price)}
+                    layout="inline"
+                    lkrClassName="font-bold text-[#1D231E]"
+                    usdClassName="text-[10px] text-[#5A6659]"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Category */}

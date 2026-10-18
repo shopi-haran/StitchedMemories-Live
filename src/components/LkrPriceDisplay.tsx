@@ -1,8 +1,8 @@
 import React from 'react';
-import { getExchangeRate, formatLkrPrice, formatUsdEquivalent, formatOrderDualPrice } from '../utils/currency';
+import { getExchangeRate, formatLkrPrice, formatUsdEquivalent, formatOrderDualPrice, resolveQuoteAmountToLkr } from '../utils/currency';
 import { useCurrency } from '../context/CurrencyContext';
 
-export { formatLkrPrice, formatUsdEquivalent, formatOrderDualPrice };
+export { formatLkrPrice, formatUsdEquivalent, formatOrderDualPrice, resolveQuoteAmountToLkr };
 
 export interface LkrPriceDisplayProps {
   priceLkr: number | string | undefined | null;
@@ -28,7 +28,7 @@ export const LkrPriceDisplay: React.FC<LkrPriceDisplayProps> = ({
   usdClassName,
   periodClassName = 'text-xs text-[#A5B3A2] font-medium',
   showDecimals = true,
-  wrapInParens,
+  wrapInParens = false,
 }) => {
   let rate = 300;
   try {
@@ -51,7 +51,7 @@ export const LkrPriceDisplay: React.FC<LkrPriceDisplayProps> = ({
 
   const finalLkrClass = lkrClassName !== undefined ? lkrClassName : defaultLkrClass;
   const finalUsdClass = usdClassName !== undefined ? usdClassName : defaultUsdClass;
-  const shouldWrap = wrapInParens !== undefined ? wrapInParens : (layout === 'stacked');
+  const shouldWrap = wrapInParens;
 
   const lkrFormatted = formatLkrPrice(validNum, showDecimals);
   const rawUsdFormatted = formatUsdEquivalent(validNum, rate);

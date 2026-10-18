@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { fetchUserStoreOrders, SupabaseOrderRow } from '../../lib/supabase';
 import { StoreOrderItem } from '../../types';
-import { formatDualPrice } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 
 export const STORE_ORDER_STAGES = [
@@ -97,14 +96,6 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
     } catch {
       return rawDateStr;
     }
-  };
-
-  const formatTotalAmount = (amount?: number | string) => {
-    if (amount === undefined || amount === null || amount === '') return '$0.00';
-    if (typeof amount === 'string' && amount.startsWith('$')) return amount;
-    const num = typeof amount === 'number' ? amount : parseFloat(String(amount));
-    if (isNaN(num)) return String(amount);
-    return `$${num.toFixed(2)}`;
   };
 
   const filteredOrders = useMemo(() => {
@@ -328,7 +319,7 @@ export const PurchasesTab: React.FC<PurchasesTabProps> = ({ user, onNavigateToSh
                                     <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-[#5A6659]">
                                       <span>Qty: <strong className="text-[#1D231E]">{qty}</strong></span>
                                       <span>•</span>
-                                      <span>${price.toFixed(2)} each</span>
+                                      <DualPrice amount={price} layout="inline" period="each" usdClassName="text-[10px] text-[#5A6659]" lkrClassName="font-medium text-[#1D231E]" />
                                       {item.category && (
                                         <>
                                           <span>•</span>

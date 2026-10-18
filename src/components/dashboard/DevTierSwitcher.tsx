@@ -81,8 +81,8 @@ export const DevTierSwitcher: React.FC<DevTierSwitcherProps> = ({ user, classNam
         aria-label="Dev Tier Switcher"
       >
         <option value="free">Free Crafter</option>
-        <option value="pro">Pro Crafter ($9/mo)</option>
-        <option value="studio">Studio Plan ($19/mo)</option>
+        <option value="pro">Pro Crafter (LKR 2,700/mo)</option>
+        <option value="studio">Studio Plan (LKR 5,700/mo)</option>
       </select>
 
       {showToast && (

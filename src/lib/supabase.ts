@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { BlogPost, BlogPostSection, ContactMessage, ContentSection, Product } from '../types';
 import { createScaledThumbnail, PatternConfig } from '../utils/patternEngine';
+import { generateLkrQuote } from '../utils/pricingConstants';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -957,13 +958,23 @@ export async function createOrderRequest(params: CreateOrderRequestParams): Prom
       return { success: false, error: new Error('User must be logged in to submit an order.') };
     }
 
+    // Generate initial quotation in LKR with currency = 'LKR'
+    const initialQuote = generateLkrQuote({
+      orderType: params.orderType,
+      threadRequirements: params.requestDetails?.thread_requirements,
+      fabricDetails: params.requestDetails?.fabric_details,
+      sizePreference: params.requestDetails?.size,
+    });
+
     const payload: Record<string, any> = {
       user_id: effectiveUserId,
       order_type: params.orderType,
       request_details: params.requestDetails,
+      quote: initialQuote,
+      quoted_price: initialQuote.total_amount,
+      total_amount: initialQuote.total_amount,
       fulfillment_status: 'pending_quote',
       payment_status: 'pending_quote',
-      total_amount: 0,
       created_at: new Date().toISOString(),
     };
 
@@ -985,7 +996,7 @@ export async function createOrderRequest(params: CreateOrderRequestParams): Prom
           items: [{
             title: params.orderType === 'custom_kit_converter' ? 'Converter Custom Kit' :
                    params.orderType === 'custom_kit_assisted' ? 'Assisted Custom Kit' : 'Custom Stitched Product',
-            price: 0,
+            price: initialQuote.total_amount,
             quantity: 1,
             details: params.requestDetails,
           }],

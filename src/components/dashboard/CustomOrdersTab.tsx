@@ -53,6 +53,7 @@ import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import { PaymentGatewayModal } from '../PaymentGatewayModal';
 import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../../lib/payhere';
+import { useCurrency } from '../../context/CurrencyContext';
 
 interface UserProfile {
   id?: string;
@@ -128,6 +129,8 @@ export const getStageIndex = (statusRaw?: string): number => {
 };
 
 export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenConverter }) => {
+  const { rate: currentExchangeRate } = useCurrency();
+  const exchangeRate = currentExchangeRate || 300;
   const [orders, setOrders] = useState<SupabaseStitchOrderRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isSilentRefreshing, setIsSilentRefreshing] = useState<boolean>(false);
@@ -1219,19 +1222,24 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         const hasLineItems = Array.isArray(lineItems) && lineItems.length > 0;
         const hasQuoteData = isStoreOrder || (!isPendingQuote && !isDeclined) || hasLineItems || (Number(order.quoted_price) > 0);
 
-        const itemsSubtotal = quote.items_subtotal !== undefined 
+        const isLegacyQuote = !isStoreOrder && Boolean(order.quote && (!quote.currency || quote.currency !== 'LKR'));
+        const quoteMultiplier = isLegacyQuote ? exchangeRate : 1;
+
+        const rawItemsSubtotal = quote.items_subtotal !== undefined 
           ? Number(quote.items_subtotal) 
           : hasLineItems
           ? lineItems.reduce((acc: number, it: any) => acc + (Number(it.total) || (Number(it.quantity) * Number(it.unit_price)) || 0), 0)
           : Number(quote.item_price) || Number(order.item_price) || Number(order.total_amount) || 0;
 
-        const craftingCharge = Number(quote.crafting_charge) || 0;
+        const itemsSubtotal = rawItemsSubtotal * quoteMultiplier;
+        const craftingCharge = (Number(quote.crafting_charge) || 0) * quoteMultiplier;
         const discountPercent = Number(quote.discount_percent) || 0;
-        const discountAmount = Number(quote.discount_amount) || 0;
-        const deliveryCharge = Number(quote.delivery_charge) || Number(order.delivery_charge) || 0;
+        const discountAmount = (Number(quote.discount_amount) || 0) * quoteMultiplier;
+        const deliveryCharge = (Number(quote.delivery_charge) || Number(order.delivery_charge) || 0) * quoteMultiplier;
         const discountableAmount = itemsSubtotal + craftingCharge;
-        const totalAmount = Number(quote.total_amount) || Number(order.quoted_price) || Number(order.total_amount) || (discountableAmount - discountAmount + deliveryCharge);
-        const isLegacyQuote = !isStoreOrder && Boolean(order.quote && (!quote.currency || quote.currency !== 'LKR'));
+        const totalAmount = (quote.total_amount || order.quoted_price || order.total_amount)
+          ? (Number(quote.total_amount ?? order.quoted_price ?? order.total_amount) * quoteMultiplier)
+          : (discountableAmount - discountAmount + deliveryCharge);
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs animate-fadeIn">
@@ -1484,10 +1492,10 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                                   {item.quantity} {item.unit ? `(${item.unit})` : ''}
                                 </td>
                                 <td className="py-3 px-3 text-right">
-                                  <LkrPriceDisplay priceLkr={Number(item.unit_price) || 0} layout="inline" lkrClassName="font-medium text-xs text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                                  <LkrPriceDisplay priceLkr={(Number(item.unit_price) || 0) * quoteMultiplier} layout="inline" lkrClassName="font-medium text-xs text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                                 </td>
                                 <td className="py-3 px-4 text-right">
-                                  <LkrPriceDisplay priceLkr={Number(item.total) || 0} layout="inline" lkrClassName="font-bold text-xs font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
+                                  <LkrPriceDisplay priceLkr={(Number(item.total) || 0) * quoteMultiplier} layout="inline" lkrClassName="font-bold text-xs font-mono text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" />
                                 </td>
                               </tr>
                             ))}
@@ -1594,30 +1602,41 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
                       {expandedHistoryOrders[String(order.raw_order_id || order.id)] && (
                         <div className="p-4 pt-0 space-y-3 border-t border-[#E8E1D2]/80 divide-y divide-[#E8E1D2]">
-                          {order.quote_history.map((prevQuote: ArchivedQuote, qIdx: number) => (
-                            <div key={qIdx} className="pt-3 first:pt-0 space-y-2 text-xs">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-[#5A6659] text-[11px]">
-                                  Version #{qIdx + 1}
-                                  {prevQuote.superseded_at && ` • ${formatDate(prevQuote.superseded_at)}`}
-                                </span>
-                                <span className="font-bold text-[#1D231E] font-mono">
-                                  {formatDualPrice(Number(prevQuote.total_amount) || Number(prevQuote.quoted_price) || 0)}
-                                </span>
-                              </div>
-                              {prevQuote.reason && (
-                                <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
-                                  <span className="font-semibold">Superseded Reason:</span> "{prevQuote.reason}"
+                          {order.quote_history.map((prevQuote: ArchivedQuote, qIdx: number) => {
+                            const isPrevLegacy = prevQuote.currency !== 'LKR';
+                            const histMultiplier = isPrevLegacy ? exchangeRate : 1;
+                            const histTotal = (Number(prevQuote.total_amount) || Number(prevQuote.quoted_price) || 0) * histMultiplier;
+                            const histDelivery = prevQuote.delivery_charge !== undefined ? (Number(prevQuote.delivery_charge) || 0) * histMultiplier : undefined;
+                            return (
+                              <div key={qIdx} className="pt-3 first:pt-0 space-y-2 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-[#5A6659] text-[11px]">
+                                    Version #{qIdx + 1}
+                                    {prevQuote.superseded_at && ` • ${formatDate(prevQuote.superseded_at)}`}
+                                  </span>
+                                  <LkrPriceDisplay
+                                    priceLkr={histTotal}
+                                    layout="inline"
+                                    lkrClassName="font-bold text-[#1D231E] font-mono"
+                                    usdClassName="text-[10px] text-[#5A6659]"
+                                  />
                                 </div>
-                              )}
-                              {prevQuote.line_items && prevQuote.line_items.length > 0 && (
-                                <p className="text-[11px] text-[#6B7869]">
-                                  {prevQuote.line_items.length} itemized line {prevQuote.line_items.length === 1 ? 'item' : 'items'}
-                                  {prevQuote.delivery_charge !== undefined && ` + ${formatDualPrice(Number(prevQuote.delivery_charge) || 0)} delivery`}
-                                </p>
-                              )}
-                            </div>
-                          ))}
+                                {prevQuote.reason && (
+                                  <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
+                                    <span className="font-semibold">Superseded Reason:</span> "{prevQuote.reason}"
+                                  </div>
+                                )}
+                                {prevQuote.line_items && prevQuote.line_items.length > 0 && (
+                                  <div className="text-[11px] text-[#6B7869] flex items-center justify-between">
+                                    <span>{prevQuote.line_items.length} itemized line {prevQuote.line_items.length === 1 ? 'item' : 'items'}</span>
+                                    {histDelivery !== undefined && (
+                                      <span>+ <LkrPriceDisplay priceLkr={histDelivery} layout="inline" lkrClassName="font-semibold text-[#1D231E]" usdClassName="text-[10px] text-[#5A6659]" /> delivery</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

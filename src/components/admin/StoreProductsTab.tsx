@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
 import { deleteProduct } from '../../lib/supabase';
-import { formatDualPrice } from '../../utils/currency';
+import { formatOrderDualPrice } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { useModalStack } from '../../hooks/useModalStack';
 import {
@@ -657,7 +657,7 @@ export const StoreProductsTab: React.FC<StoreProductsTabProps> = ({
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-xs text-[#1D231E] truncate">{deleteConfirmProduct.name}</p>
                 <p className="text-[11px] text-[#7A8877] mt-0.5">
-                  Category: {deleteConfirmProduct.category} • {formatDualPrice(Number(deleteConfirmProduct.price))}
+                  Category: {deleteConfirmProduct.category} • {formatOrderDualPrice(Number(deleteConfirmProduct.price))}
                 </p>
               </div>
             </div>

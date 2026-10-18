@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
 import { StoreOrderItem } from '../../types';
-import { formatDualPrice } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 
 export const STORE_ORDER_STAGES = [
