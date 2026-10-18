@@ -2827,6 +2827,7 @@ export interface SubscriptionPlanRow {
   id?: string | number;
   tier: string;
   price_lkr: number;
+  yearly_price_lkr?: number;
   created_at?: string;
   updated_at?: string;
 }

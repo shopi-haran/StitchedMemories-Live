@@ -56,9 +56,9 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   } | null>(null);
 
   // Dynamic plan prices from database
-  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
-    pro: 2700,
-    studio: 5700,
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
+    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
   });
 
   useEffect(() => {
@@ -67,10 +67,16 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, number> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
           rows.forEach((r) => {
-            if (r.tier && r.price_lkr !== undefined) {
-              map[r.tier.toLowerCase().trim()] = Number(r.price_lkr);
+            if (r.tier) {
+              const key = r.tier.toLowerCase().trim();
+              const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
+              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              map[key] = {
+                price_lkr: priceMonthly,
+                yearly_price_lkr: priceYearly,
+              };
             }
           });
           setPlanPrices((prev) => ({ ...prev, ...map }));
@@ -95,10 +101,11 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const isLegacyQuote = isOrderMode && Boolean(activeQuote && (!activeQuote.currency || activeQuote.currency !== 'LKR'));
   const orderTitle = order?.title || `Custom Keepsake #${String(order?.raw_order_id || order?.id || '').replace('order_', '').slice(-8)}`;
 
-  const planName = plan === 'pro' ? 'Pro Crafter Plan' : 'Studio Plan';
-  const baseMonthlyLkr = planPrices[plan] || (plan === 'pro' ? 2700 : 5700);
-  const annualMonthlyLkr = Math.round(baseMonthlyLkr * 0.8);
-  const activePriceLkr = billingCycle === 'annual' ? annualMonthlyLkr : baseMonthlyLkr;
+  const planName = plan === 'pro' ? 'Pro Plan' : 'Studio Plan';
+  const planPricing = planPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: 25920 } : { price_lkr: 5700, yearly_price_lkr: 54720 });
+  const baseMonthlyLkr = planPricing.price_lkr;
+  const annualYearlyLkr = planPricing.yearly_price_lkr;
+  const activePriceLkr = billingCycle === 'annual' ? annualYearlyLkr : baseMonthlyLkr;
 
   const handlePayHerePayment = async () => {
     if (isLegacyQuote) {
@@ -117,7 +124,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       // 1. Call create-payhere-hash with appropriate payload
       const requestPayload = isOrderMode
         ? { kind: 'order', orderRowId: order?.raw_order_id || order?.id }
-        : { kind: 'subscription', tier: plan };
+        : { kind: 'subscription', tier: plan, period: billingCycle === 'annual' ? 'yearly' : 'monthly' };
 
       const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
         body: requestPayload,
@@ -416,7 +423,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                   }`}
                 >
                   <span>Annual (Save 20%)</span>
-                  <span className="text-[10px] opacity-80">LKR {annualMonthlyLkr.toLocaleString()} / mo</span>
+                  <span className="text-[10px] opacity-80">LKR {Math.round(annualYearlyLkr / 12).toLocaleString()} / mo</span>
                 </button>
               </div>
             )}
