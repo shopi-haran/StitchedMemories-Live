@@ -22,8 +22,9 @@ import { ReturnsPage } from './pages/ReturnsPage';
 import { AuthModal } from './components/AuthModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
+import { SubscriptionConfirmModal } from './components/SubscriptionConfirmModal';
 import { useAuth } from './context/AuthContext';
-import { fetchUserProfile, updateUserPlanSelection, getEffectiveTier } from './lib/supabase';
+import { fetchUserProfile, updateUserPlanSelection, getEffectiveTier, fetchSubscriptionPlans } from './lib/supabase';
 
 export type PageName = 'home' | 'about-contact' | 'blog' | 'shop' | 'dashboard' | 'login' | 'admin' | 'admin-quotes' | 'pricing' | 'terms' | 'privacy' | 'returns';
 
@@ -43,6 +44,52 @@ export default function App() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [upgradeModalTargetPlan, setUpgradeModalTargetPlan] = useState<'studio' | null>(null);
   const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
+
+  // Direct confirmation dialog for logged-in users upgrading from landing page pricing cards
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    plan: 'pro' | 'studio';
+    period: 'monthly' | 'annual';
+  }>({
+    isOpen: false,
+    plan: 'pro',
+    period: 'monthly',
+  });
+
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
+    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
+  });
+
+  useEffect(() => {
+    let active = true;
+    async function loadPrices() {
+      try {
+        const rows = await fetchSubscriptionPlans();
+        if (active && rows.length > 0) {
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
+          rows.forEach((r) => {
+            if (r.tier) {
+              const key = r.tier.toLowerCase().trim();
+              const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
+              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              map[key] = {
+                price_lkr: priceMonthly,
+                yearly_price_lkr: priceYearly,
+              };
+            }
+          });
+          setPlanPrices((prev) => ({ ...prev, ...map }));
+        }
+      } catch (e) {
+        console.warn('[App] Error loading subscription plans:', e);
+      }
+    }
+    loadPrices();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Sync initial URL pathname and popstate history
   useEffect(() => {
@@ -137,19 +184,34 @@ export default function App() {
     setPricingCycle(cycle);
 
     if (isLoggedIn) {
-      if (plan === 'free') {
-        console.log('[App:handleSelectPlanFromPricing] Selecting free plan, dismissing onboarding');
-        await handleConfirmFreePlanAndDismiss();
+      const effectiveTier = getEffectiveTier(user); // 'free' | 'pro' | 'studio'
+      const tierRank: Record<'free' | 'pro' | 'studio', number> = {
+        free: 0,
+        pro: 1,
+        studio: 2,
+      };
+
+      const clickedRank = tierRank[plan];
+      const currentRank = tierRank[effectiveTier];
+
+      if (clickedRank <= currentRank) {
+        // If the clicked plan equals user's current plan or is lower (e.g. Studio user clicks Pro or Start for free):
+        // Navigate to the dashboard. Do not open any modal. Downgrades are not supported.
         setDashboardTab('overview');
         setCurrentPage('dashboard');
         window.history.pushState({}, '', '/dashboard');
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        console.log('[App:handleSelectPlanFromPricing] Selecting paid plan (' + plan + '), opening UpgradePlanModal for PayHere checkout');
-        setUpgradeModalTargetPlan(plan === 'studio' ? 'studio' : null);
-        setIsPaymentModalOpen(false);
-        setIsUpgradeModalOpen(true);
+        return;
       }
+
+      // If the clicked plan is higher than the current plan:
+      // Do NOT open the pricing cards or the upgrade modal.
+      // Open one confirmation dialog (useModalStack)
+      setConfirmModal({
+        isOpen: true,
+        plan: plan as 'pro' | 'studio',
+        period: cycle,
+      });
     } else {
       console.log('[App:handleSelectPlanFromPricing] Guest selected ' + plan + ', opening AuthModal (setIsPricingAuthModalOpen=true)');
       setIsPricingAuthModalOpen(true);
@@ -505,6 +567,25 @@ export default function App() {
         currentTier={getEffectiveTier(user)}
         onSelectPlan={(plan, cycle) => {
           handleSelectPlanFromPricing(plan, cycle);
+        }}
+      />
+
+      {/* Confirmation Dialog for Logged-In Users Upgrading from Landing Page */}
+      <SubscriptionConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        plan={confirmModal.plan}
+        period={confirmModal.period}
+        priceLkr={
+          confirmModal.period === 'annual'
+            ? (planPrices[confirmModal.plan]?.yearly_price_lkr ?? (confirmModal.plan === 'pro' ? 25920 : 54720))
+            : (planPrices[confirmModal.plan]?.price_lkr ?? (confirmModal.plan === 'pro' ? 2700 : 5700))
+        }
+        user={user}
+        refreshProfile={refreshProfile}
+        onSuccess={async () => {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+          await handlePaymentSuccess();
         }}
       />
 

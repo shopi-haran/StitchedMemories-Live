@@ -16,9 +16,9 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
   isLoggedIn = false 
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
-    pro: 2700,
-    studio: 5700,
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
+    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
   });
 
   useEffect(() => {
@@ -27,10 +27,16 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, number> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
           rows.forEach((r) => {
-            if (r.tier && r.price_lkr !== undefined) {
-              map[r.tier.toLowerCase().trim()] = Number(r.price_lkr);
+            if (r.tier) {
+              const key = r.tier.toLowerCase().trim();
+              const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
+              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              map[key] = {
+                price_lkr: priceMonthly,
+                yearly_price_lkr: priceYearly,
+              };
             }
           });
           setPlanPrices((prev) => ({ ...prev, ...map }));
@@ -45,8 +51,10 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
     };
   }, []);
 
-  const proPriceLkr = planPrices.pro ?? 2700;
-  const studioPriceLkr = planPrices.studio ?? 5700;
+  const proMonthlyLkr = planPrices.pro?.price_lkr ?? 2700;
+  const proYearlyLkr = planPrices.pro?.yearly_price_lkr ?? 25920;
+  const studioMonthlyLkr = planPrices.studio?.price_lkr ?? 5700;
+  const studioYearlyLkr = planPrices.studio?.yearly_price_lkr ?? 54720;
 
   return (
     <section id="pricing-section" className="py-24 bg-[#FAF6EE] text-[#1D231E] relative overflow-hidden">
@@ -164,7 +172,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
               onClick={() => onSelectPlan('free', billingCycle)}
               className="w-full py-3.5 px-6 rounded-full bg-[#323D34] hover:bg-[#425245] border border-[#445246] text-[#FAF6EE] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
             >
-              <span>{isLoggedIn ? 'Continue with Free' : 'Get Started Free'}</span>
+              <span>Start for free</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -191,14 +199,42 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <LkrPriceDisplay
-                  priceLkr={billingCycle === 'annual' ? Math.round(proPriceLkr * 0.8) : proPriceLkr}
-                  period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
-                  layout="stacked"
-                  lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
-                  usdClassName="text-xs text-[#A5B3A2] font-normal"
-                  periodClassName="text-xs text-[#A5B3A2] font-medium"
-                />
+                {billingCycle === 'annual' ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-[#E06C38]/20 text-[#E06C38] border border-[#E06C38]/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                        Save 20%
+                      </span>
+                    </div>
+                    <LkrPriceDisplay
+                      priceLkr={proYearlyLkr}
+                      period="/ year"
+                      layout="stacked"
+                      lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                      usdClassName="text-xs text-[#A5B3A2] font-normal"
+                      periodClassName="text-xs text-[#A5B3A2] font-medium"
+                    />
+                    <div className="mt-2 text-xs text-[#A5B3A2] flex items-center gap-1.5 flex-wrap">
+                      <span>Per month equivalent:</span>
+                      <LkrPriceDisplay
+                        priceLkr={Math.round(proYearlyLkr / 12)}
+                        period="/ mo"
+                        layout="inline"
+                        lkrClassName="font-semibold text-[#FAF6EE]"
+                        usdClassName="text-[11px] text-[#A5B3A2]"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <LkrPriceDisplay
+                    priceLkr={proMonthlyLkr}
+                    period="/ month"
+                    layout="stacked"
+                    lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                    usdClassName="text-xs text-[#A5B3A2] font-normal"
+                    periodClassName="text-xs text-[#A5B3A2] font-medium"
+                  />
+                )}
               </div>
 
               {/* Feature Checklist */}
@@ -238,7 +274,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
               onClick={() => onSelectPlan('pro', billingCycle)}
               className="w-full py-3.5 px-6 rounded-full bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#E06C38]/30 cursor-pointer hover:scale-[1.02]"
             >
-              <span>Upgrade to Pro</span>
+              <span>Start Pro plan</span>
               <Sparkles className="w-4 h-4" />
             </button>
           </div>
@@ -262,14 +298,42 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               {/* Price */}
               <div className="mb-6 pb-6 border-b border-[#323D34]">
-                <LkrPriceDisplay
-                  priceLkr={billingCycle === 'annual' ? Math.round(studioPriceLkr * 0.8) : studioPriceLkr}
-                  period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
-                  layout="stacked"
-                  lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
-                  usdClassName="text-xs text-[#8A9B87] font-normal"
-                  periodClassName="text-xs text-[#A5B3A2] font-medium"
-                />
+                {billingCycle === 'annual' ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-[#E06C38]/20 text-[#E06C38] border border-[#E06C38]/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                        Save 20%
+                      </span>
+                    </div>
+                    <LkrPriceDisplay
+                      priceLkr={studioYearlyLkr}
+                      period="/ year"
+                      layout="stacked"
+                      lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                      usdClassName="text-xs text-[#8A9B87] font-normal"
+                      periodClassName="text-xs text-[#A5B3A2] font-medium"
+                    />
+                    <div className="mt-2 text-xs text-[#A5B3A2] flex items-center gap-1.5 flex-wrap">
+                      <span>Per month equivalent:</span>
+                      <LkrPriceDisplay
+                        priceLkr={Math.round(studioYearlyLkr / 12)}
+                        period="/ mo"
+                        layout="inline"
+                        lkrClassName="font-semibold text-[#FAF6EE]"
+                        usdClassName="text-[11px] text-[#8A9B87]"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <LkrPriceDisplay
+                    priceLkr={studioMonthlyLkr}
+                    period="/ month"
+                    layout="stacked"
+                    lkrClassName="text-3xl lg:text-4xl font-extrabold text-[#FAF6EE]"
+                    usdClassName="text-xs text-[#8A9B87] font-normal"
+                    periodClassName="text-xs text-[#A5B3A2] font-medium"
+                  />
+                )}
               </div>
 
               {/* Feature Checklist */}
@@ -313,7 +377,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
               onClick={() => onSelectPlan('studio', billingCycle)}
               className="w-full py-3.5 px-6 rounded-full bg-[#323D34] hover:bg-[#425245] border border-[#445246] text-[#FAF6EE] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
             >
-              <span>Start Studio Plan</span>
+              <span>Start Studio plan</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

@@ -54,10 +54,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   } | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Plan prices fetched dynamically from public.subscription_plans
-  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
-    pro: 2700,
-    studio: 5700,
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
+    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
   });
 
   const { user, isLoggedIn, refreshProfile } = useAuth();
@@ -70,10 +69,16 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, number> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
           rows.forEach((r) => {
-            if (r.tier && r.price_lkr !== undefined) {
-              map[r.tier.toLowerCase().trim()] = Number(r.price_lkr);
+            if (r.tier) {
+              const key = r.tier.toLowerCase().trim();
+              const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
+              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              map[key] = {
+                price_lkr: priceMonthly,
+                yearly_price_lkr: priceYearly,
+              };
             }
           });
           setPlanPrices((prev) => ({ ...prev, ...map }));
@@ -89,6 +94,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       active = false;
     };
   }, [isOpen]);
+
+  const proMonthlyLkr = planPrices.pro?.price_lkr ?? 2700;
+  const proYearlyLkr = planPrices.pro?.yearly_price_lkr ?? 25920;
+  const studioMonthlyLkr = planPrices.studio?.price_lkr ?? 5700;
+  const studioYearlyLkr = planPrices.studio?.yearly_price_lkr ?? 54720;
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -136,11 +146,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     setVerificationPendingMsg(null);
 
     try {
-      // 1. Call create-payhere-hash with ONLY { kind: 'subscription', tier }
+      // 1. Call create-payhere-hash with exactly { kind: 'subscription', tier, period }
       const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
         body: {
           kind: 'subscription',
           tier: plan,
+          period: billingCycle === 'annual' ? 'yearly' : 'monthly',
         },
       });
 
@@ -539,7 +550,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   onClick={handleFreePlan}
                   className="w-full py-3 px-5 rounded-full bg-[#323D34] hover:bg-[#425245] border border-[#445246] text-[#FAF6EE] font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02] disabled:opacity-50"
                 >
-                  <span>Continue with Free</span>
+                  <span>Start for free</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -562,14 +573,42 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     For stitchers wanting unlimited grid sizes and an ad-free workflow.
                   </p>
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <LkrPriceDisplay
-                      priceLkr={billingCycle === 'annual' ? Math.round(proPriceLkr * 0.8) : proPriceLkr}
-                      period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
-                      layout="stacked"
-                      lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
-                      usdClassName="text-xs text-[#A5B3A2] font-normal"
-                      periodClassName="text-xs text-[#A5B3A2] font-medium"
-                    />
+                    {billingCycle === 'annual' ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="bg-[#E06C38]/20 text-[#E06C38] border border-[#E06C38]/30 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                            Save 20%
+                          </span>
+                        </div>
+                        <LkrPriceDisplay
+                          priceLkr={proYearlyLkr}
+                          period="/ year"
+                          layout="stacked"
+                          lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                          usdClassName="text-xs text-[#A5B3A2] font-normal"
+                          periodClassName="text-xs text-[#A5B3A2] font-medium"
+                        />
+                        <div className="mt-1 text-xs text-[#A5B3A2] flex items-center gap-1.5 flex-wrap">
+                          <span>Per month:</span>
+                          <LkrPriceDisplay
+                            priceLkr={Math.round(proYearlyLkr / 12)}
+                            period="/ mo"
+                            layout="inline"
+                            lkrClassName="font-semibold text-[#FAF6EE]"
+                            usdClassName="text-[11px] text-[#A5B3A2]"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <LkrPriceDisplay
+                        priceLkr={proMonthlyLkr}
+                        period="/ month"
+                        layout="stacked"
+                        lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                        usdClassName="text-xs text-[#A5B3A2] font-normal"
+                        periodClassName="text-xs text-[#A5B3A2] font-medium"
+                      />
+                    )}
                   </div>
                   <ul className="space-y-3 text-xs text-[#FAF6EE] mb-6">
                     <li className="flex items-start gap-2">
@@ -611,7 +650,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <span>{isOnboarding ? 'Choose Pro Plan' : 'Upgrade to Pro'}</span>
+                      <span>Start Pro plan</span>
                       <Sparkles className="w-4 h-4" />
                     </>
                   )}
@@ -643,14 +682,42 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     For pattern designers wanting image editing & 15% custom order discounts.
                   </p>
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    <LkrPriceDisplay
-                      priceLkr={billingCycle === 'annual' ? Math.round(studioPriceLkr * 0.8) : studioPriceLkr}
-                      period={`/ mo ${billingCycle === 'annual' ? '(billed annually)' : ''}`}
-                      layout="stacked"
-                      lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
-                      usdClassName="text-xs text-[#8A9B87] font-normal"
-                      periodClassName="text-xs text-[#A5B3A2] font-medium"
-                    />
+                    {billingCycle === 'annual' ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="bg-[#E06C38]/20 text-[#E06C38] border border-[#E06C38]/30 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                            Save 20%
+                          </span>
+                        </div>
+                        <LkrPriceDisplay
+                          priceLkr={studioYearlyLkr}
+                          period="/ year"
+                          layout="stacked"
+                          lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                          usdClassName="text-xs text-[#8A9B87] font-normal"
+                          periodClassName="text-xs text-[#A5B3A2] font-medium"
+                        />
+                        <div className="mt-1 text-xs text-[#A5B3A2] flex items-center gap-1.5 flex-wrap">
+                          <span>Per month:</span>
+                          <LkrPriceDisplay
+                            priceLkr={Math.round(studioYearlyLkr / 12)}
+                            period="/ mo"
+                            layout="inline"
+                            lkrClassName="font-semibold text-[#FAF6EE]"
+                            usdClassName="text-[11px] text-[#8A9B87]"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <LkrPriceDisplay
+                        priceLkr={studioMonthlyLkr}
+                        period="/ month"
+                        layout="stacked"
+                        lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
+                        usdClassName="text-xs text-[#8A9B87] font-normal"
+                        periodClassName="text-xs text-[#A5B3A2] font-medium"
+                      />
+                    )}
                   </div>
                   <ul className="space-y-3 text-xs text-[#E0E8DF] mb-6">
                     <li className="flex items-start gap-2 text-white">
@@ -700,7 +767,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <span>{isOnboarding ? 'Choose Studio Plan' : 'Upgrade to Studio'}</span>
+                      <span>Start Studio plan</span>
                       <Sparkles className="w-4 h-4" />
                     </>
                   )}
