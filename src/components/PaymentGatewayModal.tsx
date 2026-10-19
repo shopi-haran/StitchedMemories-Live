@@ -355,14 +355,32 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <LkrPriceDisplay
-                  priceLkr={isOrderMode ? quoteTotalLkr : activePriceLkr}
-                  period={isOrderMode ? undefined : '/ mo'}
-                  layout="stacked"
-                  lkrClassName="text-2xl font-black text-[#FAF6EE]"
-                  usdClassName="text-[11px] text-[#A5B3A2]"
-                  periodClassName="text-xs text-[#A5B3A2]"
-                />
+                {isOrderMode ? (
+                  <LkrPriceDisplay
+                    priceLkr={quoteTotalLkr}
+                    layout="stacked"
+                    lkrClassName="text-2xl font-black text-[#FAF6EE]"
+                    usdClassName="text-[11px] text-[#A5B3A2]"
+                  />
+                ) : billingCycle === 'annual' ? (
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-[#FAF6EE]">
+                      {`LKR ${Math.round(annualYearlyLkr / 12).toLocaleString()} × 12 months = LKR ${annualYearlyLkr.toLocaleString('.00', { minimumFractionDigits: 2 })}`}
+                    </p>
+                    <p className="text-[11px] text-[#E06C38] font-semibold mt-0.5">
+                      Annual, billed once (charged today)
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-[#FAF6EE]">
+                      {`LKR ${baseMonthlyLkr.toLocaleString('.00', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} charged today`}
+                    </p>
+                    <p className="text-[11px] text-[#A5B3A2] mt-0.5">
+                      Monthly, billed monthly
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

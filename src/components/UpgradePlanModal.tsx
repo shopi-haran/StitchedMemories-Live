@@ -581,18 +581,18 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                           </span>
                         </div>
                         <LkrPriceDisplay
-                          priceLkr={proYearlyLkr}
-                          period="/ year"
+                          priceLkr={Math.round(proYearlyLkr / 12)}
+                          period="/ month"
                           layout="stacked"
                           lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
                           usdClassName="text-xs text-[#A5B3A2] font-normal"
                           periodClassName="text-xs text-[#A5B3A2] font-medium"
                         />
-                        <div className="mt-1 text-xs text-[#A5B3A2] flex items-center gap-1.5 flex-wrap">
-                          <span>Per month:</span>
+                        <div className="mt-1 text-xs text-[#A5B3A2]">
+                          <span>billed annually, </span>
                           <LkrPriceDisplay
-                            priceLkr={Math.round(proYearlyLkr / 12)}
-                            period="/ mo"
+                            priceLkr={proYearlyLkr}
+                            period="per year"
                             layout="inline"
                             lkrClassName="font-semibold text-[#FAF6EE]"
                             usdClassName="text-[11px] text-[#A5B3A2]"
@@ -690,18 +690,18 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                           </span>
                         </div>
                         <LkrPriceDisplay
-                          priceLkr={studioYearlyLkr}
-                          period="/ year"
+                          priceLkr={Math.round(studioYearlyLkr / 12)}
+                          period="/ month"
                           layout="stacked"
                           lkrClassName="text-2xl sm:text-3xl font-extrabold text-[#FAF6EE]"
                           usdClassName="text-xs text-[#8A9B87] font-normal"
                           periodClassName="text-xs text-[#A5B3A2] font-medium"
                         />
-                        <div className="mt-1 text-xs text-[#A5B3A2] flex items-center gap-1.5 flex-wrap">
-                          <span>Per month:</span>
+                        <div className="mt-1 text-xs text-[#A5B3A2]">
+                          <span>billed annually, </span>
                           <LkrPriceDisplay
-                            priceLkr={Math.round(studioYearlyLkr / 12)}
-                            period="/ mo"
+                            priceLkr={studioYearlyLkr}
+                            period="per year"
                             layout="inline"
                             lkrClassName="font-semibold text-[#FAF6EE]"
                             usdClassName="text-[11px] text-[#8A9B87]"
