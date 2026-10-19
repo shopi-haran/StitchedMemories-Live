@@ -241,18 +241,27 @@ export const SubscriptionConfirmModal: React.FC<SubscriptionConfirmModalProps> =
           </div>
 
           <div className="flex items-baseline justify-between text-xs pt-1">
-            <span className="text-[#A5B3A2]">Amount charged now</span>
+            <span className="text-[#A5B3A2]">Payment summary</span>
             <div className="text-right">
-              <LkrPriceDisplay
-                priceLkr={priceLkr}
-                layout="inline"
-                lkrClassName="text-xl font-extrabold text-[#FAF6EE]"
-                usdClassName="text-xs text-[#A5B3A2] ml-1.5"
-              />
-              {period === 'annual' && (
-                <p className="text-[11px] text-[#A5B3A2] mt-1">
-                  billed once for 12 months
-                </p>
+              {period === 'annual' ? (
+                <div>
+                  <p className="text-[#FAF6EE] font-medium text-xs">
+                    {`LKR ${Math.round(priceLkr / 12).toLocaleString()} × 12 months = `}
+                    <span className="font-bold text-white">LKR {priceLkr.toLocaleString('.00', { minimumFractionDigits: 2 })}</span>
+                  </p>
+                  <p className="text-[11px] text-[#A5B3A2] mt-0.5">
+                    Annual, billed once for 12 months (charged today)
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-[#FAF6EE] font-medium text-xs">
+                    <span className="font-bold text-white">LKR {priceLkr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> charged today
+                  </p>
+                  <p className="text-[11px] text-[#A5B3A2] mt-0.5">
+                    Monthly, billed monthly
+                  </p>
+                </div>
               )}
             </div>
           </div>
