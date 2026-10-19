@@ -16,10 +16,21 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
   isLoggedIn = false 
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
-    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
-    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: null },
+    studio: { price_lkr: 5700, yearly_price_lkr: null },
   });
+
+  const hasAnnual = Boolean(
+    (planPrices.pro?.yearly_price_lkr != null && planPrices.pro.yearly_price_lkr > 0) ||
+    (planPrices.studio?.yearly_price_lkr != null && planPrices.studio.yearly_price_lkr > 0)
+  );
+
+  useEffect(() => {
+    if (!hasAnnual && billingCycle === 'annual') {
+      setBillingCycle('monthly');
+    }
+  }, [hasAnnual]);
 
   useEffect(() => {
     let active = true;
@@ -27,12 +38,12 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number | null }> = {};
           rows.forEach((r) => {
             if (r.tier) {
               const key = r.tier.toLowerCase().trim();
               const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
-              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              const priceYearly = r.yearly_price_lkr != null ? Number(r.yearly_price_lkr) : null;
               map[key] = {
                 price_lkr: priceMonthly,
                 yearly_price_lkr: priceYearly,
@@ -52,9 +63,9 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
   }, []);
 
   const proMonthlyLkr = planPrices.pro?.price_lkr ?? 2700;
-  const proYearlyLkr = planPrices.pro?.yearly_price_lkr ?? 25920;
+  const proYearlyLkr = planPrices.pro?.yearly_price_lkr ?? null;
   const studioMonthlyLkr = planPrices.studio?.price_lkr ?? 5700;
-  const studioYearlyLkr = planPrices.studio?.yearly_price_lkr ?? 54720;
+  const studioYearlyLkr = planPrices.studio?.yearly_price_lkr ?? null;
 
   return (
     <section id="pricing-section" className="py-24 bg-[#FAF6EE] text-[#1D231E] relative overflow-hidden">
@@ -82,31 +93,33 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
           </p>
 
           {/* Billing Cycle Toggle */}
-          <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-md p-1.5 rounded-full border border-[#E2DAD0] shadow-sm mt-8">
-            <button
-              onClick={() => setBillingCycle('monthly')}
-              className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                billingCycle === 'monthly'
-                  ? 'bg-[#E06C38] text-white shadow-md'
-                  : 'text-[#5A6659] hover:text-[#1D231E]'
-              }`}
-            >
-              Monthly Billing
-            </button>
-            <button
-              onClick={() => setBillingCycle('annual')}
-              className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                billingCycle === 'annual'
-                  ? 'bg-[#E06C38] text-white shadow-md'
-                  : 'text-[#5A6659] hover:text-[#1D231E]'
-              }`}
-            >
-              <span>Annual Billing</span>
-              <span className="bg-[#1D231E] text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                Save 20%
-              </span>
-            </button>
-          </div>
+          {hasAnnual && (
+            <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-md p-1.5 rounded-full border border-[#E2DAD0] shadow-sm mt-8">
+              <button
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  billingCycle === 'monthly'
+                    ? 'bg-[#E06C38] text-white shadow-md'
+                    : 'text-[#5A6659] hover:text-[#1D231E]'
+                }`}
+              >
+                Monthly Billing
+              </button>
+              <button
+                onClick={() => setBillingCycle('annual')}
+                className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  billingCycle === 'annual'
+                    ? 'bg-[#E06C38] text-white shadow-md'
+                    : 'text-[#5A6659] hover:text-[#1D231E]'
+                }`}
+              >
+                <span>Annual Billing</span>
+                <span className="bg-[#1D231E] text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                  Save 20%
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 3 Dark Glassmorphic Pricing Cards Grid - Horizontally Aligned Equal Height */}
