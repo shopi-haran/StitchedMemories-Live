@@ -56,10 +56,21 @@ export default function App() {
     period: 'monthly',
   });
 
-  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
-    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
-    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: null },
+    studio: { price_lkr: 5700, yearly_price_lkr: null },
   });
+
+  const hasAnnual = Boolean(
+    (planPrices.pro?.yearly_price_lkr != null && planPrices.pro.yearly_price_lkr > 0) ||
+    (planPrices.studio?.yearly_price_lkr != null && planPrices.studio.yearly_price_lkr > 0)
+  );
+
+  useEffect(() => {
+    if (!hasAnnual && pricingCycle === 'annual') {
+      setPricingCycle('monthly');
+    }
+  }, [hasAnnual]);
 
   useEffect(() => {
     let active = true;
@@ -67,12 +78,12 @@ export default function App() {
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number | null }> = {};
           rows.forEach((r) => {
             if (r.tier) {
               const key = r.tier.toLowerCase().trim();
               const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
-              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              const priceYearly = r.yearly_price_lkr != null ? Number(r.yearly_price_lkr) : null;
               map[key] = {
                 price_lkr: priceMonthly,
                 yearly_price_lkr: priceYearly,
@@ -180,8 +191,9 @@ export default function App() {
 
   const handleSelectPlanFromPricing = async (plan: 'free' | 'pro' | 'studio', cycle: 'monthly' | 'annual') => {
     console.log('[App:handleSelectPlanFromPricing] Invoked with plan:', plan, 'cycle:', cycle, 'isLoggedIn:', isLoggedIn, 'user:', user?.email);
+    const cycleToUse = hasAnnual ? cycle : 'monthly';
     setPricingPlan(plan);
-    setPricingCycle(cycle);
+    setPricingCycle(cycleToUse);
 
     if (isLoggedIn) {
       const effectiveTier = getEffectiveTier(user); // 'free' | 'pro' | 'studio'
@@ -210,7 +222,7 @@ export default function App() {
       setConfirmModal({
         isOpen: true,
         plan: plan as 'pro' | 'studio',
-        period: cycle,
+        period: cycleToUse,
       });
     } else {
       console.log('[App:handleSelectPlanFromPricing] Guest selected ' + plan + ', opening AuthModal (setIsPricingAuthModalOpen=true)');

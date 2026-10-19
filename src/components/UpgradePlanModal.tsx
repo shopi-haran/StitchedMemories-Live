@@ -54,10 +54,21 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   } | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
-    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
-    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: null },
+    studio: { price_lkr: 5700, yearly_price_lkr: null },
   });
+
+  const hasAnnual = Boolean(
+    (planPrices.pro?.yearly_price_lkr != null && planPrices.pro.yearly_price_lkr > 0) ||
+    (planPrices.studio?.yearly_price_lkr != null && planPrices.studio.yearly_price_lkr > 0)
+  );
+
+  useEffect(() => {
+    if (!hasAnnual && billingCycle === 'annual') {
+      setBillingCycle('monthly');
+    }
+  }, [hasAnnual]);
 
   const { user, isLoggedIn, refreshProfile } = useAuth();
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'upgrade-plan-modal' });
@@ -69,12 +80,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number | null }> = {};
           rows.forEach((r) => {
             if (r.tier) {
               const key = r.tier.toLowerCase().trim();
               const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
-              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              const priceYearly = r.yearly_price_lkr != null ? Number(r.yearly_price_lkr) : null;
               map[key] = {
                 price_lkr: priceMonthly,
                 yearly_price_lkr: priceYearly,
@@ -96,9 +107,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   }, [isOpen]);
 
   const proMonthlyLkr = planPrices.pro?.price_lkr ?? 2700;
-  const proYearlyLkr = planPrices.pro?.yearly_price_lkr ?? 25920;
+  const proYearlyLkr = planPrices.pro?.yearly_price_lkr ?? null;
   const studioMonthlyLkr = planPrices.studio?.price_lkr ?? 5700;
-  const studioYearlyLkr = planPrices.studio?.yearly_price_lkr ?? 54720;
+  const studioYearlyLkr = planPrices.studio?.yearly_price_lkr ?? null;
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -151,7 +162,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         body: {
           kind: 'subscription',
           tier: plan,
-          period: billingCycle === 'annual' ? 'yearly' : 'monthly',
+          period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly',
         },
       });
 
@@ -456,35 +467,37 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           )}
 
           {/* Billing Cycle Toggle */}
-          <div className="flex justify-center">
-            <div className="inline-flex items-center gap-2 bg-white p-1 rounded-full border border-[#E2DAD0] shadow-xs">
-              <button
-                type="button"
-                onClick={() => setBillingCycle('monthly')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                  billingCycle === 'monthly'
-                    ? 'bg-[#E06C38] text-white shadow-xs'
-                    : 'text-[#5A6659] hover:text-[#1D231E]'
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingCycle('annual')}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  billingCycle === 'annual'
-                    ? 'bg-[#E06C38] text-white shadow-xs'
-                    : 'text-[#5A6659] hover:text-[#1D231E]'
-                }`}
-              >
-                <span>Annual</span>
-                <span className="bg-[#1D231E] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
-                  Save 20%
-                </span>
-              </button>
+          {hasAnnual && (
+            <div className="flex justify-center">
+              <div className="inline-flex items-center gap-2 bg-white p-1 rounded-full border border-[#E2DAD0] shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle('monthly')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                    billingCycle === 'monthly'
+                      ? 'bg-[#E06C38] text-white shadow-xs'
+                      : 'text-[#5A6659] hover:text-[#1D231E]'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingCycle('annual')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    billingCycle === 'annual'
+                      ? 'bg-[#E06C38] text-white shadow-xs'
+                      : 'text-[#5A6659] hover:text-[#1D231E]'
+                  }`}
+                >
+                  <span>Annual</span>
+                  <span className="bg-[#1D231E] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
+                    Save 20%
+                  </span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Cards Grid */}
           <div className={`grid gap-6 items-stretch ${
@@ -573,7 +586,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     For stitchers wanting unlimited grid sizes and an ad-free workflow.
                   </p>
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    {billingCycle === 'annual' ? (
+                    {hasAnnual && billingCycle === 'annual' && proYearlyLkr != null ? (
                       <>
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="bg-[#E06C38]/20 text-[#E06C38] border border-[#E06C38]/30 text-[9px] font-bold px-2 py-0.5 rounded-full">
@@ -682,7 +695,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     For pattern designers wanting image editing & 15% custom order discounts.
                   </p>
                   <div className="mb-5 pb-5 border-b border-[#323D34]">
-                    {billingCycle === 'annual' ? (
+                    {hasAnnual && billingCycle === 'annual' && studioYearlyLkr != null ? (
                       <>
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="bg-[#E06C38]/20 text-[#E06C38] border border-[#E06C38]/30 text-[9px] font-bold px-2 py-0.5 rounded-full">

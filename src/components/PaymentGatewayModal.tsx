@@ -56,9 +56,9 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   } | null>(null);
 
   // Dynamic plan prices from database
-  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number }>>({
-    pro: { price_lkr: 2700, yearly_price_lkr: 25920 },
-    studio: { price_lkr: 5700, yearly_price_lkr: 54720 },
+  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
+    pro: { price_lkr: 2700, yearly_price_lkr: null },
+    studio: { price_lkr: 5700, yearly_price_lkr: null },
   });
 
   useEffect(() => {
@@ -67,12 +67,12 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       try {
         const rows = await fetchSubscriptionPlans();
         if (active && rows.length > 0) {
-          const map: Record<string, { price_lkr: number; yearly_price_lkr: number }> = {};
+          const map: Record<string, { price_lkr: number; yearly_price_lkr: number | null }> = {};
           rows.forEach((r) => {
             if (r.tier) {
               const key = r.tier.toLowerCase().trim();
               const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
-              const priceYearly = Number(r.yearly_price_lkr ?? (priceMonthly * 12 * 0.8));
+              const priceYearly = r.yearly_price_lkr != null ? Number(r.yearly_price_lkr) : null;
               map[key] = {
                 price_lkr: priceMonthly,
                 yearly_price_lkr: priceYearly,
@@ -102,10 +102,18 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const orderTitle = order?.title || `Custom Keepsake #${String(order?.raw_order_id || order?.id || '').replace('order_', '').slice(-8)}`;
 
   const planName = plan === 'pro' ? 'Pro Plan' : 'Studio Plan';
-  const planPricing = planPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: 25920 } : { price_lkr: 5700, yearly_price_lkr: 54720 });
+  const planPricing = planPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: null } : { price_lkr: 5700, yearly_price_lkr: null });
   const baseMonthlyLkr = planPricing.price_lkr;
   const annualYearlyLkr = planPricing.yearly_price_lkr;
-  const activePriceLkr = billingCycle === 'annual' ? annualYearlyLkr : baseMonthlyLkr;
+  const hasAnnual = Boolean(annualYearlyLkr != null && annualYearlyLkr > 0);
+
+  useEffect(() => {
+    if (!hasAnnual && billingCycle === 'annual') {
+      setBillingCycle('monthly');
+    }
+  }, [hasAnnual]);
+
+  const activePriceLkr = hasAnnual && billingCycle === 'annual' ? annualYearlyLkr : baseMonthlyLkr;
 
   const handlePayHerePayment = async () => {
     if (isLegacyQuote) {
@@ -124,7 +132,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       // 1. Call create-payhere-hash with appropriate payload
       const requestPayload = isOrderMode
         ? { kind: 'order', orderRowId: order?.raw_order_id || order?.id }
-        : { kind: 'subscription', tier: plan, period: billingCycle === 'annual' ? 'yearly' : 'monthly' };
+        : { kind: 'subscription', tier: plan, period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly' };
 
       const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
         body: requestPayload,
@@ -415,7 +423,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             )}
 
             {/* Cycle Selector (Subscription mode only) */}
-            {!isOrderMode && (
+            {!isOrderMode && hasAnnual && (
               <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#323D34] text-xs">
                 <button
                   type="button"
