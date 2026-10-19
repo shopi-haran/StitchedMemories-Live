@@ -111,7 +111,7 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
                   onClick={() => onNavigateToSection('contact-page')}
                   className="mt-1 block font-bold text-[#E06C38] hover:underline cursor-pointer"
                 >
-                  Contact Artisan Studio →
+                  Contact Studio →
                 </button>
               </div>
             </div>
@@ -203,9 +203,9 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
             <section id="store-items" className="space-y-3 bg-white p-6 sm:p-8 rounded-3xl border border-[#E8E1D2] shadow-xs">
               <h2 className="text-xl font-bold text-[#1D231E] flex items-center gap-2.5">
                 <span className="w-7 h-7 rounded-xl bg-[#FAF6EE] text-[#E06C38] flex items-center justify-center text-xs font-black border border-[#E8E1D2]">4</span>
-                Physical Craft Products & Supplies
+                Physical Crafting Meterials & Supplies
               </h2>
-              <p>For any physical craft products or materials purchased through our platform:</p>
+              <p>For Physical Crafting supplies or materials purchased through our platform</p>
               <ul className="list-disc pl-5 space-y-1.5 text-[#4D5A4C]">
                 <li>You may request a return within <strong>7 days of delivery</strong>, provided the item is unused and in its original condition/packaging.</li>
                 <li>Return shipping costs are the responsibility of the customer unless the item was damaged, defective, or incorrect.</li>

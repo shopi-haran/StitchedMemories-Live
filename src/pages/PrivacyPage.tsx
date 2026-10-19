@@ -117,7 +117,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onGoHome, onNavigateTo
                   onClick={() => onNavigateToSection('contact-page')}
                   className="mt-1 block font-bold text-[#E06C38] hover:underline cursor-pointer"
                 >
-                  Contact Data Officer →
+                  Contact Studio →
                 </button>
               </div>
             </div>

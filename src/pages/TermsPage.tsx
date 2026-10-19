@@ -129,7 +129,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onGoHome, onNavigateToSect
                   onClick={() => onNavigateToSection('contact-page')}
                   className="mt-1 block font-bold text-[#E06C38] hover:underline cursor-pointer"
                 >
-                  Contact Artisan Studio →
+                  Contact Studio →
                 </button>
               </div>
             </div>
