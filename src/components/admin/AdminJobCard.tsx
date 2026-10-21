@@ -132,7 +132,7 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
                   : order.order_type === 'custom_kit_assisted'
                   ? 'Assisted Kit Request'
                   : order.order_type === 'marketplace'
-                  ? 'Marketplace Pattern'
+                  ? 'Custom Order Pattern'
                   : order.order_type || 'Custom Order'}
               </span>
               <span className="text-xs font-mono font-bold text-[#1D231E]">

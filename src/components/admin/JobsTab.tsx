@@ -319,7 +319,7 @@ export const JobsTab: React.FC<JobsTabProps> = ({
                     <option value="custom_stitched">Custom Stitched Keepsake</option>
                     <option value="custom_kit_converter">Custom Kit (Converter)</option>
                     <option value="custom_kit_assisted">Assisted Kit Request</option>
-                    <option value="marketplace">Marketplace Pattern</option>
+                    <option value="marketplace">Custom Order Pattern</option>
                   </select>
                 </div>
               </div>

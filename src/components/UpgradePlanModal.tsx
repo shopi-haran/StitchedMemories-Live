@@ -553,7 +553,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </li>
                     <li className="flex items-start gap-2">
                       <HeartHandshake className="w-4 h-4 text-[#93A28F] shrink-0 mt-0.5" />
-                      <span>Access to Marketplace & community designs</span>
+                      <span>Access to Custom Order & community designs</span>
                     </li>
                   </ul>
                 </div>
