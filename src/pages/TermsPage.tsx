@@ -234,7 +234,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onGoHome, onNavigateToSect
                 Payments
               </h2>
               <p>
-                All payments are processed securely through <strong>PayHere</strong>. We do not store your full payment card details. By making a payment, you agree to PayHere's applicable terms in addition to ours.
+                All payments are processed securely through <strong>PayHere</strong>. We do not store your full payment card details. By making a payment, you agree to PayHere's applicable terms in addition to ours. Custom stitched orders require a 50% non-refundable advance payment to begin work. The remaining balance is due before shipping. Custom kits are paid in full to confirm the order.
               </p>
             </section>
 

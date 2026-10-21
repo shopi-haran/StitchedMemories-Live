@@ -1069,6 +1069,9 @@ export interface SupabaseStitchOrderRow {
   status: string; // 'pending_quote' | 'quoted' | 'revision_requested' | 'awaiting_payment' | 'confirmed' | 'in_progress' | 'in_production' | 'quality_check' | 'shipped' | 'delivered' | 'cancelled'
   fulfillment_status?: string;
   payment_status?: string;
+  deposit_paid_at?: string;
+  balance_paid_at?: string;
+  amount_paid_lkr?: number;
   quote?: AdminQuoteData;
   quote_history?: ArchivedQuote[];
   customer_feedback?: string;
@@ -1559,7 +1562,6 @@ export async function updateAdminOrderDetails(
       return { success: false, error: orderError };
     }
 
-    // Trigger local events
     try {
       window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { orderId, updates } }));
     } catch {}

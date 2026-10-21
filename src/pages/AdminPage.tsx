@@ -191,6 +191,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [declineReason, setDeclineReason] = useState<string>('');
   const [isDeclining, setIsDeclining] = useState(false);
 
+  const [isManualPaymentModalOpen, setIsManualPaymentModalOpen] = useState(false);
+  const [manualPaymentWhat, setManualPaymentWhat] = useState<'50% advance' | 'Balance' | 'Paid in full'>('50% advance');
+  const [manualPaymentAmount, setManualPaymentAmount] = useState('');
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<'Bank transfer' | 'Cash' | 'Other'>('Bank transfer');
+  const [manualPaymentRef, setManualPaymentRef] = useState('');
+  const [manualPaymentDate, setManualPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isManualPaymentConfirming, setIsManualPaymentConfirming] = useState(false);
+  const [isSavingManualPayment, setIsSavingManualPayment] = useState(false);
+
   // Filters for ALL ORDERS tab
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>('all');
@@ -210,7 +219,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [rateFetchError, setRateFetchError] = useState<string | null>(null);
 
   // Lock body scroll when any admin modal is open
-  useBodyScrollLock(Boolean(selectedQuoteOrder || selectedOrderForEdit || previewImageModal || declineModalOrder));
+  useBodyScrollLock(Boolean(selectedQuoteOrder || selectedOrderForEdit || previewImageModal || declineModalOrder || isManualPaymentModalOpen));
 
   const showToast = (msg: string) => {
     setSuccessToast(msg);
@@ -816,6 +825,167 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       alert('An error occurred while declining order.');
     } finally {
       setIsDeclining(false);
+    }
+  };
+
+  function getAdminStageRank(status: string, isStore: boolean): number {
+    const s = (status || '').toLowerCase().trim();
+    if (isStore) {
+      if (s === 'delivered' || s.includes('deliver')) return 3;
+      if (s === 'shipped' || s.includes('ship')) return 2;
+      if (s === 'processing' || s === 'in_progress' || s === 'in_production') return 1;
+      return 0;
+    } else {
+      if (s === 'delivered') return 6;
+      if (s === 'shipped') return 5;
+      if (s === 'quality_check' || s === 'completed') return 4;
+      if (s === 'in_production' || s === 'in_progress') return 3;
+      if (s === 'confirmed' || s === 'paid') return 2;
+      if (s === 'quoted' || s === 'awaiting_payment' || s === 'revision_requested') return 1;
+      return 0;
+    }
+  }
+
+  const handleOpenManualPaymentModal = (order: SupabaseStitchOrderRow) => {
+    const isCustom = order.order_type === 'custom_stitched' ||
+      (order.title && order.title.toLowerCase().includes('stitched')) ||
+      (order.request_details?.order_type === 'custom_stitched');
+    const payStatus = order.payment_status || 'pending_quote';
+    
+    let defaultWhat: '50% advance' | 'Balance' | 'Paid in full' = 'Paid in full';
+    if (isCustom) {
+      if (payStatus === 'deposit_paid') {
+        defaultWhat = 'Balance';
+      } else {
+        defaultWhat = '50% advance';
+      }
+    } else {
+      defaultWhat = 'Paid in full';
+    }
+
+    const quote = order.quote || order.request_details?.quote;
+    const isLegacy = quote && quote.currency && quote.currency !== 'LKR';
+    const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+    const totalAmount = Number(quote?.total_amount ?? order.total_amount ?? order.quoted_price ?? order.item_price ?? 0) * mult;
+    const totalCents = Math.round(totalAmount * 100);
+    const advanceLkr = Math.floor(totalCents / 2) / 100;
+    const amountPaid = Number(order.amount_paid_lkr || 0);
+    const balanceLkr = Math.max(0, totalAmount - Math.max(amountPaid, advanceLkr));
+    const paidInFullLkr = Math.max(0, totalAmount - amountPaid);
+
+    let defaultAmt = advanceLkr;
+    if (defaultWhat === 'Balance') defaultAmt = balanceLkr;
+    if (defaultWhat === 'Paid in full') defaultAmt = paidInFullLkr;
+
+    setManualPaymentWhat(defaultWhat);
+    setManualPaymentAmount(String(defaultAmt));
+    setManualPaymentMethod('Bank transfer');
+    setManualPaymentRef('');
+    setManualPaymentDate(new Date().toISOString().split('T')[0]);
+    setIsManualPaymentConfirming(false);
+    setIsManualPaymentModalOpen(true);
+  };
+
+  const handleWhatChange = (what: '50% advance' | 'Balance' | 'Paid in full') => {
+    setManualPaymentWhat(what);
+    if (!selectedOrderForEdit) return;
+    const quote = selectedOrderForEdit.quote || selectedOrderForEdit.request_details?.quote;
+    const isLegacy = quote && quote.currency && quote.currency !== 'LKR';
+    const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+    const totalAmount = Number(quote?.total_amount ?? selectedOrderForEdit.total_amount ?? selectedOrderForEdit.quoted_price ?? selectedOrderForEdit.item_price ?? 0) * mult;
+    const totalCents = Math.round(totalAmount * 100);
+    const advanceLkr = Math.floor(totalCents / 2) / 100;
+    const amountPaid = Number(selectedOrderForEdit.amount_paid_lkr || 0);
+    const balanceLkr = Math.max(0, totalAmount - Math.max(amountPaid, advanceLkr));
+    const paidInFullLkr = Math.max(0, totalAmount - amountPaid);
+
+    let amt = advanceLkr;
+    if (what === 'Balance') amt = balanceLkr;
+    if (what === 'Paid in full') amt = paidInFullLkr;
+    setManualPaymentAmount(String(amt));
+  };
+
+  const handleSaveManualPayment = async () => {
+    if (!selectedOrderForEdit) return;
+    setIsSavingManualPayment(true);
+    try {
+      const rawId = selectedOrderForEdit.raw_order_id || selectedOrderForEdit.id;
+      const currentPaid = Number(selectedOrderForEdit.amount_paid_lkr || 0);
+      const enteredAmt = Number(manualPaymentAmount) || 0;
+      const nowIso = new Date(`${manualPaymentDate}T${new Date().toTimeString().split(' ')[0]}`).toISOString();
+
+      let newPaymentStatus = selectedOrderForEdit.payment_status || 'pending_quote';
+      let newDepositPaidAt = selectedOrderForEdit.deposit_paid_at;
+      let newBalancePaidAt = selectedOrderForEdit.balance_paid_at;
+      let newAmountPaid = currentPaid;
+
+      const isCustomStitched = selectedOrderForEdit.order_type === 'custom_stitched' ||
+        (selectedOrderForEdit.title && selectedOrderForEdit.title.toLowerCase().includes('stitched')) ||
+        (selectedOrderForEdit.request_details?.order_type === 'custom_stitched');
+
+      if (manualPaymentWhat === '50% advance') {
+        newPaymentStatus = 'deposit_paid';
+        newDepositPaidAt = nowIso;
+        newAmountPaid = enteredAmt;
+      } else if (manualPaymentWhat === 'Balance') {
+        newPaymentStatus = 'paid';
+        newBalancePaidAt = nowIso;
+        newAmountPaid = currentPaid + enteredAmt;
+      } else if (manualPaymentWhat === 'Paid in full') {
+        newPaymentStatus = 'paid';
+        newAmountPaid = currentPaid + enteredAmt;
+        if (isCustomStitched && !newDepositPaidAt) {
+          newDepositPaidAt = nowIso;
+        }
+      }
+
+      const wasUnpaid = !selectedOrderForEdit.payment_status || selectedOrderForEdit.payment_status === 'pending_quote' || selectedOrderForEdit.payment_status === 'awaiting_payment';
+      const isStore = (selectedOrderForEdit.order_type || '').toLowerCase() === 'store' || (selectedOrderForEdit.request_details?.order_type || '').toLowerCase() === 'store';
+      let newFulfillmentStatus = selectedOrderForEdit.fulfillment_status || selectedOrderForEdit.status || 'confirmed';
+
+      if (wasUnpaid && (manualPaymentWhat === '50% advance' || manualPaymentWhat === 'Paid in full')) {
+        const targetStatus = isStore ? 'received' : 'confirmed';
+        const currentRank = getAdminStageRank(newFulfillmentStatus, isStore);
+        const targetRank = getAdminStageRank(targetStatus, isStore);
+        if (currentRank < targetRank) {
+          newFulfillmentStatus = targetStatus;
+        }
+      }
+
+      const dateStr = manualPaymentDate;
+      const newLine = `${dateStr}: ${manualPaymentWhat} LKR ${enteredAmt.toLocaleString()} received by ${manualPaymentMethod}, ref: ${manualPaymentRef || 'None'}`;
+      const existingNotes = selectedOrderForEdit.admin_notes || selectedOrderForEdit.quote?.admin_notes || '';
+      const updatedAdminNotes = existingNotes ? `${existingNotes}\n${newLine}` : newLine;
+
+      const payload: Record<string, any> = {
+        payment_status: newPaymentStatus,
+        amount_paid_lkr: newAmountPaid,
+        admin_notes: updatedAdminNotes,
+        fulfillment_status: newFulfillmentStatus,
+        updated_at: new Date().toISOString(),
+      };
+      if (newDepositPaidAt) payload.deposit_paid_at = newDepositPaidAt;
+      if (newBalancePaidAt) payload.balance_paid_at = newBalancePaidAt;
+
+      const { error } = await supabase
+        .from('orders')
+        .update(payload)
+        .eq('id', rawId);
+
+      if (error) {
+        alert('Failed to record manual payment: ' + error.message);
+      } else {
+        showToast(`Successfully recorded manual payment of LKR ${enteredAmt.toLocaleString()}!`);
+        setIsManualPaymentModalOpen(false);
+        setSelectedOrderForEdit(null);
+        setIsManualPaymentConfirming(false);
+        await loadData(true);
+      }
+    } catch (err: any) {
+      console.error('Error saving manual payment:', err);
+      alert('An error occurred while saving manual payment.');
+    } finally {
+      setIsSavingManualPayment(false);
     }
   };
 
@@ -1785,6 +1955,82 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                     </div>
                   </div>
 
+                  {/* Payment Breakdown & Manual Payment Action Card */}
+                  {(() => {
+                    const quote = selectedOrderForEdit.quote || selectedOrderForEdit.request_details?.quote;
+                    const isLegacy = quote && quote.currency && quote.currency !== 'LKR';
+                    const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+                    const totalAmount = Number(quote?.total_amount ?? selectedOrderForEdit.total_amount ?? selectedOrderForEdit.quoted_price ?? selectedOrderForEdit.item_price ?? 0) * mult;
+                    const amountPaid = Number(selectedOrderForEdit.amount_paid_lkr || 0);
+                    const remaining = Math.max(0, totalAmount - amountPaid);
+                    const payStatus = selectedOrderForEdit.payment_status || 'pending_quote';
+
+                    return (
+                      <div className="bg-white p-3.5 rounded-xl border border-[#1D231E]/10 space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-[#1D231E]/10 pb-1.5 flex-wrap gap-2">
+                          <span className="font-bold text-[#1D231E] flex items-center gap-1.5 text-xs">
+                            <CreditCard className="w-3.5 h-3.5 text-[#2D5A43]" /> Payment Breakdown & Status
+                          </span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            payStatus === 'paid' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                            payStatus === 'deposit_paid' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {payStatus === 'paid' ? 'Paid in Full' : payStatus === 'deposit_paid' ? 'Deposit Paid (50%)' : 'Unpaid / Pending'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                          <div className="bg-[#FAF6EE] p-2.5 rounded-lg border border-[#1D231E]/5">
+                            <span className="text-[10px] text-[#1D231E]/50 uppercase font-bold block">Total Amount</span>
+                            <span className="font-bold text-[#1D231E] font-mono mt-0.5 block">
+                              <LkrPriceDisplay priceLkr={totalAmount} layout="inline" />
+                            </span>
+                          </div>
+                          <div className="bg-[#FAF6EE] p-2.5 rounded-lg border border-[#1D231E]/5">
+                            <span className="text-[10px] text-[#1D231E]/50 uppercase font-bold block">Paid So Far</span>
+                            <span className="font-bold text-emerald-700 font-mono mt-0.5 block">
+                              <LkrPriceDisplay priceLkr={amountPaid} layout="inline" />
+                            </span>
+                          </div>
+                          <div className="bg-[#FAF6EE] p-2.5 rounded-lg border border-[#1D231E]/5">
+                            <span className="text-[10px] text-[#1D231E]/50 uppercase font-bold block">Remaining</span>
+                            <span className="font-bold text-[#E06C38] font-mono mt-0.5 block">
+                              <LkrPriceDisplay priceLkr={remaining} layout="inline" />
+                            </span>
+                          </div>
+                        </div>
+
+                        {(selectedOrderForEdit.deposit_paid_at || selectedOrderForEdit.balance_paid_at) && (
+                          <div className="text-[11px] text-[#1D231E]/70 flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
+                            {selectedOrderForEdit.deposit_paid_at && (
+                              <span>Deposit paid: {new Date(selectedOrderForEdit.deposit_paid_at).toLocaleString()}</span>
+                            )}
+                            {selectedOrderForEdit.balance_paid_at && (
+                              <span>Balance paid: {new Date(selectedOrderForEdit.balance_paid_at).toLocaleString()}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {payStatus !== 'paid' && (
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ord = selectedOrderForEdit;
+                                handleOpenManualPaymentModal(ord);
+                              }}
+                              className="px-4 py-2 bg-[#2D5A43] hover:bg-[#234734] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                            >
+                              <CreditCard className="w-3.5 h-3.5 text-[#E06C38]" />
+                              <span>Record manual payment</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Itemized Quotation Breakdown Card if Quote exists */}
                   {selectedOrderForEdit.quote && (
                     <div className="bg-white p-3.5 rounded-xl border border-[#1D231E]/10 space-y-2">
@@ -2491,6 +2737,234 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           }}
         />
       )}
+      {/* ========================================================================= */}
+      {/* MANUAL PAYMENT MODAL */}
+      {/* ========================================================================= */}
+      {isManualPaymentModalOpen && selectedOrderForEdit && (() => {
+        const quote = selectedOrderForEdit.quote || selectedOrderForEdit.request_details?.quote;
+        const isLegacy = quote && quote.currency && quote.currency !== 'LKR';
+        const mult = isLegacy ? (parseFloat(exchangeRateInput) || 300) : 1;
+        const totalAmount = Number(quote?.total_amount ?? selectedOrderForEdit.total_amount ?? selectedOrderForEdit.quoted_price ?? selectedOrderForEdit.item_price ?? 0) * mult;
+        const totalCents = Math.round(totalAmount * 100);
+        const advanceLkr = Math.floor(totalCents / 2) / 100;
+        const amountPaid = Number(selectedOrderForEdit.amount_paid_lkr || 0);
+        const balanceLkr = Math.max(0, totalAmount - Math.max(amountPaid, advanceLkr));
+        const paidInFullLkr = Math.max(0, totalAmount - amountPaid);
+
+        let expectedAmt = advanceLkr;
+        if (manualPaymentWhat === 'Balance') expectedAmt = balanceLkr;
+        if (manualPaymentWhat === 'Paid in full') expectedAmt = paidInFullLkr;
+
+        const enteredAmt = Number(manualPaymentAmount) || 0;
+        const hasAmountDifference = Math.abs(enteredAmt - expectedAmt) > 0.01;
+
+        const isCustom = selectedOrderForEdit.order_type === 'custom_stitched' ||
+          (selectedOrderForEdit.title && selectedOrderForEdit.title.toLowerCase().includes('stitched')) ||
+          (selectedOrderForEdit.request_details?.order_type === 'custom_stitched');
+        const payStatus = selectedOrderForEdit.payment_status || 'pending_quote';
+
+        const whatOptions = isCustom
+          ? (payStatus === 'deposit_paid' ? ['Balance'] : ['50% advance', 'Paid in full'])
+          : ['Paid in full'];
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6 animate-fadeIn">
+            <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-[#1D231E]/10 overflow-hidden animate-scale-up">
+              <div className="flex items-center justify-between border-b border-[#1D231E]/10 p-5 bg-white shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#1D231E]">
+                      Record Manual Payment
+                    </h3>
+                    <p className="text-xs text-[#1D231E]/60">
+                      Order #{selectedOrderForEdit.id} • {selectedOrderForEdit.customer_name || 'Customer'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsManualPaymentModalOpen(false);
+                    setIsManualPaymentConfirming(false);
+                  }}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain text-xs">
+                {!isManualPaymentConfirming ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-[#1D231E]">What was received?</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {whatOptions.map((opt: any) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => handleWhatChange(opt)}
+                            className={`p-3 rounded-xl border text-xs font-bold transition-all text-center cursor-pointer ${
+                              manualPaymentWhat === opt
+                                ? 'bg-[#1D231E] text-white border-[#1D231E]'
+                                : 'bg-[#FAF6EE] text-[#1D231E]/80 border-[#1D231E]/15 hover:bg-white'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-[#1D231E]">Amount Received (LKR)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={manualPaymentAmount}
+                        onChange={(e) => setManualPaymentAmount(e.target.value)}
+                        className="w-full p-3 bg-white border border-[#1D231E]/20 rounded-xl font-mono font-bold text-sm text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                      />
+                      <p className="text-[11px] text-[#1D231E]/50">
+                        Expected amount for {manualPaymentWhat}: <strong className="font-mono">LKR {expectedAmt.toLocaleString()}</strong> (Total: LKR {totalAmount.toLocaleString()})
+                      </p>
+                      {hasAmountDifference && (
+                        <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-300 text-amber-900 text-[11px] font-medium flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Note: Entered amount (LKR {enteredAmt.toLocaleString()}) differs from expected amount (LKR {expectedAmt.toLocaleString()}).</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-[#1D231E]">Payment Method</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(['Bank transfer', 'Cash', 'Other'] as const).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setManualPaymentMethod(m)}
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all text-center cursor-pointer ${
+                              manualPaymentMethod === m
+                                ? 'bg-[#2D5A43] text-white border-[#2D5A43]'
+                                : 'bg-[#FAF6EE] text-[#1D231E]/80 border-[#1D231E]/15 hover:bg-white'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-[#1D231E]">Reference / Transaction Note</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Bank Ref #TRF-9921 or receipt number"
+                        value={manualPaymentRef}
+                        onChange={(e) => setManualPaymentRef(e.target.value)}
+                        className="w-full p-3 bg-white border border-[#1D231E]/20 rounded-xl text-xs text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-[#1D231E]">Date Received</label>
+                      <input
+                        type="date"
+                        value={manualPaymentDate}
+                        onChange={(e) => setManualPaymentDate(e.target.value)}
+                        className="w-full p-3 bg-white border border-[#1D231E]/20 rounded-xl text-xs text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsManualPaymentModalOpen(false)}
+                        className="px-4 py-2.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-100 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsManualPaymentConfirming(true)}
+                        className="px-6 py-2.5 bg-[#2D5A43] hover:bg-[#234734] text-white text-xs font-bold rounded-full transition-all shadow-xs cursor-pointer"
+                      >
+                        Review & Confirm Payment →
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2 text-emerald-950">
+                      <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Confirm Manual Payment Entry
+                      </h4>
+                      <p className="text-xs text-emerald-800 leading-relaxed">
+                        Please review the details below before recording this payment to order #{selectedOrderForEdit.id}.
+                      </p>
+                      <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-1.5 text-xs text-[#1D231E]">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Payment For:</span>
+                          <span className="font-bold">{manualPaymentWhat}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Amount:</span>
+                          <span className="font-bold font-mono text-emerald-700">LKR {enteredAmt.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Method:</span>
+                          <span className="font-semibold">{manualPaymentMethod}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Reference:</span>
+                          <span className="font-mono">{manualPaymentRef || 'None'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Date Received:</span>
+                          <span className="font-medium">{manualPaymentDate}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsManualPaymentConfirming(false)}
+                        disabled={isSavingManualPayment}
+                        className="px-4 py-2.5 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-100 cursor-pointer"
+                      >
+                        ← Back to Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveManualPayment}
+                        disabled={isSavingManualPayment}
+                        className="px-6 py-2.5 bg-[#2D5A43] hover:bg-[#234734] text-white text-xs font-bold rounded-full transition-all shadow-xs cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {isSavingManualPayment ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Recording Payment...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-[#E06C38]" />
+                            <span>Save & Record Payment</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 };
