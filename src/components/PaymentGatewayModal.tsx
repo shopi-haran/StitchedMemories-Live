@@ -101,6 +101,25 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const isLegacyQuote = isOrderMode && Boolean(activeQuote && (!activeQuote.currency || activeQuote.currency !== 'LKR'));
   const orderTitle = order?.title || `Custom Keepsake #${String(order?.raw_order_id || order?.id || '').replace('order_', '').slice(-8)}`;
 
+  const [isNonRefundableChecked, setIsNonRefundableChecked] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsNonRefundableChecked(false);
+    }
+  }, [isOpen, order]);
+
+  const isCustomStitched = order?.order_type === 'custom_stitched' || 
+    (order?.title && order?.title.toLowerCase().includes('stitched')) || 
+    (order?.request_details?.order_type === 'custom_stitched');
+
+  const totalCents = Math.round(quoteTotalLkr * 100);
+  const advanceLkr = Math.floor(totalCents / 2) / 100;
+  const amountPaidLkr = Number(order?.amount_paid_lkr ?? 0);
+  const balanceLkr = Math.max(0, (totalCents - Math.round(Math.max(amountPaidLkr, advanceLkr) * 100)) / 100);
+  const isPayingAdvance = isCustomStitched && order?.payment_status !== 'deposit_paid';
+  const expectedPayAmount = isCustomStitched ? (isPayingAdvance ? advanceLkr : balanceLkr) : quoteTotalLkr;
+
   const planName = plan === 'pro' ? 'Pro Plan' : 'Studio Plan';
   const planPricing = planPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: null } : { price_lkr: 5700, yearly_price_lkr: null });
   const baseMonthlyLkr = planPricing.price_lkr;
@@ -151,21 +170,43 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         !data.currency
       ) {
         let errorPayload = error || data;
+        let errMsg = 'Could not start payment, please try again';
         if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
           try {
             const errJson = await error.context.clone().json();
             errorPayload = { status: error.context.status, body: errJson, error };
-          } catch {
-            errorPayload = { status: error.context.status, error };
-          }
+            const errStr = JSON.stringify(errJson);
+            if (errStr.includes('Amount exceeds the current payment limit')) {
+              errMsg = 'This amount is above our online payment limit, please contact us to arrange payment';
+            } else if (errStr.includes('Balance is not due yet')) {
+              errMsg = 'The balance is not payable yet';
+            }
+          } catch {}
+        }
+        if (data?.error && String(data.error).includes('Amount exceeds the current payment limit')) {
+          errMsg = 'This amount is above our online payment limit, please contact us to arrange payment';
+        }
+        if (data?.error && String(data.error).includes('Balance is not due yet')) {
+          errMsg = 'The balance is not payable yet';
         }
         console.error('[create-payhere-hash error response]:', errorPayload);
         setIsProcessing(false);
         setPaymentError({
           type: 'error',
-          message: 'Could not start payment, please try again',
+          message: errMsg,
         });
         return;
+      }
+
+      if (isOrderMode) {
+        if (Math.abs(Number(data.amount) - expectedPayAmount) > 0.01) {
+          setIsProcessing(false);
+          setPaymentError({
+            type: 'error',
+            message: 'Could not start payment, please try again',
+          });
+          return;
+        }
       }
 
       const rawName = isOrderMode ? (order?.customer_name || user?.name || 'Crafter Customer') : (user?.name || 'Crafter Member');
@@ -208,6 +249,8 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               const maxAttempts = 15; // 30 seconds
               let confirmed = false;
 
+              const expectingDeposit = isPayingAdvance;
+
               for (let attempt = 0; attempt < maxAttempts; attempt++) {
                 await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
                 try {
@@ -215,13 +258,18 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                   const currentOrder = refreshedOrders.find(
                     (o) => String(o.raw_order_id || o.id) === String(realOrderId)
                   );
-                  if (
-                    currentOrder &&
-                    (currentOrder.payment_status === 'paid' ||
-                      currentOrder.fulfillment_status === 'processing')
-                  ) {
-                    confirmed = true;
-                    break;
+                  if (currentOrder) {
+                    if (expectingDeposit) {
+                      if (currentOrder.payment_status === 'deposit_paid' || currentOrder.payment_status === 'paid' || currentOrder.fulfillment_status === 'processing') {
+                        confirmed = true;
+                        break;
+                      }
+                    } else {
+                      if (currentOrder.payment_status === 'paid' || currentOrder.fulfillment_status === 'processing') {
+                        confirmed = true;
+                        break;
+                      }
+                    }
                   }
                 } catch (pollErr) {
                   console.warn('[PaymentGatewayModal] Error polling order status:', pollErr);
@@ -364,12 +412,23 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               </div>
               <div className="text-right shrink-0">
                 {isOrderMode ? (
-                  <LkrPriceDisplay
-                    priceLkr={quoteTotalLkr}
-                    layout="stacked"
-                    lkrClassName="text-2xl font-black text-[#FAF6EE]"
-                    usdClassName="text-[11px] text-[#A5B3A2]"
-                  />
+                  isCustomStitched ? (
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-[#FAF6EE]">
+                        {isPayingAdvance ? `50% Advance: LKR ${advanceLkr.toLocaleString()}` : `Balance: LKR ${balanceLkr.toLocaleString()}`}
+                      </p>
+                      <p className="text-[11px] text-[#A5B3A2] mt-0.5">
+                        Paid LKR {amountPaidLkr.toLocaleString()} of LKR {quoteTotalLkr.toLocaleString()} total
+                      </p>
+                    </div>
+                  ) : (
+                    <LkrPriceDisplay
+                      priceLkr={quoteTotalLkr}
+                      layout="stacked"
+                      lkrClassName="text-2xl font-black text-[#FAF6EE]"
+                      usdClassName="text-[11px] text-[#A5B3A2]"
+                    />
+                  )
                 ) : billingCycle === 'annual' ? (
                   <div className="text-right">
                     <p className="text-sm font-bold text-[#FAF6EE]">
@@ -418,6 +477,26 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     <span className="flex items-center gap-1"><Truck className="w-3 h-3 text-[#E06C38]" /> Delivery:</span>
                     <LkrPriceDisplay priceLkr={activeQuote.delivery_charge} layout="inline" lkrClassName="font-semibold text-white" usdClassName="text-[10px] text-[#A5B3A2]" />
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Custom Stitched Advance Payment Plan & Non-refundable Checkbox */}
+            {isOrderMode && isCustomStitched && (
+              <div className="mt-3 pt-3 border-t border-[#323D34] text-xs text-[#A5B3A2] space-y-2">
+                <p className="leading-relaxed">
+                  Pay 50% advance now: <span className="font-bold text-white">LKR {advanceLkr.toLocaleString()}</span>. Balance <span className="font-bold text-white">LKR {balanceLkr.toLocaleString()}</span> due before shipping.
+                </p>
+                {isPayingAdvance && (
+                  <label className="flex items-start gap-2.5 pt-1 text-xs text-[#FAF6EE] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isNonRefundableChecked}
+                      onChange={(e) => setIsNonRefundableChecked(e.target.checked)}
+                      className="mt-0.5 accent-[#E06C38] w-4 h-4 rounded cursor-pointer"
+                    />
+                    <span>I understand the 50% advance is non-refundable</span>
+                  </label>
                 )}
               </div>
             )}
@@ -518,7 +597,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <button
                 type="button"
                 onClick={handlePayHerePayment}
-                disabled={isProcessing}
+                disabled={isProcessing || (isOrderMode && isCustomStitched && isPayingAdvance && !isNonRefundableChecked) || isLegacyQuote}
                 className="w-full py-4 px-6 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#E06C38]/25 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
@@ -529,7 +608,14 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 ) : (
                   <>
                     <span>
-                      Pay {formatLkrPrice(isOrderMode ? quoteTotalLkr : activePriceLkr)} with PayHere
+                      {isOrderMode
+                        ? isCustomStitched
+                          ? isPayingAdvance
+                            ? `Pay 50% advance (${formatLkrPrice(advanceLkr)})`
+                            : `Pay balance (${formatLkrPrice(balanceLkr)})`
+                          : `Pay ${formatLkrPrice(quoteTotalLkr)} with PayHere`
+                        : `Pay ${formatLkrPrice(activePriceLkr)} with PayHere`
+                      }
                     </span>
                     <ArrowRight className="w-5 h-5" />
                   </>

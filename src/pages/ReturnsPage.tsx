@@ -179,6 +179,9 @@ export const ReturnsPage: React.FC<ReturnsPageProps> = ({ onGoHome, onNavigateTo
               <div className="p-4 rounded-2xl bg-[#FAF6EE] border border-[#E8E1D2] space-y-2">
                 <strong className="text-[#1D231E] block text-xs uppercase tracking-wider font-bold">Deposit & Balance Payment:</strong>
                 <p className="text-sm text-[#4D5A4C]">
+                  Custom stitched orders require a 50% non-refundable advance payment to begin work. The remaining balance is due before shipping. Custom kits are paid in full to confirm the order.
+                </p>
+                <p className="text-sm text-[#4D5A4C]">
                   Custom stitched product orders require a <strong>50% deposit</strong> to confirm and begin your order, with the remaining <strong>50% balance due before delivery/shipping</strong> of your completed piece.
                 </p>
               </div>
