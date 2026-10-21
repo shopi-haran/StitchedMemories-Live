@@ -69,6 +69,10 @@ serve(async (req) => {
     let calculatedAmount = 0;
     let order_id = '';
     const currency = 'LKR';
+    const PAYMENT_LIMIT_LKR = 50000;
+    let amountExceedsLimit = false;
+    let period: string | null = null;
+    let stage: string | null = null;
 
     if (kind === 'subscription') {
       const normalizedTier = (tier || '').toLowerCase().trim();
@@ -83,7 +87,7 @@ serve(async (req) => {
       // Fetch price from subscription_plans table using service role client
       const { data: planData, error: planError } = await adminClient
         .from('subscription_plans')
-        .select('tier, price_lkr')
+        .select('tier, price_lkr, yearly_price_lkr')
         .eq('tier', normalizedTier)
         .maybeSingle();
 
@@ -94,6 +98,10 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      // Determine period from body
+      const requestPeriod = (body as any)?.period || 'monthly';
+      period = requestPeriod;
 
       let price = planData?.price_lkr;
       if (!price) {
@@ -113,7 +121,19 @@ serve(async (req) => {
         );
       }
 
-      calculatedAmount = Number(price);
+      // Handle yearly billing: use yearly_price_lkr from database
+      if (period === 'yearly') {
+        const yearlyPrice = planData?.yearly_price_lkr != null ? Number(planData.yearly_price_lkr) : null;
+        if (yearlyPrice && yearlyPrice > 0) {
+          calculatedAmount = yearlyPrice;
+        } else {
+          // Fallback: calculate 20% discount × 12 months
+          calculatedAmount = Math.round(Number(price) * 0.8 * 12);
+        }
+      } else {
+        calculatedAmount = Number(price);
+      }
+
       order_id = `sub-${user.id}-${Date.now()}`;
     } else if (kind === 'order') {
       if (!orderRowId) {
@@ -185,7 +205,33 @@ serve(async (req) => {
         details.quoted_price ??
         0;
 
-      calculatedAmount = Number(rawAmount);
+      const orderType = (orderRow.order_type || '').toLowerCase();
+      const isCustomStitched = orderType === 'custom_stitched';
+
+      // Determine stage for custom_stitched orders
+      if (isCustomStitched) {
+        const progressPercent = Number(orderRow.progress_percent || 0);
+        const existingAmountPaid = Number(orderRow.amount_paid_lkr || 0);
+        const totalCents = Math.round(calculatedAmount * 100);
+        const advanceCents = Math.floor(totalCents / 2);
+        const advanceLkr = advanceCents / 100;
+
+        if (progressPercent >= 100 && existingAmountPaid >= advanceLkr) {
+          // Balance stage
+          stage = 'balance';
+          calculatedAmount = calculatedAmount - Math.max(existingAmountPaid, advanceLkr);
+          order_id = `order-${orderRow.id}-bal`;
+        } else {
+          // Deposit stage (50% advance)
+          stage = 'deposit';
+          calculatedAmount = advanceLkr;
+          order_id = `order-${orderRow.id}-dep`;
+        }
+      } else {
+        stage = 'full';
+        order_id = `order-${orderRow.id}`;
+      }
+
       if (!calculatedAmount || calculatedAmount <= 0) {
         console.log('[create-payhere-hash] Failure: Order does not have a valid quoted amount:', cleanOrderId, rawAmount);
         return new Response(
@@ -194,7 +240,10 @@ serve(async (req) => {
         );
       }
 
-      order_id = `order-${orderRow.id}`;
+      // Check payment limit - flag but do not reject
+      if (calculatedAmount > PAYMENT_LIMIT_LKR) {
+        amountExceedsLimit = true;
+      }
     }
 
     const formattedAmount = calculatedAmount.toFixed(2);
@@ -208,6 +257,8 @@ serve(async (req) => {
           profile_id: user.id,
           kind,
           tier: kind === 'subscription' ? (tier || '').toLowerCase().trim() : null,
+          period: period,
+          stage: stage,
           amount: formattedAmount,
           currency,
           status: 'pending',
@@ -235,6 +286,8 @@ serve(async (req) => {
         amount: formattedAmount,
         currency,
         hash,
+        stage: stage || null,
+        amount_exceeds_50k: amountExceedsLimit,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

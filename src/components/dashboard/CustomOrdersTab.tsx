@@ -34,7 +34,11 @@ import {
   Search,
   Filter,
   Eye,
-  ShoppingBag
+  ShoppingBag,
+  Upload,
+  FileText,
+  Banknote,
+  Copy,
 } from 'lucide-react';
 import { 
   supabase, 
@@ -160,8 +164,85 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
   // Order Payment Modal state
   const [payingOrder, setPayingOrder] = useState<SupabaseStitchOrderRow | null>(null);
 
+  // Bank Transfer state
+  const [showBankTransfer, setShowBankTransfer] = useState<boolean>(false);
+  const [bankTransferOrderId, setBankTransferOrderId] = useState<string | null>(null);
+  const [bankTransferSlip, setBankTransferSlip] = useState<File | null>(null);
+  const [bankTransferSlipUrl, setBankTransferSlipUrl] = useState<string | null>(null);
+  const [bankTransferNote, setBankTransferNote] = useState<string>('');
+  const [isUploadingBankSlip, setIsUploadingBankSlip] = useState<boolean>(false);
+  const [bankTransferReported, setBankTransferReported] = useState<{ date: string; note: string } | null>(null);
+
   // Lock body scroll when any modal is open in CustomOrdersTab
-  useBodyScrollLock(Boolean(selectedDetailOrder || revisionModalOrder || cancelModalOrder || payingOrder));
+  useBodyScrollLock(Boolean(selectedDetailOrder || revisionModalOrder || cancelModalOrder || payingOrder || showBankTransfer));
+
+  // Bank transfer handlers
+  const handleBankSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBankTransferSlip(file);
+      setBankTransferSlipUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const uploadBankSlip = async (file: File, orderId: string): Promise<string | null> => {
+    try {
+      setIsUploadingBankSlip(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `deposit-slips/${orderId}/${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage.from('payment-proofs').upload(fileName, file);
+      if (error) {
+        console.error('[CustomOrdersTab] Slip upload error:', error);
+        return null;
+      }
+      const { data: urlData } = supabase.storage.from('payment-proofs').getPublicUrl(fileName);
+      return urlData?.publicUrl || null;
+    } catch (err) {
+      console.error('[CustomOrdersTab] Slip upload exception:', err);
+      return null;
+    } finally {
+      setIsUploadingBankSlip(false);
+    }
+  };
+
+  const handleRecordBankTransfer = async () => {
+    if (!bankTransferOrderId) return;
+
+    let slipUrl: string | null = null;
+    if (bankTransferSlip) {
+      slipUrl = await uploadBankSlip(bankTransferSlip, bankTransferOrderId);
+    }
+
+    const noteParts = [bankTransferNote.trim()];
+    if (slipUrl) noteParts.push(`Slip: ${slipUrl}`);
+    const finalNote = noteParts.join(' | ').slice(0, 500);
+
+    try {
+      const { error: rpcError } = await supabase.rpc('set_bank_transfer_claim', {
+        p_order_id: bankTransferOrderId,
+        p_claimed: true,
+        p_note: finalNote,
+      });
+
+      if (rpcError) {
+        console.error('[CustomOrdersTab] Bank transfer claim error:', rpcError);
+        setFeedbackMsg({ text: rpcError.message || 'Failed to record transfer', type: 'error' });
+        return;
+      }
+
+      setBankTransferReported({ date: new Date().toISOString(), note: finalNote });
+      setShowBankTransfer(false);
+      setFeedbackMsg({ text: 'Transfer reported. We will verify and update your order shortly.', type: 'success' });
+    } catch (err: any) {
+      console.error('[CustomOrdersTab] Bank transfer exception:', err);
+      setFeedbackMsg({ text: err.message || 'Failed to record transfer', type: 'error' });
+    }
+  };
+
+  const cancelBankTransferReport = () => {
+    setBankTransferReported(null);
+    setShowBankTransfer(true);
+  };
 
   // Customer View-Only Stitch Tracker state
   const [viewOnlyTrackerOrder, setViewOnlyTrackerOrder] = useState<SupabaseStitchOrderRow | null>(null);
@@ -493,6 +574,14 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
         kind: 'order',
         orderRowId: realOrderId,
       });
+
+      // If amount exceeds PayHere limit (50,000 LKR), show bank transfer instead
+      if (hashRes.amount_exceeds_50k) {
+        setConfirmingOrderId(null);
+        setBankTransferOrderId(realOrderId);
+        setShowBankTransfer(true);
+        return;
+      }
 
       const nameParts = (order.customer_name || user?.name || 'Crafter').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Crafter';
@@ -1759,6 +1848,11 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                   )}
                 </div>
               ) : null}
+
+              {/* Bank Transfer Panel (when amount exceeds 50,000 LKR)} */}
+              {showBankTransfer && bankTransferOrderId === (order.raw_order_id || order.id) && (
+                <div className=\"p-6 sm:p-8 bg-blue-50 border border-blue-200 rounded-3xl space-y-4 animate-fadeIn\">\n                  <div className=\"flex items-start gap-3\">\n                    <Banknote className=\"w-5 h-5 text-blue-600 shrink-0 mt-0.5\" />\n                    <div className=\"flex-1\">\n                      <h4 className=\"text-sm font-bold text-[#1D231E]\">Pay by Bank Transfer</h4>\n                      <p className=\"text-xs text-[#5A6659] mt-0.5\">\n                        This order amount exceeds our online payment limit (LKR 50,000). Please pay via bank transfer instead.\n                      </p>\n                    </div>\n                  </div>\n                </div>
+              )}
 
               {/* LIVE WORKSHOP PROGRESS: ONLY for custom_stitched when in_production or later */}
               {isCustomStitched && ['in_production', 'in_progress', 'quality_check', 'completed', 'shipped', 'delivered'].includes(rawStatus) && (

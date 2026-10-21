@@ -23,6 +23,8 @@ export interface PayHereHashResult {
   amount: string;
   currency: string;
   hash: string;
+  stage?: string | null;
+  amount_exceeds_50k?: boolean;
 }
 
 export interface PayHerePaymentParams {

@@ -38,38 +38,75 @@ serve(async (req) => {
     const localSig = (await md5(checkString)).toUpperCase();
 
     if (localSig !== (md5sig || '').toUpperCase()) {
-      console.warn('[payhere-notify] Signature verification failed');
-      // For sandbox development continue or reject
+      console.warn('[payhere-notify] Signature verification failed - rejecting webhook');
+      return new Response('Signature verification failed', { status: 401 });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Status 2 is Success in PayHere
     if (status_code === '2') {
-      // 1. Look up pending_payments row to get profile_id and tier if available
+      // 1. Look up pending_payments row to get profile_id, tier, period, stage, amount, currency
       let matchedTier = '';
       let profileId = '';
+      let pendingStage = null;
+      let pendingAmount = null;
+      let pendingCurrency = null;
+      let pendingKind = '';
+
       try {
-        const { data: pending } = await supabase
+        const { data: pending, error: pendingErr } = await supabase
           .from('pending_payments')
           .select('*')
           .eq('order_id', order_id)
           .maybeSingle();
 
-        if (pending) {
-          matchedTier = pending.tier || '';
-          profileId = pending.profile_id || '';
-          await supabase
-            .from('pending_payments')
-            .update({ status: 'completed', updated_at: new Date().toISOString() })
-            .eq('order_id', order_id);
+        if (pendingErr || !pending) {
+          console.warn('[payhere-notify] No pending payment found for order_id:', order_id);
+          console.log('[payhere-notify] MANUAL REVIEW: No pending payment record for order_id:', order_id);
+          return new Response('OK', { status: 200 });
+        }
+
+        matchedTier = pending.tier || '';
+        profileId = pending.profile_id || '';
+        pendingStage = pending.stage || null;
+        pendingAmount = pending.amount || null;
+        pendingCurrency = pending.currency || null;
+        pendingKind = pending.kind || '';
+
+        // 2. Verify amount and currency match
+        if (pendingAmount && payhere_amount && Number(pendingAmount) !== Number(payhere_amount)) {
+          console.warn('[payhere-notify] Amount mismatch: expected', pendingAmount, 'got', payhere_amount);
+          console.log('[payhere-notify] MANUAL REVIEW: Amount mismatch for order_id:', order_id);
+          return new Response('OK', { status: 200 });
+        }
+        if (pendingCurrency && payhere_currency && pendingCurrency !== payhere_currency) {
+          console.warn('[payhere-notify] Currency mismatch: expected', pendingCurrency, 'got', payhere_currency);
+          console.log('[payhere-notify] MANUAL REVIEW: Currency mismatch for order_id:', order_id);
+          return new Response('OK', { status: 200 });
+        }
+
+        // 3. Atomically claim the row - only if still pending
+        const { data: claimed, error: claimErr } = await supabase
+          .from('pending_payments')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .eq('order_id', order_id)
+          .eq('status', 'pending')
+          .select()
+          .maybeSingle();
+
+        if (claimErr || !claimed) {
+          console.warn('[payhere-notify] Row already claimed or claim failed for order_id:', order_id);
+          console.log('[payhere-notify] MANUAL REVIEW: Duplicate/out-of-order payment for order_id:', order_id);
+          return new Response('OK', { status: 200 });
         }
       } catch (err) {
         console.warn('[payhere-notify] pending_payments lookup error:', err);
+        return new Response('Error', { status: 500 });
       }
 
       if (order_id.startsWith('sub-')) {
-        // sub-${profile.id}-${timestamp}
+        // Subscription payment
         if (!profileId) {
           const parts = order_id.split('-');
           if (parts.length >= 2) {
@@ -77,8 +114,10 @@ serve(async (req) => {
           }
         }
 
+        // Determine access period: 30 days for monthly, 365 days for yearly
+        const accessDays = (pendingStage === 'yearly' || pendingKind === 'subscription' && (pendingAmount || 0) > 5000) ? 365 : 30;
         const accessUntilDate = new Date();
-        accessUntilDate.setDate(accessUntilDate.getDate() + 30);
+        accessUntilDate.setDate(accessUntilDate.getDate() + accessDays);
 
         const updatePayload: Record<string, any> = {
           subscription_status: 'active',
@@ -98,29 +137,49 @@ serve(async (req) => {
             .eq('id', profileId);
         }
       } else if (order_id.startsWith('order-')) {
-        // Order payment: extract order id
-        const rawOrderId = order_id.replace('order-', '');
+        // Order payment: extract order id and stage
+        const rawOrderId = order_id.replace(/-dep$|-bal$/, '');
+        const isDeposit = order_id.endsWith('-dep');
+        const isBalance = order_id.endsWith('-bal');
 
-        // Update custom_orders
-        await supabase
-          .from('custom_orders')
-          .update({
-            fulfillment_status: 'processing',
-            payment_status: 'paid',
-            status_note: 'Payment completed via PayHere.',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', rawOrderId);
+        // Fetch current order to get existing amount_paid_lkr and order_type
+        const { data: currentOrder, error: orderErr } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', rawOrderId)
+          .maybeSingle();
 
-        // Also update orders table if it exists
+        if (orderErr || !currentOrder) {
+          console.warn('[payhere-notify] Order not found:', rawOrderId);
+          return new Response('OK', { status: 200 });
+        }
+
+        const existingAmountPaid = Number(currentOrder.amount_paid_lkr || 0);
+        const newAmountPaid = existingAmountPaid + Number(payhere_amount || 0);
+        const now = new Date().toISOString();
+
+        const updatePayload: Record<string, any> = {
+          amount_paid_lkr: newAmountPaid,
+          updated_at: now,
+        };
+
+        if (isDeposit) {
+          updatePayload.payment_status = 'deposit_paid';
+          updatePayload.fulfillment_status = 'confirmed';
+          updatePayload.deposit_paid_at = now;
+        } else if (isBalance) {
+          updatePayload.payment_status = 'paid';
+          updatePayload.balance_paid_at = now;
+          // fulfillment_status left unchanged for balance
+        } else {
+          // Full payment (store orders, kit orders, etc.)
+          updatePayload.payment_status = 'paid';
+          updatePayload.fulfillment_status = currentOrder.order_type === 'store' ? 'received' : 'confirmed';
+        }
+
         await supabase
           .from('orders')
-          .update({
-            fulfillment_status: 'processing',
-            payment_status: 'paid',
-            status_note: 'Payment completed via PayHere.',
-            updated_at: new Date().toISOString(),
-          })
+          .update(updatePayload)
           .eq('id', rawOrderId);
       }
     }
