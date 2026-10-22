@@ -13,7 +13,15 @@ import {
   Loader2,
   Package,
   Truck,
+<<<<<<< HEAD
+  Upload,
+  FileText,
+  Banknote,
+  Copy,
+  Check as CheckIcon,
+=======
   Clock
+>>>>>>> fadacdeb12c37add5c94b9fc26c1a843fdcea2f9
 } from 'lucide-react';
 import { supabase, fetchUserProfile, fetchSubscriptionPlans, fetchUserStitchOrders, fetchBankTransferDetails, setBankTransferClaim } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
@@ -56,11 +64,23 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     message: string;
   } | null>(null);
 
+<<<<<<< HEAD
+  // Bank transfer state
+  const [transferReported, setTransferReported] = useState<{ date: string; note: string } | null>(null);
+  const [bankDetails, setBankDetails] = useState<string | null>(null);
+  const [transferSlip, setTransferSlip] = useState<File | null>(null);
+  const [transferSlipUrl, setTransferSlipUrl] = useState<string | null>(null);
+  const [transferNote, setTransferNote] = useState('');
+  const [isUploadingSlip, setIsUploadingSlip] = useState(false);
+  const [amountExceedsLimit, setAmountExceedsLimit] = useState(false);
+  const [showBankTransferPanel, setShowBankTransferPanel] = useState(false);
+=======
   // Bank transfer states
   const [paymentMode, setPaymentMode] = useState<'card' | 'bank_transfer'>('card');
   const [bankDetails, setBankDetails] = useState<string>('');
   const [bankTransferNote, setBankTransferNote] = useState<string>('');
   const [isSubmittingClaim, setIsSubmittingClaim] = useState<boolean>(false);
+>>>>>>> fadacdeb12c37add5c94b9fc26c1a843fdcea2f9
 
   // Dynamic plan prices from database
   const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
@@ -110,6 +130,41 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       active = false;
     };
   }, [isOpen, order]);
+
+  // Fetch bank transfer details from app_settings
+  useEffect(() => {
+    let active = true;
+    async function loadBankDetails() {
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('setting_value')
+          .eq('setting_key', 'bank_transfer_details')
+          .maybeSingle();
+        if (active && !error && data?.setting_value) {
+          setBankDetails(data.setting_value);
+        }
+      } catch (e) {
+        console.warn('[PaymentGatewayModal] Error loading bank transfer details:', e);
+      }
+    }
+    if (isOpen) {
+      loadBankDetails();
+    }
+    return () => { active = false; };
+  }, [isOpen]);
+
+  // Determine if amount exceeds PayHere limit (50,000 LKR)
+  const activeAmountLkr = isOrderMode ? quoteTotalLkr : activePriceLkr;
+  useEffect(() => {
+    if (activeAmountLkr > 50000) {
+      setAmountExceedsLimit(true);
+      setShowBankTransferPanel(true);
+    } else {
+      setAmountExceedsLimit(false);
+      setShowBankTransferPanel(false);
+    }
+  }, [activeAmountLkr, isOrderMode]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -227,6 +282,21 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         body: requestPayload,
       });
 
+<<<<<<< HEAD
+      // Amount exceeds PayHere limit: show bank transfer panel instead of checkout
+      if (data?.amount_exceeds_50k) {
+        setAmountExceedsLimit(true);
+        setShowBankTransferPanel(true);
+        setIsProcessing(false);
+        setPaymentError(null);
+        return;
+      }
+
+      // If the create-payhere-hash call returns an error or a non-2xx response,
+      // or the response is missing hash, merchant_id, order_id, amount or currency,
+      // do NOT start the PayHere checkout. Close loading state and show a clear error message.
+=======
+>>>>>>> fadacdeb12c37add5c94b9fc26c1a843fdcea2f9
       if (
         error ||
         !data ||
@@ -420,6 +490,102 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         message: 'Could not start payment, please try again',
       });
     }
+  };
+
+  // Handle bank transfer slip upload
+  const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setTransferSlip(file);
+      // Preview the file
+      setTransferSlipUrl(URL.createObjectURL(file));
+    }
+  };
+
+  // Upload deposit slip to Supabase storage
+  const uploadDepositSlip = async (file: File, orderId: string): Promise<string | null> => {
+    try {
+      setIsUploadingSlip(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `deposit-slips/${orderId}/${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, file);
+      if (error) {
+        console.error('[PaymentGatewayModal] Slip upload error:', error);
+        return null;
+      }
+      const { data: urlData } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(fileName);
+      return urlData?.publicUrl || null;
+    } catch (err) {
+      console.error('[PaymentGatewayModal] Slip upload exception:', err);
+      return null;
+    } finally {
+      setIsUploadingSlip(false);
+    }
+  };
+
+  // Record bank transfer claim via RPC
+  const handleBankTransfer = async () => {
+    if (!user) {
+      setPaymentError({ type: 'error', message: 'User session not found.' });
+      return;
+    }
+
+    const realOrderId = order?.raw_order_id || order?.id;
+    if (!realOrderId) {
+      setPaymentError({ type: 'error', message: 'Order ID not found.' });
+      return;
+    }
+
+    // Upload slip first if provided
+    let slipUrl: string | null = null;
+    if (transferSlip) {
+      slipUrl = await uploadDepositSlip(transferSlip, String(realOrderId));
+    }
+
+    const noteParts = [transferNote.trim()];
+    if (slipUrl) noteParts.push(`Slip: ${slipUrl}`);
+    const finalNote = noteParts.join(' | ').slice(0, 500);
+
+    try {
+      setIsProcessing(true);
+      setPaymentError(null);
+
+      const { error: rpcError } = await supabase.rpc('set_bank_transfer_claim', {
+        p_order_id: realOrderId,
+        p_claimed: true,
+        p_note: finalNote,
+      });
+
+      if (rpcError) {
+        console.error('[PaymentGatewayModal] Bank transfer claim error:', rpcError);
+        setPaymentError({
+          type: 'error',
+          message: rpcError.message || 'Failed to record transfer. Please try again.',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      setTransferReported({ date: new Date().toISOString(), note: finalNote });
+      setIsProcessing(false);
+      setShowBankTransferPanel(false);
+    } catch (err: any) {
+      console.error('[PaymentGatewayModal] Bank transfer exception:', err);
+      setIsProcessing(false);
+      setPaymentError({
+        type: 'error',
+        message: err.message || 'Failed to record transfer.',
+      });
+    }
+  };
+
+  const cancelTransferReport = () => {
+    setTransferReported(null);
+    setShowBankTransferPanel(true);
   };
 
   return createPortal(
@@ -637,6 +803,45 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             </div>
           )}
 
+<<<<<<< HEAD
+          {/* PayHere Checkout Action Button (hidden when amount exceeds limit)} */}
+          <div className="pt-2">
+<<<<<<< HEAD
+            {!amountExceedsLimit && (
+              <>
+                {isLegacyQuote ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full py-4 px-6 rounded-2xl bg-gray-200 text-gray-500 font-bold text-sm sm:text-base border border-gray-300 cursor-not-allowed shadow-none"
+                    title="This quote is being updated, please check back shortly"
+                  >
+                    This quote is being updated, please check back shortly
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePayHerePayment}
+                    disabled={isProcessing}
+                    className="w-full py-4 px-6 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#E06C38]/25 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>{isVerifying ? 'Confirming payment...' : 'Opening PayHere...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          Pay {formatLkrPrice(isOrderMode ? quoteTotalLkr : activePriceLkr)} with PayHere
+                        </span>
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+=======
+            {isLegacyQuote ? (
+=======
           {/* Conditional Panels */}
           {hasTransferClaimed ? (
             <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-3">
@@ -646,6 +851,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <p className="text-xs font-semibold text-amber-900 leading-relaxed">
                 Transfer reported on {transferClaimDate || 'recently'}. We'll confirm it once the payment reaches our account.
               </p>
+>>>>>>> fadacdeb12c37add5c94b9fc26c1a843fdcea2f9
               <button
                 type="button"
                 onClick={handleCancelTransferClaim}
@@ -731,7 +937,13 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     <CheckCircle2 className="w-4 h-4 text-[#FAF6EE]" />
                     <span>I've made the transfer</span>
                   </>
+>>>>>>> 83b25b4b76cf98a823d1958c682fe02cdf2fb9bc
                 )}
+<<<<<<< HEAD
+              </>
+            )}
+          </div>
+=======
               </button>
             </div>
           ) : (
@@ -779,6 +991,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               )}
             </div>
           )}
+>>>>>>> fadacdeb12c37add5c94b9fc26c1a843fdcea2f9
 
           {/* Trust Badges */}
           <div className="flex items-center justify-center gap-4 text-[11px] text-[#5A6659] pt-2">
@@ -792,6 +1005,167 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <span>256-bit TLS Encryption</span>
             </span>
           </div>
+
+          {/* Bank Transfer Panel */}
+          {amountExceedsLimit && showBankTransferPanel && (
+            <div className="pt-4 space-y-4">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
+                <Banknote className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-[#1D231E]">Pay by Bank Transfer</p>
+                  <p className="text-xs text-[#5A6659] mt-0.5">
+                    This amount exceeds our online payment limit (LKR 50,000). Please pay via bank transfer instead.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-[#1D231E] uppercase tracking-wider">Bank Details</h4>
+                {bankDetails ? (
+                  <div className="bg-[#1D231E]/5 border border-[#1D231E]/20 rounded-xl p-3 text-xs text-[#5A6659] whitespace-pre-wrap break-words font-mono">
+                    {bankDetails}
+                  </div>
+                ) : (
+                  <div className="bg-[#1D231E]/5 border border-[#1D231E]/20 rounded-xl p-3 text-xs text-[#5A6659]">
+                    Bank details will be sent by our team.
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-[#1D231E] uppercase tracking-wider">Amount Due Now</h4>
+                <LkrPriceDisplay
+                  priceLkr={activeAmountLkr}
+                  layout="inline"
+                  lkrClassName="font-bold text-[#1D231E] text-lg"
+                  usdClassName="text-xs text-[#5A6659]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-[#1D231E] uppercase tracking-wider">Payment Reference</h4>
+                <div className="flex items-center gap-2 bg-[#FAF6EE] border border-[#E8E1D2] rounded-xl p-2">
+                  <span className="font-mono text-xs font-bold text-[#1D231E]">
+                    SM-{String(order?.raw_order_id || order?.id || '').toUpperCase().slice(0, 8)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`SM-${String(order?.raw_order_id || order?.id || '').toUpperCase().slice(0, 8)}`);
+                    }}
+                    className="p-1 text-[#5A6659] hover:text-[#1D231E] hover:bg-[#E8E1D2] rounded transition-colors"
+                    title="Copy reference"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#5A6659] mt-0.5">
+                  Write this reference in the transfer remarks.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-[#1D231E] mb-1">
+                  Optional Note (transfer date or bank reference)
+                </label>
+                <textarea
+                  value={transferNote}
+                  onChange={(e) => setTransferNote(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-white border border-[#D5CDBC] rounded-xl text-xs text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
+                  placeholder="e.g. Transfer on 15 Oct from Commercial Bank..."
+                ></textarea>
+                <p className="text-[10px] text-[#5A6659]">
+                  {transferNote.length}/500 characters
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[#1D231E] mb-1">
+                  Upload Deposit Slip / Payment Proof
+                </label>
+                <div className="border-2 border-dashed border-[#D5CDBC] rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer bg-[#FAF6EE]/50 hover:bg-[#FAF6EE] transition-colors">
+                  <Upload className="w-6 h-6 text-[#5A6659]" />
+                  <span className="text-xs text-[#5A6659] font-medium">
+                    {transferSlip ? 'Slip uploaded' : 'Choose file (PDF, JPG, PNG)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={handleSlipChange}
+                    className="hidden"
+                  />
+                </div>
+                {transferSlipUrl && (
+                  <div className="flex items-center gap-2 text-xs text-[#1D231E]">
+                    <FileText className="w-3 h-3 text-[#E06C38]" />
+                    <span>Deposit slip attached</span>
+                  </div>
+                )}
+                {isUploadingSlip && (
+                  <div className="flex items-center gap-2 text-xs text-[#5A6659]">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Uploading slip...</span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleBankTransfer}
+                disabled={isProcessing || isUploadingSlip}
+                className={`w-full py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isProcessing || isUploadingSlip
+                    ? 'bg-[#93A28F] text-white cursor-not-allowed'
+                    : 'bg-[#E06C38] hover:bg-[#d05c28] text-white cursor-pointer hover:scale-[1.01] active:scale-[0.99]'
+                }`}
+              >
+                {isProcessing || isUploadingSlip ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Recording Transfer...</span>
+                  </>
+                ) : (
+                  <>
+                    <Banknote className="w-4 h-4" />
+                    <span>I've Made the Transfer</span>
+                  </>
+                )}
+              </button>
+
+              <p className="text-[10px] text-[#6B7869] text-center mt-1">
+                We'll verify your transfer and update your order once the payment reaches our account.
+              </p>
+            </div>
+          )}
+
+          {/* Transfer Reported State */}
+          {transferReported && (
+            <div className="pt-4">
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-xs text-amber-900">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold text-[#1D231E]">Transfer Reported</p>
+                  <p className="text-amber-800 mt-0.5">
+                    Transfer reported on{' '}
+                    <span className="font-bold">
+                      {new Date(transferReported.date).toLocaleDateString()}
+                    </span>
+                    . We'll confirm it once the payment reaches our account.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={cancelTransferReport}
+                className="mt-2 text-xs font-bold text-[#E06C38] hover:underline"
+              >
+                I made a mistake, cancel this report
+              </button>
+            </div>
+          )}
+        </div>
         </div>
       </div>
     </div>,
