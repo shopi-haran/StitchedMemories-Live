@@ -187,3 +187,14 @@ export function resolveQuoteAmountToLkr(
   return Number((valid * effectiveRate).toFixed(2));
 }
 
+/**
+ * Shared helper to check if balance is due for custom stitched orders (progress >= 100)
+ */
+export function isBalanceDue(order: any): boolean {
+  if (!order) return false;
+  const details = order.request_details || {};
+  const pct = Number(order.progress_percent ?? details.progress_percent ?? 0);
+  return pct >= 100;
+}
+
+

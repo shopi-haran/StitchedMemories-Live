@@ -52,7 +52,7 @@ import {
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { formatDualPrice, formatLkrPrice, formatOrderDualPrice } from '../../utils/currency';
+import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import { PaymentGatewayModal } from '../PaymentGatewayModal';
@@ -674,9 +674,13 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
       console.error('[CustomOrdersTab] Checkout error:', err);
       setConfirmingOrderId(null);
       setPaymentErrorOrderId(realOrderId);
+      const errStr = String(err?.message || err || '');
+      const errMsg = errStr.includes('Balance is not due yet')
+        ? 'The balance is not payable yet'
+        : `Unable to open checkout: ${err?.message || 'Error occurred'}. Please retry.`;
       setFeedbackMsg({
-        text: `Unable to open checkout: ${err?.message || 'Error occurred'}. Please retry.`,
-        type: 'info',
+        text: errMsg,
+        type: 'error',
       });
     }
   };
