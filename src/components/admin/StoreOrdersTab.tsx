@@ -580,6 +580,11 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
                       Paid • Online
                     </span>
+                    {order.transfer_claimed_at && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                        <Clock className="w-3 h-3 text-amber-700" /> Bank Transfer Reported
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">

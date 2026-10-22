@@ -12,9 +12,10 @@ import {
   RotateCcw,
   Loader2,
   Package,
-  Truck
+  Truck,
+  Clock
 } from 'lucide-react';
-import { supabase, fetchUserProfile, fetchSubscriptionPlans, fetchUserStitchOrders } from '../lib/supabase';
+import { supabase, fetchUserProfile, fetchSubscriptionPlans, fetchUserStitchOrders, fetchBankTransferDetails, setBankTransferClaim } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
 import { useAuth } from '../context/AuthContext';
 import { LkrPriceDisplay, formatLkrPrice } from './LkrPriceDisplay';
@@ -55,6 +56,12 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     message: string;
   } | null>(null);
 
+  // Bank transfer states
+  const [paymentMode, setPaymentMode] = useState<'card' | 'bank_transfer'>('card');
+  const [bankDetails, setBankDetails] = useState<string>('');
+  const [bankTransferNote, setBankTransferNote] = useState<string>('');
+  const [isSubmittingClaim, setIsSubmittingClaim] = useState<boolean>(false);
+
   // Dynamic plan prices from database
   const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
     pro: { price_lkr: 2700, yearly_price_lkr: null },
@@ -63,35 +70,46 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
 
   useEffect(() => {
     let active = true;
-    async function loadPrices() {
+    async function loadPricesAndBank() {
       try {
-        const rows = await fetchSubscriptionPlans();
-        if (active && rows.length > 0) {
-          const map: Record<string, { price_lkr: number; yearly_price_lkr: number | null }> = {};
-          rows.forEach((r) => {
-            if (r.tier) {
-              const key = r.tier.toLowerCase().trim();
-              const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
-              const priceYearly = r.yearly_price_lkr != null ? Number(r.yearly_price_lkr) : null;
-              map[key] = {
-                price_lkr: priceMonthly,
-                yearly_price_lkr: priceYearly,
-              };
-            }
-          });
-          setPlanPrices((prev) => ({ ...prev, ...map }));
+        const [rows, bankText] = await Promise.all([
+          fetchSubscriptionPlans(),
+          fetchBankTransferDetails(),
+        ]);
+        if (active) {
+          if (rows.length > 0) {
+            const map: Record<string, { price_lkr: number; yearly_price_lkr: number | null }> = {};
+            rows.forEach((r) => {
+              if (r.tier) {
+                const key = r.tier.toLowerCase().trim();
+                const priceMonthly = Number(r.price_lkr ?? (key === 'pro' ? 2700 : 5700));
+                const priceYearly = r.yearly_price_lkr != null ? Number(r.yearly_price_lkr) : null;
+                map[key] = {
+                  price_lkr: priceMonthly,
+                  yearly_price_lkr: priceYearly,
+                };
+              }
+            });
+            setPlanPrices((prev) => ({ ...prev, ...map }));
+          }
+          if (bankText) {
+            setBankDetails(bankText);
+          }
         }
       } catch (e) {
-        console.warn('[PaymentGatewayModal] Error loading subscription plans:', e);
+        console.warn('[PaymentGatewayModal] Error loading initial setup:', e);
       }
     }
     if (isOpen) {
-      loadPrices();
+      loadPricesAndBank();
+      setPaymentMode('card');
+      setBankTransferNote('');
+      setPaymentError(null);
     }
     return () => {
       active = false;
     };
-  }, [isOpen]);
+  }, [isOpen, order]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -116,9 +134,19 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const totalCents = Math.round(quoteTotalLkr * 100);
   const advanceLkr = Math.floor(totalCents / 2) / 100;
   const amountPaidLkr = Number(order?.amount_paid_lkr ?? 0);
-  const balanceLkr = Math.max(0, (totalCents - Math.round(Math.max(amountPaidLkr, advanceLkr) * 100)) / 100);
-  const isPayingAdvance = isCustomStitched && order?.payment_status !== 'deposit_paid';
-  const expectedPayAmount = isCustomStitched ? (isPayingAdvance ? advanceLkr : balanceLkr) : quoteTotalLkr;
+  const progressPercent = Number(order?.progress_percent || order?.request_details?.progress_percent || 0);
+  const isDepositPaid = order?.payment_status === 'deposit_paid';
+  const isPayingAdvance = isCustomStitched && !isDepositPaid;
+  const isPayingBalance = isCustomStitched && isDepositPaid && progressPercent >= 100;
+
+  const expectedPayAmount = isCustomStitched
+    ? (isPayingAdvance ? advanceLkr : (isPayingBalance ? Math.max(0, quoteTotalLkr - Math.max(amountPaidLkr, advanceLkr)) : Math.max(0, quoteTotalLkr - amountPaidLkr)))
+    : Math.max(0, quoteTotalLkr - amountPaidLkr);
+
+  const orderRawId = String(order?.raw_order_id || order?.id || '').replace('order_', '');
+  const bankRefCode = `SM-${orderRawId.slice(0, 8).toUpperCase()}`;
+  const hasTransferClaimed = Boolean(order?.transfer_claimed_at && order?.payment_status !== 'paid');
+  const transferClaimDate = order?.transfer_claimed_at ? new Date(order.transfer_claimed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
   const planName = plan === 'pro' ? 'Pro Plan' : 'Studio Plan';
   const planPricing = planPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: null } : { price_lkr: 5700, yearly_price_lkr: null });
@@ -134,6 +162,49 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
 
   const activePriceLkr = hasAnnual && billingCycle === 'annual' ? annualYearlyLkr : baseMonthlyLkr;
 
+  const handleCancelTransferClaim = async () => {
+    setIsSubmittingClaim(true);
+    setPaymentError(null);
+    try {
+      const res = await setBankTransferClaim(order?.raw_order_id || order?.id, false, null);
+      if (res.success) {
+        window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { orderId: order?.raw_order_id || order?.id } }));
+        onClose();
+      } else {
+        setPaymentError({ type: 'error', message: res.message || 'Unable to cancel bank transfer report' });
+      }
+    } catch (err: any) {
+      setPaymentError({ type: 'error', message: err?.message || 'Unable to cancel bank transfer report' });
+    } finally {
+      setIsSubmittingClaim(false);
+    }
+  };
+
+  const handleSubmitBankTransferClaim = async () => {
+    if (isCustomStitched && isPayingAdvance && !isNonRefundableChecked) {
+      return;
+    }
+    setIsSubmittingClaim(true);
+    setPaymentError(null);
+    try {
+      const res = await setBankTransferClaim(order?.raw_order_id || order?.id, true, bankTransferNote.trim() || null);
+      if (res.success) {
+        window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { orderId: order?.raw_order_id || order?.id } }));
+        setIsSuccess(true);
+        setTimeout(() => {
+          onOrderPaymentSuccess?.(order?.raw_order_id || order?.id);
+          onClose();
+        }, 1200);
+      } else {
+        setPaymentError({ type: 'error', message: res.message || 'Unable to submit bank transfer report' });
+      }
+    } catch (err: any) {
+      setPaymentError({ type: 'error', message: err?.message || 'Unable to submit bank transfer report' });
+    } finally {
+      setIsSubmittingClaim(false);
+    }
+  };
+
   const handlePayHerePayment = async () => {
     if (isLegacyQuote) {
       setPaymentError({
@@ -148,7 +219,6 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     setPendingNotice(null);
 
     try {
-      // 1. Call create-payhere-hash with appropriate payload
       const requestPayload = isOrderMode
         ? { kind: 'order', orderRowId: order?.raw_order_id || order?.id }
         : { kind: 'subscription', tier: plan, period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly' };
@@ -157,9 +227,6 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         body: requestPayload,
       });
 
-      // If the create-payhere-hash call returns an error or a non-2xx response,
-      // or the response is missing hash, merchant_id, order_id, amount or currency,
-      // do NOT start the PayHere checkout. Close loading state and show a clear error message.
       if (
         error ||
         !data ||
@@ -171,30 +238,39 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       ) {
         let errorPayload = error || data;
         let errMsg = 'Could not start payment, please try again';
+        let exceedsLimit = false;
+
         if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
           try {
             const errJson = await error.context.clone().json();
             errorPayload = { status: error.context.status, body: errJson, error };
             const errStr = JSON.stringify(errJson);
             if (errStr.includes('Amount exceeds the current payment limit')) {
-              errMsg = 'This amount is above our online payment limit, please contact us to arrange payment';
+              exceedsLimit = true;
+              errMsg = 'This amount is above our online payment limit. Please pay by bank transfer';
             } else if (errStr.includes('Balance is not due yet')) {
               errMsg = 'The balance is not payable yet';
             }
           } catch {}
         }
         if (data?.error && String(data.error).includes('Amount exceeds the current payment limit')) {
-          errMsg = 'This amount is above our online payment limit, please contact us to arrange payment';
+          exceedsLimit = true;
+          errMsg = 'This amount is above our online payment limit. Please pay by bank transfer';
         }
         if (data?.error && String(data.error).includes('Balance is not due yet')) {
           errMsg = 'The balance is not payable yet';
         }
+
         console.error('[create-payhere-hash error response]:', errorPayload);
         setIsProcessing(false);
         setPaymentError({
           type: 'error',
           message: errMsg,
         });
+
+        if (exceedsLimit) {
+          setPaymentMode('bank_transfer');
+        }
         return;
       }
 
@@ -214,7 +290,6 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       const firstName = nameParts[0] || 'Crafter';
       const lastName = nameParts.slice(1).join(' ') || (isOrderMode ? 'Customer' : 'Member');
 
-      // 2. Open PayHere checkout with returned values exactly as given
       await startPayHereCheckout(
         {
           sandbox: true,
@@ -246,9 +321,8 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             if (isOrderMode) {
               const realOrderId = order?.raw_order_id || order?.id;
               const pollIntervalMs = 2000;
-              const maxAttempts = 15; // 30 seconds
+              const maxAttempts = 15;
               let confirmed = false;
-
               const expectingDeposit = isPayingAdvance;
 
               for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -289,9 +363,8 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 setPendingNotice('payment not confirmed yet, check your dashboard shortly');
               }
             } else {
-              // Membership subscription poll
               const pollIntervalMs = 2000;
-              const maxAttempts = 15; // 30 seconds
+              const maxAttempts = 15;
               let confirmed = false;
 
               for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -373,7 +446,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <h3 className="text-lg font-bold text-[#1D231E]">
                 {isOrderMode ? 'Complete Order Payment' : 'Complete Your Membership'}
               </h3>
-              <p className="text-xs text-[#6B7869] mt-0.5">Pay securely via PayHere with Card, Genie or FriMi</p>
+              <p className="text-xs text-[#6B7869] mt-0.5">Pay securely via PayHere or Bank Transfer</p>
             </div>
           </div>
           <button
@@ -415,7 +488,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                   isCustomStitched ? (
                     <div className="text-right">
                       <p className="text-sm font-bold text-[#FAF6EE]">
-                        {isPayingAdvance ? `50% Advance: LKR ${advanceLkr.toLocaleString()}` : `Balance: LKR ${balanceLkr.toLocaleString()}`}
+                        {isPayingAdvance ? `50% Advance: LKR ${advanceLkr.toLocaleString()}` : isPayingBalance ? `Balance: LKR ${expectedPayAmount.toLocaleString()}` : `Total: LKR ${quoteTotalLkr.toLocaleString()}`}
                       </p>
                       <p className="text-[11px] text-[#A5B3A2] mt-0.5">
                         Paid LKR {amountPaidLkr.toLocaleString()} of LKR {quoteTotalLkr.toLocaleString()} total
@@ -423,7 +496,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                     </div>
                   ) : (
                     <LkrPriceDisplay
-                      priceLkr={quoteTotalLkr}
+                      priceLkr={expectedPayAmount}
                       layout="stacked"
                       lkrClassName="text-2xl font-black text-[#FAF6EE]"
                       usdClassName="text-[11px] text-[#A5B3A2]"
@@ -450,56 +523,6 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 )}
               </div>
             </div>
-
-            {/* If Order mode: line items / delivery breakdown summary */}
-            {isOrderMode && activeQuote && (
-              <div className="pt-3 border-t border-[#323D34] text-xs text-[#A5B3A2] space-y-1.5">
-                {activeQuote.line_items && activeQuote.line_items.length > 0 && (
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span>Itemized Line Items ({activeQuote.line_items.length}):</span>
-                    <LkrPriceDisplay priceLkr={activeQuote.items_subtotal || 0} layout="inline" lkrClassName="font-semibold text-white" usdClassName="text-[10px] text-[#A5B3A2]" />
-                  </div>
-                )}
-                {Number(activeQuote.crafting_charge || 0) > 0 && (
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span>Crafting & Artisan Work:</span>
-                    <LkrPriceDisplay priceLkr={activeQuote.crafting_charge} layout="inline" lkrClassName="font-semibold text-white" usdClassName="text-[10px] text-[#A5B3A2]" />
-                  </div>
-                )}
-                {Number(activeQuote.discount_amount || 0) > 0 && (
-                  <div className="flex justify-between items-center text-[11px] text-emerald-400">
-                    <span>Studio 15% Member Discount:</span>
-                    <span>-<LkrPriceDisplay priceLkr={Number(activeQuote.discount_amount)} layout="inline" lkrClassName="font-semibold text-emerald-400" usdClassName="text-[10px] text-emerald-300" /></span>
-                  </div>
-                )}
-                {Number(activeQuote.delivery_charge || 0) > 0 && (
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span className="flex items-center gap-1"><Truck className="w-3 h-3 text-[#E06C38]" /> Delivery:</span>
-                    <LkrPriceDisplay priceLkr={activeQuote.delivery_charge} layout="inline" lkrClassName="font-semibold text-white" usdClassName="text-[10px] text-[#A5B3A2]" />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Custom Stitched Advance Payment Plan & Non-refundable Checkbox */}
-            {isOrderMode && isCustomStitched && (
-              <div className="mt-3 pt-3 border-t border-[#323D34] text-xs text-[#A5B3A2] space-y-2">
-                <p className="leading-relaxed">
-                  Pay 50% advance now: <span className="font-bold text-white">LKR {advanceLkr.toLocaleString()}</span>. Balance <span className="font-bold text-white">LKR {balanceLkr.toLocaleString()}</span> due before shipping.
-                </p>
-                {isPayingAdvance && (
-                  <label className="flex items-start gap-2.5 pt-1 text-xs text-[#FAF6EE] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isNonRefundableChecked}
-                      onChange={(e) => setIsNonRefundableChecked(e.target.checked)}
-                      className="mt-0.5 accent-[#E06C38] w-4 h-4 rounded cursor-pointer"
-                    />
-                    <span>I understand the 50% advance is non-refundable</span>
-                  </label>
-                )}
-              </div>
-            )}
 
             {/* Cycle Selector (Subscription mode only) */}
             {!isOrderMode && hasAnnual && (
@@ -534,6 +557,38 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             )}
           </div>
 
+          {/* Payment Mode Selector Tabs (Order Mode only & not transfer claimed) */}
+          {isOrderMode && !hasTransferClaimed && (
+            <div className="grid grid-cols-2 gap-2 p-1 bg-[#E8E1D2]/60 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setPaymentMode('card')}
+                disabled={isProcessing}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  paymentMode === 'card'
+                    ? 'bg-white text-[#1D231E] shadow-xs'
+                    : 'text-[#6B7869] hover:text-[#1D231E]'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 text-[#E06C38]" />
+                <span>Pay online (card)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMode('bank_transfer')}
+                disabled={isProcessing}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                  paymentMode === 'bank_transfer'
+                    ? 'bg-white text-[#1D231E] shadow-xs'
+                    : 'text-[#6B7869] hover:text-[#1D231E]'
+                }`}
+              >
+                <Package className="w-4 h-4 text-[#2D5A43]" />
+                <span>Pay by bank transfer</span>
+              </button>
+            </div>
+          )}
+
           {/* Feedback & Notice Banners */}
           {paymentError && (
             <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-xs text-amber-900 animate-fadeIn">
@@ -564,7 +619,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="mt-2 text-xs font-bold text-[#E06C38] hover:underline"
+                  className="mt-2 text-xs font-bold text-[#E06C38] hover:underline cursor-pointer"
                 >
                   Close and check later
                 </button>
@@ -577,58 +632,159 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <div>
                 <p className="font-bold">Payment Confirmed!</p>
-                <p className="text-emerald-700">Your membership is now active. Refreshing your session...</p>
+                <p className="text-emerald-700">Your transaction has been recorded successfully.</p>
               </div>
             </div>
           )}
 
-          {/* PayHere Checkout Action Button */}
-          <div className="pt-2">
-            {isLegacyQuote ? (
+          {/* Conditional Panels */}
+          {hasTransferClaimed ? (
+            <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+                <Clock className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-semibold text-amber-900 leading-relaxed">
+                Transfer reported on {transferClaimDate || 'recently'}. We'll confirm it once the payment reaches our account.
+              </p>
               <button
                 type="button"
-                disabled
-                className="w-full py-4 px-6 rounded-2xl bg-gray-200 text-gray-500 font-bold text-sm sm:text-base border border-gray-300 cursor-not-allowed shadow-none"
-                title="This quote is being updated, please check back shortly"
+                onClick={handleCancelTransferClaim}
+                disabled={isSubmittingClaim}
+                className="text-xs font-bold text-[#E06C38] hover:underline inline-flex items-center gap-1 cursor-pointer"
               >
-                This quote is being updated, please check back shortly
+                {isSubmittingClaim ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                <span>I made a mistake, cancel this report</span>
               </button>
-            ) : (
+            </div>
+          ) : isOrderMode && paymentMode === 'bank_transfer' ? (
+            /* Bank Transfer Panel */
+            <div className="space-y-4 p-4 bg-white rounded-2xl border border-[#E8E1D2]">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#5A6659] mb-2 flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-[#E06C38]" /> Bank Transfer Details
+                </h4>
+                <div className="p-3.5 bg-[#FAF6EE] rounded-xl border border-[#E8E1D2] text-xs font-mono text-[#1D231E] whitespace-pre-line leading-relaxed">
+                  {bankDetails.trim() || "Bank details will be sent by our team"}
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-[#1D231E] text-white rounded-xl space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-[#A5B3A2]">Amount Due Now:</span>
+                  <LkrPriceDisplay
+                    priceLkr={expectedPayAmount}
+                    layout="inline"
+                    lkrClassName="font-bold text-sm text-[#FAF6EE]"
+                    usdClassName="text-[10px] text-[#A5B3A2]"
+                  />
+                </div>
+                <div className="flex justify-between items-center text-xs pt-2 border-t border-[#323D34]">
+                  <span className="text-[#A5B3A2]">Payment Reference:</span>
+                  <span className="font-mono font-bold text-[#E06C38] bg-[#2A342B] px-2.5 py-1 rounded-lg border border-[#3B483C]">
+                    {bankRefCode}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#A5B3A2] italic pt-1">
+                  Write this reference in the transfer remarks.
+                </p>
+              </div>
+
+              {isCustomStitched && isPayingAdvance && (
+                <label className="flex items-start gap-2.5 text-xs text-[#1D231E] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isNonRefundableChecked}
+                    onChange={(e) => setIsNonRefundableChecked(e.target.checked)}
+                    className="mt-0.5 accent-[#E06C38] w-4 h-4 rounded cursor-pointer"
+                  />
+                  <span className="font-medium">I understand the 50% advance is non-refundable</span>
+                </label>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#1D231E]">
+                  Transfer Note (Optional — transfer date or bank reference, max 500 chars)
+                </label>
+                <input
+                  type="text"
+                  maxLength={500}
+                  value={bankTransferNote}
+                  onChange={(e) => setBankTransferNote(e.target.value)}
+                  placeholder="e.g. Bank Ref ABC12345 or Transferred on Oct 24"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E8E1D2] text-xs text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]"
+                />
+              </div>
+
               <button
                 type="button"
-                onClick={handlePayHerePayment}
-                disabled={isProcessing || (isOrderMode && isCustomStitched && isPayingAdvance && !isNonRefundableChecked) || isLegacyQuote}
-                className="w-full py-4 px-6 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#E06C38]/25 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleSubmitBankTransferClaim}
+                disabled={isSubmittingClaim || (isCustomStitched && isPayingAdvance && !isNonRefundableChecked)}
+                className="w-full py-3.5 px-5 rounded-2xl bg-[#2D5A43] hover:bg-[#234734] text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
               >
-                {isProcessing ? (
+                {isSubmittingClaim ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>{isVerifying ? 'Confirming payment...' : 'Opening PayHere...'}</span>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Submitting Report...</span>
                   </>
                 ) : (
                   <>
-                    <span>
-                      {isOrderMode
-                        ? isCustomStitched
-                          ? isPayingAdvance
-                            ? `Pay 50% advance (${formatLkrPrice(advanceLkr)})`
-                            : `Pay balance (${formatLkrPrice(balanceLkr)})`
-                          : `Pay ${formatLkrPrice(quoteTotalLkr)} with PayHere`
-                        : `Pay ${formatLkrPrice(activePriceLkr)} with PayHere`
-                      }
-                    </span>
-                    <ArrowRight className="w-5 h-5" />
+                    <CheckCircle2 className="w-4 h-4 text-[#FAF6EE]" />
+                    <span>I've made the transfer</span>
                   </>
                 )}
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            /* PayHere Card Checkout Action Button */
+            <div className="pt-2">
+              {isLegacyQuote ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-4 px-6 rounded-2xl bg-gray-200 text-gray-500 font-bold text-sm sm:text-base border border-gray-300 cursor-not-allowed shadow-none"
+                  title="This quote is being updated, please check back shortly"
+                >
+                  This quote is being updated, please check back shortly
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePayHerePayment}
+                  disabled={isProcessing || (isOrderMode && isCustomStitched && isPayingAdvance && !isNonRefundableChecked) || isLegacyQuote}
+                  className="w-full py-4 px-6 rounded-2xl bg-[#E06C38] hover:bg-[#d05c28] text-white font-bold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#E06C38]/25 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>{isVerifying ? 'Confirming payment...' : 'Opening PayHere...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {isOrderMode
+                          ? isCustomStitched
+                            ? isPayingAdvance
+                              ? `Pay 50% advance (${formatLkrPrice(advanceLkr)})`
+                              : isPayingBalance
+                              ? `Pay balance (${formatLkrPrice(expectedPayAmount)})`
+                              : `Pay ${formatLkrPrice(quoteTotalLkr)} with PayHere`
+                            : `Pay ${formatLkrPrice(expectedPayAmount)} with PayHere`
+                          : `Pay ${formatLkrPrice(activePriceLkr)} with PayHere`
+                        }
+                      </span>
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Trust Badges */}
           <div className="flex items-center justify-center gap-4 text-[11px] text-[#5A6659] pt-2">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Verified PayHere Gateway</span>
+              <span>Verified Secure Gateway</span>
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
