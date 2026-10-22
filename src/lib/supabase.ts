@@ -1072,6 +1072,8 @@ export interface SupabaseStitchOrderRow {
   deposit_paid_at?: string;
   balance_paid_at?: string;
   amount_paid_lkr?: number;
+  transfer_claimed_at?: string | null;
+  transfer_claim_note?: string | null;
   quote?: AdminQuoteData;
   quote_history?: ArchivedQuote[];
   customer_feedback?: string;
@@ -1224,6 +1226,8 @@ export async function fetchUserStitchOrders(
           updated_at: row.updated_at,
           order_type: row.order_type,
           request_details: details,
+          transfer_claimed_at: row.transfer_claimed_at || details.transfer_claimed_at || null,
+          transfer_claim_note: row.transfer_claim_note || details.transfer_claim_note || null,
         };
         seenIds.add(String(mapped.id));
         allResults.push(mapped);
@@ -1370,6 +1374,8 @@ export async function fetchAllAdminOrders(): Promise<SupabaseStitchOrderRow[]> {
           customer_tier_label: customerTierLabel,
           customer_avatar: matchedProfile?.avatar_url,
           customer_role: matchedProfile?.role || 'user',
+          transfer_claimed_at: row.transfer_claimed_at || details.transfer_claimed_at || null,
+          transfer_claim_note: row.transfer_claim_note || details.transfer_claim_note || null,
         };
         seenIds.add(String(mapped.id));
         allResults.push(mapped);
@@ -1529,6 +1535,9 @@ export async function updateAdminOrderDetails(
     estimated_completion?: string;
     quoted_price?: number;
     total_amount?: number;
+    transfer_claimed_at?: string | null;
+    transfer_claim_note?: string | null;
+    amount_paid_lkr?: number;
   }
 ): Promise<{ success: boolean; error?: any }> {
   try {
@@ -1551,6 +1560,9 @@ export async function updateAdminOrderDetails(
     if (updates.estimated_completion !== undefined) payload.estimated_completion = updates.estimated_completion;
     if (updates.quoted_price !== undefined) payload.quoted_price = Number(updates.quoted_price);
     if (updates.total_amount !== undefined) payload.total_amount = Number(updates.total_amount);
+    if (updates.transfer_claimed_at !== undefined) payload.transfer_claimed_at = updates.transfer_claimed_at;
+    if (updates.transfer_claim_note !== undefined) payload.transfer_claim_note = updates.transfer_claim_note;
+    if (updates.amount_paid_lkr !== undefined) payload.amount_paid_lkr = Number(updates.amount_paid_lkr);
 
     const { error: orderError } = await supabase
       .from('orders')
@@ -2816,6 +2828,92 @@ export async function updateExchangeRateInDb(rate: number): Promise<{ success: b
   } catch (err) {
     console.error('[updateExchangeRateInDb] Exception updating rate:', err);
     return { success: false, error: err };
+  }
+}
+
+/**
+ * Fetches bank transfer details from app_settings table.
+ */
+export async function fetchBankTransferDetails(): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'bank_transfer_details')
+      .maybeSingle();
+
+    if (error || !data) {
+      return '';
+    }
+    return data.value || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+/**
+ * Updates bank transfer details in app_settings table.
+ */
+export async function updateBankTransferDetailsInDb(details: string): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: details, updated_at: new Date().toISOString() })
+      .eq('key', 'bank_transfer_details');
+
+    if (error) {
+      return { success: false, error };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Calls set_bank_transfer_claim(p_order_id, p_claimed, p_note) via supabase.rpc.
+ */
+export async function setBankTransferClaim(
+  orderId: string | number,
+  claimed: boolean,
+  note?: string | null
+): Promise<{ success: boolean; data?: any; error?: any; message?: string }> {
+  try {
+    const rawId = typeof orderId === 'string' && orderId.startsWith('order_')
+      ? orderId.replace('order_', '')
+      : orderId;
+
+    const { data, error } = await supabase.rpc('set_bank_transfer_claim', {
+      p_order_id: rawId,
+      p_claimed: claimed,
+      p_note: note || null,
+    });
+
+    if (error) {
+      console.error('[setBankTransferClaim] Supabase RPC error:', error);
+      return {
+        success: false,
+        error,
+        message: error.message || 'Unable to update bank transfer claim. Please try again.',
+      };
+    }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('orderUpdated', {
+          detail: { orderId, transfer_claimed_at: claimed ? new Date().toISOString() : null },
+        })
+      );
+    } catch {}
+
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('[setBankTransferClaim] Exception:', err);
+    return {
+      success: false,
+      error: err,
+      message: err?.message || 'Unable to update bank transfer claim. Please try again.',
+    };
   }
 }
 

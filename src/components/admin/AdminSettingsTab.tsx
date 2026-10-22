@@ -22,6 +22,11 @@ interface AdminSettingsTabProps {
   lastUpdatedAt: string | null;
   rateError: string | null;
   onRefresh: () => void;
+  bankTransferDetailsInput: string;
+  onBankTransferDetailsChange: (val: string) => void;
+  onSaveBankTransferDetails: () => Promise<void>;
+  isSavingBankTransferDetails: boolean;
+  bankTransferDetailsLastUpdated: string | null;
 }
 
 const PRESET_RATES = [295, 300, 305, 310, 315, 320];
@@ -34,6 +39,11 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   lastUpdatedAt,
   rateError,
   onRefresh,
+  bankTransferDetailsInput,
+  onBankTransferDetailsChange,
+  onSaveBankTransferDetails,
+  isSavingBankTransferDetails,
+  bankTransferDetailsLastUpdated,
 }) => {
   const [testLkrInput, setTestLkrInput] = useState<string>('23340');
   const parsedRate = parseFloat(currentRateInput) || 300;
@@ -189,6 +199,73 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
             <strong>How this works:</strong> Stitchara stores and quotes all orders in LKR. The customer sees LKR as the primary currency (e.g., <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-300 font-bold">LKR 23,340.00</code>) with the USD equivalent displayed as secondary (<code className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-300 font-bold">≈ $77.80</code>, computed on the fly as LKR ÷ usd_to_lkr_rate from app_settings). Payment gateways process the transaction in LKR.
           </p>
         </div>
+      </div>
+
+      {/* Bank Transfer Details Settings Card */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#1D231E]/10 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#1D231E]/10">
+          <div>
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#70806E] block mb-1">
+              Manual & Bank Payments
+            </span>
+            <h3 className="text-lg font-bold text-[#1D231E] flex items-center gap-2">
+              <Coins className="w-5 h-5 text-[#E06C38]" />
+              Bank Transfer Details
+            </h3>
+          </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+            <span>Target Table: <code className="font-mono text-[11px]">app_settings (bank_transfer_details)</code></span>
+          </div>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSaveBankTransferDetails();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="block text-xs font-bold text-[#1D231E] uppercase tracking-wider mb-2">
+              Bank Account Instructions (Shown to customers when they choose Bank Transfer)
+            </label>
+            <textarea
+              rows={5}
+              value={bankTransferDetailsInput}
+              onChange={(e) => onBankTransferDetailsChange(e.target.value)}
+              placeholder="Bank Name: Commercial Bank&#10;Account Name: Stitchara Studio&#10;Account Number: 1234567890&#10;Branch: Colombo Main"
+              className="w-full p-4 bg-[#FAF6EE] border border-[#1D231E]/15 rounded-2xl text-xs font-mono text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38] transition-all"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            {bankTransferDetailsLastUpdated ? (
+              <p className="text-[11px] text-emerald-700 flex items-center gap-1 font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Last updated at {bankTransferDetailsLastUpdated}.</span>
+              </p>
+            ) : <span />}
+
+            <button
+              type="submit"
+              disabled={isSavingBankTransferDetails}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#E06C38] hover:bg-[#c95927] text-white text-xs font-bold shadow-md transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingBankTransferDetails ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Saving Bank Details...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Save Bank Transfer Instructions</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Interactive Sandbox & Preview Section */}
