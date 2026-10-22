@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Sparkles, Shield, Loader2, AlertCircle } from 'lucide-react';
+import { X, Sparkles, Shield, Loader2, AlertCircle, Upload, FileText, Banknote, Copy } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { supabase, fetchUserProfile } from '../lib/supabase';
@@ -33,6 +33,10 @@ export const SubscriptionConfirmModal: React.FC<SubscriptionConfirmModalProps> =
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingNotice, setPendingNotice] = useState<string | null>(null);
 
+  // Bank transfer state for amounts exceeding PayHere limit
+  const [showSubscriptionBankTransfer, setShowSubscriptionBankTransfer] = useState<boolean>(false);
+  const [subscriptionBankTransferAmountLkr, setSubscriptionBankTransferAmountLkr] = useState<number>(0);
+
   if (!isOpen || typeof document === 'undefined') return null;
 
   const planDisplayName = plan === 'pro' ? 'Pro Plan' : 'Studio Plan';
@@ -48,6 +52,15 @@ export const SubscriptionConfirmModal: React.FC<SubscriptionConfirmModalProps> =
     setIsProcessing(true);
     setErrorMessage(null);
     setPendingNotice(null);
+
+    // Pre-call limit check: if price exceeds PayHere limit (50,000 LKR),
+    // show bank transfer panel without calling the Edge Function.
+    if (priceLkr > 50000) {
+      setShowSubscriptionBankTransfer(true);
+      setSubscriptionBankTransferAmountLkr(priceLkr);
+      setIsProcessing(false);
+      return;
+    }
 
     try {
       // 1. Call create-payhere-hash with exactly { kind: 'subscription', tier, period } and nothing else
