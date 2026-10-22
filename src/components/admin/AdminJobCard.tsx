@@ -170,11 +170,6 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
         {/* Status Badge */}
         <div className="flex flex-col items-start sm:items-end gap-1.5 shrink-0">
           <div>{renderStatusBadge(order.fulfillment_status || order.status)}</div>
-          {order.transfer_claimed_at && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-              <Clock className="w-3 h-3 text-amber-700" /> Bank Transfer Reported
-            </span>
-          )}
           {order.tracking_number && (
             <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-orange-900 bg-orange-100/80 px-2.5 py-0.5 rounded-lg border border-orange-300">
               <Truck className="w-3 h-3 text-orange-700" /> TRK: {order.tracking_number}

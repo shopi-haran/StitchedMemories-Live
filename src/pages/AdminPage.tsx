@@ -44,8 +44,7 @@ import {
   XCircle,
   Download,
   Settings,
-  Coins,
-  Loader2
+  Coins
 } from 'lucide-react';
 import {
   fetchAllAdminOrders,
@@ -66,8 +65,6 @@ import {
   supabase,
   fetchExchangeRate,
   updateExchangeRateInDb,
-  fetchBankTransferDetails,
-  updateBankTransferDetailsInDb,
 } from '../lib/supabase';
 import { formatDualPrice, formatUsd, formatLkr, formatLkrPrice, formatOrderDualPrice } from '../utils/currency';
 import { LkrPriceDisplay } from '../components/LkrPriceDisplay';
@@ -221,11 +218,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({
   const [rateLastUpdatedAt, setRateLastUpdatedAt] = useState<string | null>(null);
   const [rateFetchError, setRateFetchError] = useState<string | null>(null);
 
-  // Bank Transfer Details Settings State
-  const [bankTransferDetailsInput, setBankTransferDetailsInput] = useState<string>('');
-  const [isSavingBankTransferDetails, setIsSavingBankTransferDetails] = useState<boolean>(false);
-  const [bankTransferDetailsLastUpdated, setBankTransferDetailsLastUpdated] = useState<string | null>(null);
-
   // Lock body scroll when any admin modal is open
   useBodyScrollLock(Boolean(selectedQuoteOrder || selectedOrderForEdit || previewImageModal || declineModalOrder || isManualPaymentModalOpen));
 
@@ -244,35 +236,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       setRateFetchError(err.message || 'Failed to load exchange rate');
     }
   }, []);
-
-  const loadBankTransferDetailsAdmin = useCallback(async () => {
-    try {
-      const details = await fetchBankTransferDetails();
-      setBankTransferDetailsInput(details);
-      if (details) {
-        setBankTransferDetailsLastUpdated(new Date().toLocaleTimeString());
-      }
-    } catch (e) {
-      console.warn('Failed to load bank transfer details in admin:', e);
-    }
-  }, []);
-
-  const handleSaveBankTransferDetails = async () => {
-    setIsSavingBankTransferDetails(true);
-    try {
-      const res = await updateBankTransferDetailsInDb(bankTransferDetailsInput);
-      if (res.success) {
-        setBankTransferDetailsLastUpdated(new Date().toLocaleTimeString());
-        showToast('Bank transfer details updated successfully!');
-      } else {
-        showToast('Failed to update bank transfer details.');
-      }
-    } catch (err: any) {
-      showToast(err?.message || 'Failed to update bank transfer details.');
-    } finally {
-      setIsSavingBankTransferDetails(false);
-    }
-  };
 
   const handleSaveExchangeRate = async (rateToSave?: number) => {
     const targetRate = rateToSave !== undefined ? rateToSave : parseFloat(exchangeRateInput);
@@ -311,7 +274,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({
         fetchAllAdminProducts(),
         fetchAllContactMessages(),
         loadExchangeRate(),
-        loadBankTransferDetailsAdmin(),
       ]);
 
       setOrders(fetchedOrders);
@@ -326,7 +288,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [loadExchangeRate, loadBankTransferDetailsAdmin]);
+  }, [loadExchangeRate]);
 
   useEffect(() => {
     loadData();
@@ -1524,12 +1486,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 isSavingRate={isSavingExchangeRate}
                 lastUpdatedAt={rateLastUpdatedAt}
                 rateError={rateFetchError}
-                onRefresh={() => { loadExchangeRate(); loadBankTransferDetailsAdmin(); }}
-                bankTransferDetailsInput={bankTransferDetailsInput}
-                onBankTransferDetailsChange={setBankTransferDetailsInput}
-                onSaveBankTransferDetails={handleSaveBankTransferDetails}
-                isSavingBankTransferDetails={isSavingBankTransferDetails}
-                bankTransferDetailsLastUpdated={bankTransferDetailsLastUpdated}
+                onRefresh={loadExchangeRate}
               />
             )}
           </>
