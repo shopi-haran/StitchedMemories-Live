@@ -1,248 +1,314 @@
 // Supabase Edge Function: create-payhere-hash
-// Generates secure PayHere checkout hash for both one-time payments and recurring subscriptions.
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
-import { crypto } from 'https://deno.land/std@0.168.0/crypto/mod.ts';
-
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-const PAYHERE_MERCHANT_ID = Deno.env.get('PAYHERE_MERCHANT_ID') || '1211149';
-const PAYHERE_MERCHANT_SECRET = Deno.env.get('PAYHERE_MERCHANT_SECRET') || '4O3M573k9q2m1';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createHash } from "node:crypto";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-async function md5(message: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('MD5', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+// No fallback values: a missing secret must fail, never fall back to a value stored in code
+const MERCHANT_ID = Deno.env.get("PAYHERE_MERCHANT_ID");
+const MERCHANT_SECRET = Deno.env.get("PAYHERE_MERCHANT_SECRET");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+const CURRENCY = "LKR";
+const TIER_RANK: Record<string, number> = { free: 0, pro: 1, studio: 2 };
+
+// Only these order types are paid as 50% advance + balance
+const DEPOSIT_ORDER_TYPES = ["custom_stitched"];
+
+// PayHere plan limit per single payment. Set to null once the limit is lifted.
+const PAYMENT_LIMIT_LKR: number | null = 50000;
+
+// The balance becomes payable when the stitch tracker reaches 100%
+function isBalanceDue(order: any): boolean {
+  const progress = Number(order.progress_percent ?? 0);
+  return Number.isFinite(progress) && progress >= 100;
+}
+
+function toNumber(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(String(v).replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+// Reads the final payable amount from orders.quote (LKR only)
+function extractAmount(quote: any): number | null {
+  if (quote == null) return null;
+  if (typeof quote === "number" || typeof quote === "string") return toNumber(quote);
+  if (typeof quote === "object") {
+    for (const key of ["total_amount", "total", "amount", "price", "final_price"]) {
+      const n = toNumber(quote[key]);
+      if (n !== null) return n;
+    }
+  }
+  return null;
+}
+
+function md5(input: string): string {
+  return createHash("md5").update(input).digest("hex").toUpperCase();
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // 1. JWT verification / Authenticated User check
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.log('[create-payhere-hash] Failure: Missing Authorization header');
-      return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!MERCHANT_ID || !MERCHANT_SECRET) {
+      console.error("create-payhere-hash: PAYHERE_MERCHANT_ID or PAYHERE_MERCHANT_SECRET is not set");
+      return json({ error: "Payments are not configured" }, 500);
     }
 
-    const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // 1. Verify the caller is logged in
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "Not authenticated" }, 401);
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-
-    const { data: { user }, error: userError } = await authClient.auth.getUser();
-    if (userError || !user) {
-      console.log('[create-payhere-hash] Failure: Invalid or expired JWT', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized: Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error("create-payhere-hash: auth failed", authError);
+      return json({ error: "Not authenticated" }, 401);
     }
 
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // 2. Parse request body: takes kind ('subscription' | 'order') and tier / orderRowId
+    // 2. Client sends intent only: never order_id, amount, currency or stage
     const body = await req.json().catch(() => ({}));
-    const { kind, tier, orderRowId } = body;
+    const kind = body.kind;
+    let orderId: string;
+    let amount: number;
+    let tier: string | null = null;
+    let period: "monthly" | "yearly" | null = null;
+    let stage: "full" | "deposit" | "balance" | null = null;
 
-    if (!kind || (kind !== 'subscription' && kind !== 'order')) {
-      console.log('[create-payhere-hash] Failure: Invalid or missing kind:', kind);
-      return new Response(
-        JSON.stringify({ error: "Invalid kind. Must be 'subscription' or 'order'" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (kind === "subscription") {
+      tier = String(body.tier ?? "").toLowerCase().trim();
 
-    let calculatedAmount = 0;
-    let order_id = '';
-    const currency = 'LKR';
-
-    if (kind === 'subscription') {
-      const normalizedTier = (tier || '').toLowerCase().trim();
-      if (!normalizedTier || normalizedTier === 'free') {
-        console.log('[create-payhere-hash] Failure: Unknown or free subscription tier requested:', tier);
-        return new Response(
-          JSON.stringify({ error: "Invalid subscription tier. 'free' cannot be purchased." }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      const rawPeriod = body.period === undefined ? "monthly" : String(body.period).toLowerCase();
+      if (rawPeriod !== "monthly" && rawPeriod !== "yearly") {
+        console.error("create-payhere-hash: invalid period", { period: body.period });
+        return json({ error: "Invalid period" }, 400);
       }
+      period = rawPeriod;
 
-      // Fetch price from subscription_plans table using service role client
-      const { data: planData, error: planError } = await adminClient
-        .from('subscription_plans')
-        .select('tier, price_lkr')
-        .eq('tier', normalizedTier)
+      const { data: plan, error: planErr } = await admin
+        .from("subscription_plans")
+        .select("price_lkr, yearly_price_lkr, active")
+        .eq("tier", tier)
         .maybeSingle();
 
-      if (planError) {
-        console.log('[create-payhere-hash] Failure: Error querying subscription_plans table:', planError);
-        return new Response(
-          JSON.stringify({ error: 'Database error fetching plan' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (planErr) {
+        console.error("create-payhere-hash: plan lookup error", planErr);
+        return json({ error: "Could not load plan" }, 500);
       }
 
-      let price = planData?.price_lkr;
-      if (!price) {
-        // Known fallback if table row doesn't exist yet
-        const defaultPriceMap: Record<string, number> = {
-          pro: 2700,
-          studio: 5700,
-        };
-        price = defaultPriceMap[normalizedTier];
+      // Prices come only from the database. A null yearly price means annual is switched off.
+      const price = plan
+        ? Number(period === "yearly" ? plan.yearly_price_lkr : plan.price_lkr)
+        : 0;
+      if (!plan || !plan.active || !Number.isFinite(price) || price <= 0) {
+        console.error("create-payhere-hash: unknown, inactive or unpriced tier/period", { tier, period });
+        return json({ error: "Invalid tier" }, 400);
       }
 
-      if (!price || isNaN(price) || price <= 0) {
-        console.log('[create-payhere-hash] Failure: Unknown subscription tier or price not found:', normalizedTier);
-        return new Response(
-          JSON.stringify({ error: `Tier '${tier}' is not a valid purchasable plan` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      // Block downgrades while a higher paid plan is still running
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("subscription_tier, subscription_status, access_until")
+        .eq("id", user.id)
+        .maybeSingle();
+      const stillActive =
+        prof?.subscription_status === "active" &&
+        prof?.access_until &&
+        new Date(prof.access_until).getTime() > Date.now();
+      if (
+        stillActive &&
+        (TIER_RANK[tier] ?? 0) < (TIER_RANK[String(prof.subscription_tier)] ?? 0)
+      ) {
+        console.error("create-payhere-hash: downgrade blocked", {
+          current: prof.subscription_tier,
+          requested: tier,
+        });
+        return json({ error: "Downgrades are not supported" }, 400);
       }
 
-      calculatedAmount = Number(price);
-      order_id = `sub-${user.id}-${Date.now()}`;
-    } else if (kind === 'order') {
-      if (!orderRowId) {
-        console.log('[create-payhere-hash] Failure: Missing orderRowId for kind=order');
-        return new Response(
-          JSON.stringify({ error: 'Missing orderRowId for order payment' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      amount = price;
+      orderId = `sub-${user.id}-${Date.now()}`;
+    } else if (kind === "order") {
+      const orderRowId = String(body.orderRowId ?? "").replace(/^order_/, "");
+      if (!orderRowId) return json({ error: "Missing orderRowId" }, 400);
 
-      // Look up order from orders or custom_orders table and verify ownership
-      const cleanOrderId = String(orderRowId).replace(/^order_/, '');
-      let orderRow: any = null;
-
-      const { data: oData, error: oError } = await adminClient
-        .from('orders')
-        .select('*')
-        .eq('id', cleanOrderId)
+      const { data: order, error: orderErr } = await admin
+        .from("orders")
+        .select("*")
+        .eq("id", orderRowId)
         .maybeSingle();
 
-      if (!oError && oData) {
-        orderRow = oData;
-      } else {
-        const { data: coData, error: coError } = await adminClient
-          .from('custom_orders')
-          .select('*')
-          .eq('id', cleanOrderId)
-          .maybeSingle();
-        if (!coError && coData) {
-          orderRow = coData;
+      if (orderErr || !order) {
+        console.error("create-payhere-hash: order lookup failed", { orderRowId, orderErr });
+        return json({ error: "Order not found" }, 404);
+      }
+
+      const ownerId = order.user_id ?? order.customer_id ?? order.profile_id ?? null;
+      if (ownerId !== user.id) {
+        console.error("create-payhere-hash: order not owned by user", { orderRowId });
+        return json({ error: "Forbidden" }, 403);
+      }
+      if (order.payment_status === "paid") {
+        return json({ error: "Order already paid" }, 400);
+      }
+
+      // Currency guard: only LKR quotes may be charged
+      const quoteCurrency =
+        order.quote && typeof order.quote === "object" ? order.quote.currency : null;
+      if (quoteCurrency !== "LKR") {
+        console.error("create-payhere-hash: quote is not in LKR", { orderRowId, quoteCurrency });
+        return json({ error: "Quote must be in LKR" }, 400);
+      }
+
+      // The accepted quote is the only source of the total (never the legacy total_amount column)
+      const q = extractAmount(order.quote);
+      if (!q || q <= 0) {
+        console.error("create-payhere-hash: no valid quote amount", {
+          orderRowId,
+          quoteShape: typeof order.quote === "object" ? Object.keys(order.quote ?? {}) : typeof order.quote,
+        });
+        return json({ error: "Order has no accepted quote" }, 400);
+      }
+
+      // Work in whole cents so deposit + balance always equal the total exactly
+      const totalCents = Math.round(q * 100);
+      const depositCents = Math.floor(totalCents / 2);
+      let amountCents: number;
+
+      if (!DEPOSIT_ORDER_TYPES.includes(order.order_type)) {
+        // Kits and every other order type: pay in full
+        stage = "full";
+        amountCents = totalCents;
+      } else if (order.payment_status === "deposit_paid") {
+        // Stitched order, second payment: only once the stitch tracker is at 100%
+        if (!isBalanceDue(order)) {
+          console.error("create-payhere-hash: balance not due yet", {
+            orderRowId,
+            progress: order.progress_percent,
+          });
+          return json({ error: "Balance is not due yet" }, 400);
         }
-      }
-
-      if (!orderRow) {
-        console.log('[create-payhere-hash] Failure: Order not found for id:', cleanOrderId);
-        return new Response(
-          JSON.stringify({ error: 'Order not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // "deposit_paid" means at least the advance was received, even if the admin
+        // recorded it by hand and left amount_paid_lkr at 0
+        const paidCents = Math.max(
+          Math.round(Number(order.amount_paid_lkr ?? 0) * 100),
+          depositCents
         );
+        amountCents = totalCents - paidCents;
+        if (amountCents <= 0) {
+          console.error("create-payhere-hash: nothing left to pay", { orderRowId });
+          return json({ error: "Nothing left to pay" }, 400);
+        }
+        stage = "balance";
+      } else {
+        // Stitched order, first payment: 50% of the final total, rounded down to the cent
+        stage = "deposit";
+        amountCents = depositCents;
       }
 
-      // Verify the row belongs to the authenticated user
-      const orderUserId = orderRow.user_id || orderRow.profile_id;
-      const orderEmail = orderRow.customer_email || orderRow.email;
-      const isOwner =
-        (orderUserId && String(orderUserId).toLowerCase() === String(user.id).toLowerCase()) ||
-        (orderEmail && user.email && String(orderEmail).toLowerCase() === String(user.email).toLowerCase());
-
-      if (!isOwner) {
-        console.log('[create-payhere-hash] Failure: User', user.id, 'does not own order', cleanOrderId);
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized: You do not own this order' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Read amount from the orders table (the accepted quote)
-      const details = typeof orderRow.request_details === 'string'
-        ? (() => { try { return JSON.parse(orderRow.request_details); } catch { return {}; } })()
-        : orderRow.request_details || {};
-      const quoteObj = typeof orderRow.quote === 'string'
-        ? (() => { try { return JSON.parse(orderRow.quote); } catch { return {}; } })()
-        : orderRow.quote || details.quote || {};
-
-      const rawAmount =
-        orderRow.total_amount ??
-        quoteObj?.total_amount ??
-        orderRow.quoted_price ??
-        details.quoted_price ??
-        0;
-
-      calculatedAmount = Number(rawAmount);
-      if (!calculatedAmount || calculatedAmount <= 0) {
-        console.log('[create-payhere-hash] Failure: Order does not have a valid quoted amount:', cleanOrderId, rawAmount);
-        return new Response(
-          JSON.stringify({ error: 'Order has no valid quote amount to pay' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      order_id = `order-${orderRow.id}`;
+      amount = amountCents / 100;
+      orderId =
+        stage === "full"
+          ? `order-${order.id}`
+          : stage === "deposit"
+            ? `order-${order.id}-dep`
+            : `order-${order.id}-bal`;
+    } else {
+      console.error("create-payhere-hash: invalid kind", { kind });
+      return json({ error: "Invalid kind" }, 400);
     }
 
-    const formattedAmount = calculatedAmount.toFixed(2);
+    const formattedAmount = amount.toFixed(2);
 
-    // 3. Upsert row into pending_payments via service_role client
-    const { error: upsertError } = await adminClient
-      .from('pending_payments')
-      .upsert(
-        {
-          order_id,
-          profile_id: user.id,
-          kind,
-          tier: kind === 'subscription' ? (tier || '').toLowerCase().trim() : null,
-          amount: formattedAmount,
-          currency,
-          status: 'pending',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'order_id' }
-      );
-
-    if (upsertError) {
-      console.log('[create-payhere-hash] Failure: Error upserting into pending_payments:', upsertError);
-      // We log but do not prevent payment hash generation if table schema allows or differs
-    }
-
-    // 4. Calculate MD5 hash
-    // hash = strtoupper(md5(merchant_id + order_id + number_format(amount, 2, '.', '') + currency + strtoupper(md5(merchant_secret))))
-    const hashedSecret = (await md5(PAYHERE_MERCHANT_SECRET)).toUpperCase();
-    const rawString = `${PAYHERE_MERCHANT_ID}${order_id}${formattedAmount}${currency}${hashedSecret}`;
-    const hash = (await md5(rawString)).toUpperCase();
-
-    // 5. Return merchant_id, order_id, amount (2-decimal string), currency, hash
-    return new Response(
-      JSON.stringify({
-        merchant_id: PAYHERE_MERCHANT_ID,
-        order_id,
+    // Per-payment limit of the current PayHere plan: same rule for subscriptions and orders.
+    // No hash and no pending row are created; the UI offers bank transfer instead.
+    if (PAYMENT_LIMIT_LKR !== null && amount > PAYMENT_LIMIT_LKR) {
+      console.error("create-payhere-hash: amount exceeds payment limit", { kind, orderId, amount });
+      return json({
+        amount_exceeds_50k: true,
+        merchant_id: null,
+        order_id: orderId,
         amount: formattedAmount,
-        currency,
-        hash,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error: any) {
-    console.log('[create-payhere-hash] Failure: Unexpected exception:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+        currency: CURRENCY,
+        hash: null,
+        stage,
+        tier,
+        period,
+      });
+    }
+
+    // 3. Don't reopen an already-completed payment
+    const { data: existing } = await admin
+      .from("pending_payments")
+      .select("status")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (existing?.status === "completed") {
+      return json({ error: "Payment already completed" }, 400);
+    }
+
+    // 4. Record what the webhook should expect. If this fails, no hash is issued.
+    const { error: upsertErr } = await admin.from("pending_payments").upsert({
+      order_id: orderId,
+      profile_id: user.id,
+      kind,
+      tier,
+      period,
+      stage,
+      amount: formattedAmount,
+      currency: CURRENCY,
+      status: "pending",
+    });
+    if (upsertErr) {
+      console.error("create-payhere-hash: pending upsert failed", upsertErr);
+      return json({ error: "Could not start payment" }, 500);
+    }
+
+    // 5. PayHere hash
+    const hash = md5(`${MERCHANT_ID}${orderId}${formattedAmount}${CURRENCY}${md5(MERCHANT_SECRET)}`);
+
+    console.log("create-payhere-hash issued", {
+      merchant_id: MERCHANT_ID,
+      order_id: orderId,
+      amount: formattedAmount,
+      currency: CURRENCY,
+      period,
+      stage,
+    });
+
+    return json({
+      amount_exceeds_50k: false,
+      merchant_id: MERCHANT_ID,
+      order_id: orderId,
+      amount: formattedAmount,
+      currency: CURRENCY,
+      hash,
+      stage,
+      tier,
+      period,
+    });
+  } catch (err) {
+    console.error("create-payhere-hash error:", err);
+    return json({ error: "Server error" }, 500);
   }
 });
