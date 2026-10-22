@@ -17,7 +17,11 @@ import {
   Loader2,
   AlertCircle,
   RotateCcw,
-  CheckCircle2
+  CheckCircle2,
+  Upload,
+  FileText,
+  Banknote,
+  Copy,
 } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
@@ -63,6 +67,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     (planPrices.pro?.yearly_price_lkr != null && planPrices.pro.yearly_price_lkr > 0) ||
     (planPrices.studio?.yearly_price_lkr != null && planPrices.studio.yearly_price_lkr > 0)
   );
+
+  // Bank transfer state for amounts exceeding PayHere limit
+  const [showSubscriptionBankTransfer, setShowSubscriptionBankTransfer] = useState<boolean>(false);
+  const [subscriptionBankTransferPlan, setSubscriptionBankTransferPlan] = useState<'pro' | 'studio' | null>(null);
+  const [subscriptionBankTransferPeriod, setSubscriptionBankTransferPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [subscriptionBankTransferAmountLkr, setSubscriptionBankTransferAmountLkr] = useState<number>(0);
 
   useEffect(() => {
     if (!hasAnnual && billingCycle === 'annual') {
@@ -156,6 +166,25 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     setPaymentError(null);
     setVerificationPendingMsg(null);
 
+    // Pre-call limit check: if price exceeds PayHere limit (50,000 LKR),
+    // show bank transfer panel without calling the Edge Function.
+    const selectedPriceLkr =
+      hasAnnual && billingCycle === 'annual'
+        ? planPrices[plan]?.yearly_price_lkr
+        : planPrices[plan]?.price_lkr;
+
+    if (selectedPriceLkr != null && selectedPriceLkr > 50000) {
+      setShowSubscriptionBankTransfer(true);
+      setSubscriptionBankTransferPlan(plan);
+      setSubscriptionBankTransferPeriod(
+        hasAnnual && billingCycle === 'annual' ? 'annual' : 'monthly'
+      );
+      setSubscriptionBankTransferAmountLkr(selectedPriceLkr);
+      setIsProcessingPayment(false);
+      setSelectedPlanInProgress(null);
+      return;
+    }
+
     try {
       // 1. Call create-payhere-hash with exactly { kind: 'subscription', tier, period }
       const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
@@ -169,9 +198,41 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       // If the create-payhere-hash call returns an error or a non-2xx response,
       // or the response is missing hash, merchant_id, order_id, amount or currency,
       // do NOT start the PayHere checkout. Close loading state and show a clear error message.
+      if (error || !data) {
+        if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+          try {
+            const errJson = await error.context.clone().json();
+            errorPayload = { status: error.context.status, body: errJson, error };
+          } catch {
+            errorPayload = { status: error.context.status, error };
+          }
+        }
+        console.error('[create-payhere-hash error response]:', errorPayload);
+        setIsProcessingPayment(false);
+        setSelectedPlanInProgress(null);
+        setPaymentError({
+          type: 'error',
+          message: 'Could not start payment, please try again',
+          plan,
+        });
+        return;
+      }
+      // Safety net: if amount exceeds PayHere limit, do not open PayHere.
+      // Do not use hash, merchant_id or order_id (they are null). Show bank transfer panel instead.
+      if (data.amount_exceeds_50k) {
+        setIsProcessingPayment(false);
+        setSelectedPlanInProgress(null);
+        setShowSubscriptionBankTransfer(true);
+        setSubscriptionBankTransferPlan(plan);
+        setSubscriptionBankTransferPeriod(
+          hasAnnual && billingCycle === 'annual' ? 'annual' : 'monthly'
+        );
+        setSubscriptionBankTransferAmountLkr(Number(data.amount || 0));
+        return;
+      }
+
+      // If the response is missing required fields (and not due to amount limit), show error.
       if (
-        error ||
-        !data ||
         !data.hash ||
         !data.merchant_id ||
         !data.order_id ||
@@ -408,6 +469,92 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   <span>Retry Checkout</span>
                 </button>
               </div>
+            </div>
+          )}
+          {/* Subscription Bank Transfer Panel (when amount exceeds PayHere limit)} */}
+          {showSubscriptionBankTransfer && subscriptionBankTransferPlan && (
+            <div className="p-6 sm:p-8 bg-blue-50 border border-blue-200 rounded-3xl space-y-4 animate-fadeIn">
+              <div className="flex items-start gap-3">
+                <Banknote className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-[#1D231E]">Pay by Bank Transfer</h4>
+                  <p className="text-xs text-[#5A6659] mt-0.5">
+                    This subscription amount exceeds our online payment limit (LKR 50,000). Please pay via bank transfer instead.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-[#1D231E] mb-1">Plan</label>
+                <div className="flex items-center gap-2 text-xs text-[#1D231E]">
+                  <span className="font-bold">{subscriptionBankTransferPlan === 'pro' ? 'Pro Plan' : 'Studio Plan'}</span>
+                  <span className="text-[#5A6659]">({subscriptionBankTransferPeriod === 'annual' ? 'Annual' : 'Monthly'})</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[#1D231E] mb-1">Amount Due</label>
+                <LkrPriceDisplay
+                  priceLkr={subscriptionBankTransferAmountLkr}
+                  layout="inline"
+                  lkrClassName="font-bold text-[#1D231E] text-lg"
+                  usdClassName="text-xs text-[#5A6659]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[#1D231E] mb-1">Payment Reference</label>
+                <div className="flex items-center gap-2 bg-[#FAF6EE] border border-[#E8E1D2] rounded-xl p-2">
+                  <span className="font-mono text-xs font-bold text-[#1D231E]">
+                    SM-SUB-{String(subscriptionBankTransferPlan).toUpperCase().slice(0, 4)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `SM-SUB-${String(subscriptionBankTransferPlan).toUpperCase().slice(0, 4)}`
+                      );
+                    }}
+                    className="p-1 text-[#5A6659] hover:text-[#1D231E] hover:bg-[#E8E1D2] rounded transition-colors"
+                    title="Copy reference"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#5A6659] mt-0.5">
+                  Write this reference in the transfer remarks.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-[#1D231E] mb-1">
+                  Optional Note (transfer date or bank reference)
+                </label>
+                <textarea
+                  value=""
+                  onChange={() => {}}
+                  maxLength={500}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-white border border-[#D5CDBC] rounded-xl text-xs text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
+                  placeholder="e.g. Transfer on 15 Oct from Commercial Bank..."
+                ></textarea>
+                <p className="text-[10px] text-[#5A6659]">
+                  0/500 characters
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSubscriptionBankTransfer(false)}
+                className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-[#E06C38] hover:bg-[#d05c28] text-white cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <Banknote className="w-3 h-3" />
+                <span>I've Made the Transfer</span>
+              </button>
+
+              <p className="text-[10px] text-[#6B7869] text-center mt-1">
+                We'll verify your transfer and activate your subscription once the payment reaches our account.
+              </p>
             </div>
           )}
 

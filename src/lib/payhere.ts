@@ -17,12 +17,14 @@ export type PayHereHashRequest =
   | { kind: 'order'; orderRowId: string | number };
 
 export interface PayHereHashResult {
-  merchant_id: string;
-  order_id: string;
-  amount: string;
-  currency: string;
-  hash: string;
+  merchant_id?: string | null;
+  order_id?: string | null;
+  amount?: string | null;
+  currency?: string | null;
+  hash?: string | null;
   stage?: string | null;
+  tier?: string | null;
+  period?: string | null;
   amount_exceeds_50k?: boolean;
 }
 
