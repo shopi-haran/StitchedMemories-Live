@@ -1652,26 +1652,20 @@ export async function saveAdminOrderGeneratedPattern(
       ? orderId.replace('order_', '')
       : orderId;
 
-    // Fetch existing request_details first so we don't overwrite other fields (address, phone, notes)
-    let currentDetails: Record<string, any> = {};
-    const { data: existingOrder } = await supabase
+    // Fetch existing request_details first
+    const { data: existingOrder, error: fetchErr } = await supabase
       .from('orders')
       .select('*')
       .eq('id', rawId)
       .maybeSingle();
 
+    if (fetchErr) {
+      console.error('[saveAdminOrderGeneratedPattern] Error fetching existing order:', fetchErr);
+    }
+
+    let currentDetails: Record<string, any> = {};
     if (existingOrder?.request_details && typeof existingOrder.request_details === 'object') {
       currentDetails = { ...existingOrder.request_details };
-    } else {
-      // Try custom_orders table as well
-      const { data: existingCustom } = await supabase
-        .from('custom_orders')
-        .select('*')
-        .eq('id', rawId)
-        .maybeSingle();
-      if (existingCustom?.request_details && typeof existingCustom.request_details === 'object') {
-        currentDetails = { ...existingCustom.request_details };
-      }
     }
 
     const updatedDetails = {
@@ -1690,62 +1684,45 @@ export async function saveAdminOrderGeneratedPattern(
       pattern_generated_at: new Date().toISOString(),
     };
 
-    // Attempt direct columns update + request_details merge
     const updateObj: Record<string, any> = {
       request_details: updatedDetails,
       updated_at: new Date().toISOString(),
     };
 
-    if (payload.pattern_config) updateObj.pattern_config = payload.pattern_config;
-    if (payload.pattern_pdf_url) updateObj.pattern_pdf_url = payload.pattern_pdf_url;
-    if (payload.pattern_preview_url) updateObj.pattern_preview_url = payload.pattern_preview_url;
-    if (payload.thread_requirements) updateObj.thread_requirements = payload.thread_requirements;
+    if (payload.pattern_config !== undefined) updateObj.pattern_config = payload.pattern_config;
+    if (payload.pattern_preview_url !== undefined) updateObj.pattern_preview_url = payload.pattern_preview_url;
+    if (payload.pattern_pdf_url !== undefined) updateObj.pattern_pdf_url = payload.pattern_pdf_url;
+    if (payload.thread_requirements !== undefined) updateObj.thread_requirements = payload.thread_requirements;
+    if (payload.photo_url !== undefined) updateObj.image_url = payload.photo_url;
 
-    // 1. Update in 'orders' table
-    const { error: ordersErr } = await supabase
+    // Update in 'orders' table using .select().single()
+    const { data: updatedRow, error: updateErr } = await supabase
       .from('orders')
       .update(updateObj)
-      .eq('id', rawId);
+      .eq('id', rawId)
+      .select()
+      .single();
 
-    if (ordersErr) {
-      // If columns like pattern_pdf_url don't exist as dedicated columns, fallback to request_details only
-      console.warn('[saveAdminOrderGeneratedPattern] Retrying with request_details fallback:', ordersErr.message);
-      const { error: fallbackErr } = await supabase
-        .from('orders')
-        .update({
-          request_details: updatedDetails,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', rawId);
-
-      if (fallbackErr) {
-        // Also try custom_orders
-        await supabase
-          .from('custom_orders')
-          .update({
-            request_details: updatedDetails,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', rawId);
-      }
-    } else {
-      // Also sync custom_orders table if row exists
-      try {
-        await supabase
-          .from('custom_orders')
-          .update({
-            request_details: updatedDetails,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', rawId);
-      } catch {}
+    if (updateErr || !updatedRow) {
+      const errorMsg = updateErr?.message || 'No row returned after update';
+      console.error('[saveAdminOrderGeneratedPattern] Error saving pattern to order:', errorMsg, updateErr);
+      return { success: false, error: updateErr || new Error(errorMsg) };
     }
 
+    // Refetch the order to ensure fresh data for quote window and job card
+    const { data: refetchedOrder } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', rawId)
+      .maybeSingle();
+
+    const finalOrder = refetchedOrder || updatedRow;
+
     try {
-      window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { orderId: rawId, pattern_config: payload.pattern_config } }));
+      window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { orderId: rawId, order: finalOrder, pattern_config: payload.pattern_config } }));
     } catch {}
 
-    return { success: true, data: { orderId: rawId, details: updatedDetails } };
+    return { success: true, data: finalOrder };
   } catch (err: any) {
     console.error('[saveAdminOrderGeneratedPattern] Exception:', err);
     return { success: false, error: err };
@@ -1829,17 +1806,7 @@ export async function saveOrderStitchProgress(
       }
     }
 
-    // Also sync custom_orders table if row exists
-    try {
-      const customPayload: Record<string, any> = {
-        request_details: currentDetails,
-        updated_at: nowIso,
-      };
-      if (shouldAutoAdvance) {
-        customPayload.fulfillment_status = 'quality_check';
-      }
-      await supabase.from('custom_orders').update(customPayload).eq('id', rawId);
-    } catch {}
+
 
     try {
       window.dispatchEvent(new CustomEvent('orderUpdated', {
