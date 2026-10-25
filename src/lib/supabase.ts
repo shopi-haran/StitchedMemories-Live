@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { BlogPost, BlogPostSection, ContactMessage, ContentSection, Product } from '../types';
 import { createScaledThumbnail, PatternConfig } from '../utils/patternEngine';
-import { generateLkrQuote } from '../utils/pricingConstants';
+import { generateLkrQuote, DEFAULT_THREAD_SKEIN_PRICE_LKR, DEFAULT_AIDA_FABRIC_BASE_PRICE_LKR, DEFAULT_CRAFTING_CHARGE_LKR, DEFAULT_DELIVERY_CHARGE_LKR } from '../utils/pricingConstants';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -1646,21 +1646,24 @@ export interface AdminOrderPatternSavePayload {
 export async function saveAdminOrderGeneratedPattern(
   orderId: string | number,
   payload: AdminOrderPatternSavePayload
-): Promise<{ success: boolean; data?: any; error?: any }> {
+): Promise<{ success: boolean; data?: any; error?: any; warning?: string }> {
   try {
     const rawId = typeof orderId === 'string' && orderId.startsWith('order_')
       ? orderId.replace('order_', '')
       : orderId;
 
-    // Fetch existing request_details first
+    // Fetch existing order
     const { data: existingOrder, error: fetchErr } = await supabase
       .from('orders')
       .select('*')
       .eq('id', rawId)
       .maybeSingle();
 
-    if (fetchErr) {
-      console.error('[saveAdminOrderGeneratedPattern] Error fetching existing order:', fetchErr);
+    if (fetchErr || !existingOrder) {
+      const errorMsg = fetchErr?.message || 'Order not found';
+      console.error('[saveAdminOrderGeneratedPattern] Error fetching existing order:', errorMsg, fetchErr);
+      alert('Failed to save pattern to order: ' + errorMsg);
+      return { success: false, error: fetchErr || new Error(errorMsg) };
     }
 
     let currentDetails: Record<string, any> = {};
@@ -1668,12 +1671,14 @@ export async function saveAdminOrderGeneratedPattern(
       currentDetails = { ...existingOrder.request_details };
     }
 
+    const threadReqs = payload.thread_requirements || currentDetails.thread_requirements || [];
+
     const updatedDetails = {
       ...currentDetails,
       pattern_config: payload.pattern_config,
       pattern_pdf_url: payload.pattern_pdf_url || currentDetails.pattern_pdf_url || '',
       pattern_preview_url: payload.pattern_preview_url || currentDetails.pattern_preview_url || '',
-      thread_requirements: payload.thread_requirements || currentDetails.thread_requirements || [],
+      thread_requirements: threadReqs,
       fabric_details: payload.fabric_details || currentDetails.fabric_details,
       size: payload.size || currentDetails.size,
       color_count: payload.color_count || currentDetails.color_count,
@@ -1692,8 +1697,90 @@ export async function saveAdminOrderGeneratedPattern(
     if (payload.pattern_config !== undefined) updateObj.pattern_config = payload.pattern_config;
     if (payload.pattern_preview_url !== undefined) updateObj.pattern_preview_url = payload.pattern_preview_url;
     if (payload.pattern_pdf_url !== undefined) updateObj.pattern_pdf_url = payload.pattern_pdf_url;
-    if (payload.thread_requirements !== undefined) updateObj.thread_requirements = payload.thread_requirements;
+    if (threadReqs !== undefined) updateObj.thread_requirements = threadReqs;
     if (payload.photo_url !== undefined) updateObj.image_url = payload.photo_url;
+
+    const paymentStatus = existingOrder.payment_status || 'pending_quote';
+    let warningMessage: string | undefined = undefined;
+
+    if (paymentStatus === 'deposit_paid' || paymentStatus === 'paid') {
+      warningMessage = 'This order already has a payment, so the thread list and prices were not changed. Edit the quote manually if needed.';
+    } else {
+      // Rebuild quote.line_items and totals when pending_quote
+      const existingQuote = existingOrder.quote || currentDetails.quote || {};
+      const existingLineItems = existingQuote.line_items || [];
+      const existingPriceMap = new Map<string, number>();
+      existingLineItems.forEach((item: any) => {
+        if (item.dmc_code) {
+          existingPriceMap.set(item.dmc_code, Number(item.unit_price) || DEFAULT_THREAD_SKEIN_PRICE_LKR);
+        }
+      });
+
+      const newLineItems: any[] = [];
+      threadReqs.forEach((item: any, idx: number) => {
+        const skeins = item.skeins_needed || (item.stitch_count ? Math.max(1, Math.ceil(Number(item.stitch_count) / 1800)) : 1);
+        const dmcCode = item.dmc_code || '';
+        const unitPrice = existingPriceMap.has(dmcCode)
+          ? existingPriceMap.get(dmcCode)!
+          : DEFAULT_THREAD_SKEIN_PRICE_LKR;
+        const total = Number((skeins * unitPrice).toFixed(2));
+
+        newLineItems.push({
+          id: `item_dmc_${idx + 1}`,
+          description: `DMC ${dmcCode} - ${item.color_name || 'Embroidery Floss'}`.trim(),
+          reference_qty: item.stitch_count ? `${Number(item.stitch_count).toLocaleString()} stitches` : '',
+          quantity: skeins,
+          unit: 'skeins',
+          unit_price: unitPrice,
+          total,
+          dmc_code: dmcCode,
+          hex: item.hex,
+        });
+      });
+
+      // Fabric base line exactly as app creates it when an order is placed
+      const fabricCount = payload.fabric_details?.fabric_count || currentDetails.fabric_details?.fabric_count || 14;
+      const fabricDesc = payload.fabric_details?.fabric_type || currentDetails.fabric_details?.fabric_type || `${fabricCount}-Count Aida Cloth`;
+      const sizePref = payload.size || currentDetails.size || '';
+      const dimensionsStr = payload.fabric_details?.dimensions_str || currentDetails.fabric_details?.dimensions_str || (sizePref ? `(${sizePref})` : '');
+
+      const existingFabricItem = existingLineItems.find((it: any) => it.id === 'item_fabric_base' || it.reference_qty === 'Fabric base');
+      const fabricUnitPrice = existingFabricItem ? Number(existingFabricItem.unit_price) : DEFAULT_AIDA_FABRIC_BASE_PRICE_LKR;
+
+      newLineItems.push({
+        id: 'item_fabric_base',
+        description: `${fabricDesc} ${dimensionsStr}`.trim(),
+        reference_qty: 'Fabric base',
+        quantity: 1,
+        unit: 'pcs',
+        unit_price: fabricUnitPrice,
+        total: fabricUnitPrice,
+      });
+
+      const items_subtotal = Number(newLineItems.reduce((acc, it) => acc + it.total, 0).toFixed(2));
+      const orderType = existingOrder.order_type || currentDetails.order_type || '';
+      const crafting_charge = Number(existingQuote.crafting_charge ?? (orderType === 'custom_stitched' ? DEFAULT_CRAFTING_CHARGE_LKR : 0));
+      const delivery_charge = Number(existingQuote.delivery_charge ?? DEFAULT_DELIVERY_CHARGE_LKR);
+      const discount_percent = Number(existingQuote.discount_percent ?? 0);
+      const discountableAmount = items_subtotal + crafting_charge;
+      const discount_amount = Number((discountableAmount * (discount_percent / 100)).toFixed(2));
+      const total_amount = Number((discountableAmount - discount_amount + delivery_charge).toFixed(2));
+
+      const updatedQuote = {
+        ...existingQuote,
+        currency: 'LKR',
+        line_items: newLineItems,
+        items_subtotal,
+        crafting_charge,
+        discount_percent,
+        discount_amount,
+        delivery_charge,
+        total_amount,
+      };
+
+      updateObj.quote = updatedQuote;
+      updatedDetails.quote = updatedQuote;
+    }
 
     // Update in 'orders' table using .select().single()
     const { data: updatedRow, error: updateErr } = await supabase
@@ -1706,6 +1793,7 @@ export async function saveAdminOrderGeneratedPattern(
     if (updateErr || !updatedRow) {
       const errorMsg = updateErr?.message || 'No row returned after update';
       console.error('[saveAdminOrderGeneratedPattern] Error saving pattern to order:', errorMsg, updateErr);
+      alert('Failed to save pattern to order: ' + errorMsg);
       return { success: false, error: updateErr || new Error(errorMsg) };
     }
 
@@ -1722,9 +1810,10 @@ export async function saveAdminOrderGeneratedPattern(
       window.dispatchEvent(new CustomEvent('orderUpdated', { detail: { orderId: rawId, order: finalOrder, pattern_config: payload.pattern_config } }));
     } catch {}
 
-    return { success: true, data: finalOrder };
+    return { success: true, data: finalOrder, warning: warningMessage };
   } catch (err: any) {
     console.error('[saveAdminOrderGeneratedPattern] Exception:', err);
+    alert('An error occurred while saving pattern to order: ' + (err?.message || 'Unknown error'));
     return { success: false, error: err };
   }
 }

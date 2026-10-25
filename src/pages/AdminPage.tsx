@@ -2722,16 +2722,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
           onClose={() => setSelectedOrderForConverter(null)}
           onAdminPatternSaved={(updatedOrder) => {
             loadData(true);
-            if (selectedOrderForEdit && (selectedOrderForEdit.id === updatedOrder.id || selectedOrderForEdit.raw_order_id === updatedOrder.raw_order_id)) {
-              setSelectedOrderForEdit({
-                ...selectedOrderForEdit,
-                ...updatedOrder,
-                request_details: {
-                  ...(selectedOrderForEdit.request_details || {}),
-                  ...(updatedOrder.request_details || {}),
-                }
-              });
-            }
+            setSelectedOrderForEdit(updatedOrder);
             setSuccessToast(`Pattern successfully generated and saved directly to Order #${updatedOrder.id}!`);
             setTimeout(() => setSuccessToast(null), 5000);
           }}

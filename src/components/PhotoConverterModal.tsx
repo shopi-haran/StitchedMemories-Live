@@ -726,7 +726,10 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
 
       if (res.success) {
         setAdminOrderSaveSuccess(true);
-        onAdminPatternSaved?.({
+        if (res.warning) {
+          alert(res.warning);
+        }
+        onAdminPatternSaved?.(res.data || {
           ...adminOrder,
           ...payload,
           request_details: {
@@ -738,7 +741,9 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
           setAdminOrderSaveSuccess(false);
         }, 4500);
       } else {
-        alert('Failed to save pattern to order: ' + (res.error?.message || 'Unknown database error'));
+        const errorMsg = res.error?.message || 'Unknown database error';
+        console.error('Failed to save pattern to order:', errorMsg);
+        alert('Failed to save pattern to order: ' + errorMsg);
       }
     } catch (err: any) {
       console.error('Exception saving pattern to order:', err);
