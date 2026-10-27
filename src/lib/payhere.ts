@@ -12,6 +12,8 @@ export const PAYHERE_EDGE_FUNCTION_URL = supabaseUrl
 
 // PAYHERE_SANDBOX_MERCHANT_ID removed — merchant_id comes only from create-payhere-hash Edge Function
 
+export const PAYHERE_LIMIT_LKR = 50000;
+
 export type PayHereHashRequest =
   | { kind: 'subscription'; tier: 'pro' | 'studio' | string }
   | { kind: 'order'; orderRowId: string | number };
