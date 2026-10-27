@@ -2909,3 +2909,169 @@ export async function fetchSubscriptionPlans(): Promise<SubscriptionPlanRow[]> {
     return [];
   }
 }
+
+/**
+ * Bank transfer & subscription claim helper functions
+ */
+export async function fetchBankTransferDetails(): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'bank_transfer_details')
+      .maybeSingle();
+    if (error || !data) return '';
+    return data.value || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+export async function updateBankTransferDetailsInDb(details: string): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: details, updated_at: new Date().toISOString() })
+      .eq('key', 'bank_transfer_details');
+    if (error) return { success: false, error };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err };
+  }
+}
+
+export async function setBankTransferClaim(
+  orderId: string | number,
+  claimed: boolean,
+  note?: string | null
+): Promise<{ success: boolean; data?: any; error?: any; message?: string }> {
+  try {
+    const rawId = typeof orderId === 'string' && orderId.startsWith('order_') ? orderId.replace('order_', '') : orderId;
+    const { data, error } = await supabase.rpc('set_bank_transfer_claim', {
+      p_order_id: rawId,
+      p_claimed: claimed,
+      p_note: note || null,
+    });
+    if (error) {
+      return { success: false, error, message: error.message || 'Unable to update bank transfer claim.' };
+    }
+    try {
+      window.dispatchEvent(
+        new CustomEvent('orderUpdated', {
+          detail: { orderId, transfer_claimed_at: claimed ? new Date().toISOString() : null },
+        })
+      );
+    } catch {}
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err, message: err?.message || 'Unable to update bank transfer claim.' };
+  }
+}
+
+export async function claimSubscriptionTransfer(
+  tier: string,
+  period: string,
+  note?: string | null
+): Promise<{ success: boolean; data?: any; error?: any; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('claim_subscription_transfer', {
+      p_tier: tier,
+      p_period: period,
+      p_note: note || null,
+    });
+    if (error) {
+      return { success: false, error, message: error.message || 'Unable to claim subscription transfer.' };
+    }
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err, message: err?.message || 'Unable to claim subscription transfer.' };
+  }
+}
+
+export async function cancelSubscriptionClaim(): Promise<{ success: boolean; data?: any; error?: any; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('cancel_subscription_claim');
+    if (error) {
+      return { success: false, error, message: error.message || 'Unable to cancel subscription claim.' };
+    }
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err, message: err?.message || 'Unable to cancel subscription claim.' };
+  }
+}
+
+export async function fetchPendingSubscriptionClaims(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from('subscription_claims')
+      .select('*, profiles:profile_id(name, email)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (error) return [];
+    return data || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function fetchUserSubscriptionClaim(userId: string): Promise<any | null> {
+  try {
+    const { data, error } = await supabase
+      .from('subscription_claims')
+      .select('*')
+      .eq('profile_id', userId)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (error) return null;
+    return data;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function decideSubscriptionClaim(
+  claimId: string | number,
+  approved: boolean
+): Promise<{ success: boolean; data?: any; error?: any; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('decide_subscription_claim', {
+      p_claim_id: claimId,
+      p_approved: approved,
+    });
+    if (error) {
+      return { success: false, error, message: error.message || 'Unable to decide claim.' };
+    }
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err, message: err?.message || 'Unable to decide claim.' };
+  }
+}
+
+export async function uploadPaymentProof(file: File, path: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage.from('payment-proofs').upload(path, file, {
+      cacheControl: '3600',
+      upsert: true,
+    });
+    if (error) {
+      console.error('[uploadPaymentProof] error:', error);
+      return null;
+    }
+    return data?.path || path;
+  } catch (err) {
+    console.error('[uploadPaymentProof] exception:', err);
+    return null;
+  }
+}
+
+export async function getSignedPaymentProofUrl(path: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage.from('payment-proofs').createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) {
+      return null;
+    }
+    return data.signedUrl;
+  } catch (err) {
+    return null;
+  }
+}

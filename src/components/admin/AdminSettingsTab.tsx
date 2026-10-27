@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
+import { fetchBankTransferDetails, updateBankTransferDetailsInDb } from '../../lib/supabase';
 
 interface AdminSettingsTabProps {
   currentRateInput: string;
@@ -290,6 +291,86 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Bank Transfer Details Settings Card */}
+      <BankTransferSettingsCard />
     </div>
   );
 };
+
+function BankTransferSettingsCard() {
+  const [detailsInput, setDetailsInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetchBankTransferDetails().then((val) => {
+      if (val) setDetailsInput(val);
+    });
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    const res = await updateBankTransferDetailsInDb(detailsInput);
+    setIsSaving(false);
+    if (res.success) {
+      setLastUpdated(new Date().toLocaleTimeString());
+      alert('Bank transfer details saved successfully!');
+    } else {
+      alert('Failed to save bank transfer details.');
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#1D231E]/10 shadow-xs space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#1D231E]/10">
+        <div>
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#70806E] block mb-1">
+            Manual & Bank Payments
+          </span>
+          <h3 className="text-lg font-bold text-[#1D231E] flex items-center gap-2">
+            <Coins className="w-5 h-5 text-[#E06C38]" />
+            Bank Transfer Details Instructions
+          </h3>
+        </div>
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+          <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+          <span>Target Table: <code className="font-mono text-[11px]">app_settings (bank_transfer_details)</code></span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-xs font-bold text-[#1D231E] uppercase tracking-wider mb-2">
+            Bank Account Instructions (Shown to customers when they choose Bank Transfer)
+          </label>
+          <textarea
+            rows={5}
+            value={detailsInput}
+            onChange={(e) => setDetailsInput(e.target.value)}
+            placeholder="Bank Name: Commercial Bank&#10;Account Name: Stitchara Studio&#10;Account Number: 1234567890&#10;Branch: Colombo Main"
+            className="w-full p-4 bg-[#FAF6EE] border border-[#1D231E]/15 rounded-2xl text-xs font-mono text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38] transition-all"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          {lastUpdated ? (
+            <p className="text-[11px] text-emerald-700 flex items-center gap-1 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Last saved at {lastUpdated}.</span>
+            </p>
+          ) : <span />}
+
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#E06C38] hover:bg-[#c95927] text-white text-xs font-bold shadow-md transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isSaving ? 'Saving...' : 'Save Bank Transfer Instructions'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
