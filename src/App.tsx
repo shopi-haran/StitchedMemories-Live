@@ -19,6 +19,7 @@ import { AdminPage } from './pages/AdminPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { ReturnsPage } from './pages/ReturnsPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { AuthModal } from './components/AuthModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
@@ -26,7 +27,7 @@ import { SubscriptionConfirmModal } from './components/SubscriptionConfirmModal'
 import { useAuth } from './context/AuthContext';
 import { fetchUserProfile, updateUserPlanSelection, getEffectiveTier, fetchSubscriptionPlans } from './lib/supabase';
 
-export type PageName = 'home' | 'about-contact' | 'blog' | 'shop' | 'dashboard' | 'login' | 'admin' | 'admin-quotes' | 'pricing' | 'terms' | 'privacy' | 'returns';
+export type PageName = 'home' | 'about-contact' | 'blog' | 'shop' | 'dashboard' | 'login' | 'reset-password' | 'admin' | 'admin-quotes' | 'pricing' | 'terms' | 'privacy' | 'returns';
 
 export default function App() {
   const { user, isLoggedIn, isLoading, signOut: authSignOut, refreshProfile } = useAuth();
@@ -108,6 +109,10 @@ export default function App() {
 
     const handleUrlSync = () => {
       const path = window.location.pathname.toLowerCase();
+      if (path.startsWith('/reset-password')) {
+        setCurrentPage('reset-password');
+        return;
+      }
       if (path.startsWith('/pricing') || path.startsWith('/plans')) {
         setCurrentPage('pricing');
       } else if (path.startsWith('/terms') || path.startsWith('/terms-and-conditions') || path.startsWith('/tos')) {
@@ -514,6 +519,16 @@ export default function App() {
           />
         )}
 
+        {currentPage === 'reset-password' && (
+          <ResetPasswordPage
+            onGoHome={() => handleNavigateToSection('home')}
+            onPasswordUpdated={() => {
+              setDashboardTab('overview');
+              navigateToPage('dashboard', '/dashboard');
+            }}
+          />
+        )}
+
         {(currentPage === 'admin' || currentPage === 'admin-quotes') && user && (user.role || '').toLowerCase() === 'admin' && (
           <AdminPage
             user={user}
@@ -523,7 +538,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      {currentPage !== 'login' && currentPage !== 'admin' && currentPage !== 'admin-quotes' && (
+      {currentPage !== 'login' && currentPage !== 'reset-password' && currentPage !== 'admin' && currentPage !== 'admin-quotes' && (
         <Footer
           onOpenConverter={() => setIsConverterOpen(true)}
           onNavigateToSection={handleNavigateToSection}
