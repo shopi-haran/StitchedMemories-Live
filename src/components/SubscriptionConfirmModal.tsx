@@ -255,22 +255,42 @@ export const SubscriptionConfirmModal: React.FC<SubscriptionConfirmModalProps> =
 
           <div className="flex items-baseline justify-between text-xs pt-1">
             <span className="text-[#A5B3A2]">Payment summary</span>
-            <div className="text-right">
+            <div className="text-right space-y-2">
               {period === 'annual' ? (
-                <div>
-                  <p className="text-[#FAF6EE] font-medium text-xs">
-                    {`LKR ${Math.round(priceLkr / 12).toLocaleString()} × 12 months = `}
-                    <span className="font-bold text-white">LKR {priceLkr.toLocaleString('.00', { minimumFractionDigits: 2 })}</span>
-                  </p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="text-[#A5B3A2]">Per month:</span>
+                    <LkrPriceDisplay
+                      priceLkr={Math.round(priceLkr / 12)}
+                      layout="inline"
+                      lkrClassName="font-bold text-white"
+                      usdClassName="text-xs text-[#A5B3A2]"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="text-[#A5B3A2]">Total today:</span>
+                    <LkrPriceDisplay
+                      priceLkr={priceLkr}
+                      layout="inline"
+                      lkrClassName="font-bold text-white"
+                      usdClassName="text-xs text-[#A5B3A2]"
+                    />
+                  </div>
                   <p className="text-[11px] text-[#A5B3A2] mt-0.5">
                     Annual, billed once for 12 months (charged today)
                   </p>
                 </div>
               ) : (
-                <div>
-                  <p className="text-[#FAF6EE] font-medium text-xs">
-                    <span className="font-bold text-white">LKR {priceLkr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> charged today
-                  </p>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="text-[#A5B3A2]">Charged today:</span>
+                    <LkrPriceDisplay
+                      priceLkr={priceLkr}
+                      layout="inline"
+                      lkrClassName="font-bold text-white"
+                      usdClassName="text-xs text-[#A5B3A2]"
+                    />
+                  </div>
                   <p className="text-[11px] text-[#A5B3A2] mt-0.5">
                     Monthly, billed monthly
                   </p>

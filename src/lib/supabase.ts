@@ -2234,6 +2234,73 @@ export function getEffectiveTierLabel(
   return 'Free Crafter';
 }
 
+export interface SubscriptionBadgeResult {
+  showBadge: boolean;
+  text: string;
+  variant: 'active' | 'inactive' | 'expired';
+}
+
+export function getSubscriptionBadge(
+  profile?: { 
+    subscription_tier?: string | null; 
+    subscription_status?: string | null;
+    access_until?: string | null;
+    accessUntil?: string | null;
+  } | null
+): SubscriptionBadgeResult {
+  if (!profile) {
+    return { showBadge: false, text: '', variant: 'inactive' };
+  }
+
+  const rawTier = (profile.subscription_tier || '').toLowerCase().trim();
+  if (!rawTier || rawTier === 'free') {
+    return { showBadge: false, text: '', variant: 'inactive' };
+  }
+
+  const rawStatus = (profile.subscription_status || '').toLowerCase().trim();
+  const rawAccess = profile.access_until || profile.accessUntil;
+
+  let isFutureOrToday = true;
+  let isExpired = false;
+
+  if (rawAccess) {
+    const target = new Date(rawAccess);
+    if (!isNaN(target.getTime())) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const targetDay = new Date(target);
+      targetDay.setHours(0, 0, 0, 0);
+
+      if (today.getTime() > targetDay.getTime()) {
+        isFutureOrToday = false;
+        isExpired = true;
+      }
+    }
+  }
+
+  const isActive = rawStatus === 'active' && (rawAccess ? isFutureOrToday : true);
+
+  if (isActive) {
+    return { showBadge: true, text: 'Active', variant: 'active' };
+  } else if (isExpired && rawAccess) {
+    let formattedDate = rawAccess;
+    try {
+      const d = new Date(rawAccess);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[d.getMonth()];
+        const year = d.getFullYear();
+        formattedDate = `${day} ${month} ${year}`;
+      }
+    } catch {}
+    return { showBadge: true, text: `Inactive, expired on ${formattedDate}`, variant: 'expired' };
+  } else {
+    return { showBadge: true, text: 'Inactive', variant: 'inactive' };
+  }
+}
+
+
 export async function cancelSubscription(): Promise<{ success: boolean; message?: string }> {
   // Placeholder function for cancelling subscription
   return new Promise((resolve) => {
