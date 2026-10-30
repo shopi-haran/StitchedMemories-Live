@@ -24,6 +24,7 @@ import { AuthModal } from './components/AuthModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
 import { SubscriptionConfirmModal } from './components/SubscriptionConfirmModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
 import { fetchUserProfile, updateUserPlanSelection, getEffectiveTier, fetchSubscriptionPlans } from './lib/supabase';
 
@@ -477,18 +478,20 @@ export default function App() {
         )}
 
         {currentPage === 'dashboard' && user && (
-          <DashboardPage
-            user={user}
-            onLogout={handleLogout}
-            onGoHome={() => handleNavigateToSection('home')}
-            onOpenConverter={() => setIsConverterOpen(true)}
-            onNavigateToSection={handleNavigateToSection}
-            initialTab={dashboardTab}
-            onOpenUpgradeModal={(targetPlan) => {
-              setUpgradeModalTargetPlan(targetPlan || null);
-              setIsUpgradeModalOpen(true);
-            }}
-          />
+          <ErrorBoundary>
+            <DashboardPage
+              user={user}
+              onLogout={handleLogout}
+              onGoHome={() => handleNavigateToSection('home')}
+              onOpenConverter={() => setIsConverterOpen(true)}
+              onNavigateToSection={handleNavigateToSection}
+              initialTab={dashboardTab}
+              onOpenUpgradeModal={(targetPlan) => {
+                setUpgradeModalTargetPlan(targetPlan || null);
+                setIsUpgradeModalOpen(true);
+              }}
+            />
+          </ErrorBoundary>
         )}
 
         {currentPage === 'terms' && (
@@ -575,46 +578,48 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
       />
 
-      {/* Payment Gateway Modal for Pro & Studio Plans */}
-      <PaymentGatewayModal
-        isOpen={isPaymentModalOpen}
-        onClose={handleClosePaymentModal}
-        plan={pricingPlan === 'studio' ? 'studio' : 'pro'}
-        billingCycle={pricingCycle}
-        user={user}
-        onPaymentSuccess={handlePaymentSuccess}
-      />
+      <ErrorBoundary>
+        {/* Payment Gateway Modal for Pro & Studio Plans */}
+        <PaymentGatewayModal
+          isOpen={isPaymentModalOpen}
+          onClose={handleClosePaymentModal}
+          plan={pricingPlan === 'studio' ? 'studio' : 'pro'}
+          billingCycle={pricingCycle}
+          user={user}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
 
-      {/* Upgrade & Onboarding Plan Selection Modal */}
-      <UpgradePlanModal
-        isOpen={isUpgradeModalOpen || (isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding)}
-        mode={(isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding) ? 'onboarding' : 'upgrade'}
-        targetPlan={upgradeModalTargetPlan}
-        onClose={handleCloseUpgradePlanModal}
-        currentTier={getEffectiveTier(user)}
-        onSelectPlan={(plan, cycle) => {
-          handleSelectPlanFromPricing(plan, cycle);
-        }}
-      />
+        {/* Upgrade & Onboarding Plan Selection Modal */}
+        <UpgradePlanModal
+          isOpen={isUpgradeModalOpen || (isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding)}
+          mode={(isLoggedIn && user?.has_selected_plan === false && !hasDismissedOnboarding) ? 'onboarding' : 'upgrade'}
+          targetPlan={upgradeModalTargetPlan}
+          onClose={handleCloseUpgradePlanModal}
+          currentTier={getEffectiveTier(user)}
+          onSelectPlan={(plan, cycle) => {
+            handleSelectPlanFromPricing(plan, cycle);
+          }}
+        />
 
-      {/* Confirmation Dialog for Logged-In Users Upgrading from Landing Page */}
-      <SubscriptionConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
-        plan={confirmModal.plan}
-        period={confirmModal.period}
-        priceLkr={
-          confirmModal.period === 'annual'
-            ? (planPrices[confirmModal.plan]?.yearly_price_lkr ?? (confirmModal.plan === 'pro' ? 25920 : 54720))
-            : (planPrices[confirmModal.plan]?.price_lkr ?? (confirmModal.plan === 'pro' ? 2700 : 5700))
-        }
-        user={user}
-        refreshProfile={refreshProfile}
-        onSuccess={async () => {
-          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-          await handlePaymentSuccess();
-        }}
-      />
+        {/* Confirmation Dialog for Logged-In Users Upgrading from Landing Page */}
+        <SubscriptionConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+          plan={confirmModal.plan}
+          period={confirmModal.period}
+          priceLkr={
+            confirmModal.period === 'annual'
+              ? (planPrices[confirmModal.plan]?.yearly_price_lkr ?? (confirmModal.plan === 'pro' ? 25920 : 54720))
+              : (planPrices[confirmModal.plan]?.price_lkr ?? (confirmModal.plan === 'pro' ? 2700 : 5700))
+          }
+          user={user}
+          refreshProfile={refreshProfile}
+          onSuccess={async () => {
+            setConfirmModal((prev) => ({ ...prev, isOpen: false }))
+            await handlePaymentSuccess();
+          }}
+        />
+      </ErrorBoundary>
 
       {/* Floating Back to Top Button */}
       <BackToTop />

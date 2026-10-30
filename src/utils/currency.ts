@@ -74,9 +74,11 @@ export function subscribeToExchangeRate(listener: (rate: number | null) => void)
  * Format USD amount to standard string with thousand separators & 2 decimals
  * e.g. 9 -> "$9.00", 1234.5 -> "$1,234.50", -10 -> "-$10.00"
  */
-export function formatUsd(usdAmount: number): string {
-  const isNegative = usdAmount < 0;
-  const abs = Math.abs(usdAmount);
+export function formatUsd(usdAmount: any): string {
+  const num = Number(String(usdAmount ?? '').replace(/,/g, ''));
+  const isNegative = num < 0;
+  const abs = Math.abs(isNegative ? num : (isNaN(num) ? 0 : num));
+  if (!isFinite(abs)) return '—';
   const formatted = abs.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -85,20 +87,8 @@ export function formatUsd(usdAmount: number): string {
 }
 
 /**
- * Format LKR amount to standard string with thousand separators & whole number
- * e.g. 2700 -> "LKR 2,700", -2700 -> "LKR -2,700"
- */
-export function formatLkr(usdAmount: number, rate: number = cachedRate || 300): string {
-  const lkrVal = Math.round(usdAmount * rate);
-  const isNegative = lkrVal < 0;
-  const abs = Math.abs(lkrVal);
-  const formatted = abs.toLocaleString('en-US');
-  return isNegative ? `LKR -${formatted}` : `LKR ${formatted}`;
-}
-
-/**
  * Main dual-currency formatter:
- * Returns "$9.00 (≈ LKR 2,700)"
+ * Returns "$9.00 (≈ LKR 2,700.00)"
  * Gracefully displays just "$9.00" if the exchange rate is not available.
  * 
  * @param usdAmount - Amount in USD (number or string representation)
@@ -120,7 +110,9 @@ export function formatDualPrice(
     return usdPart;
   }
 
-  const lkrPart = formatLkr(num, effectiveRate);
+  const lkrVal = Math.round(num * effectiveRate);
+  const lkrFormatted = formatLkr(lkrVal);
+  const lkrPart = lkrFormatted === '—' ? 'LKR 0.00' : `LKR ${lkrFormatted}`;
   const approx = approxSymbol ? '≈ ' : '';
   return `${usdPart} (${approx}${lkrPart})`;
 }
@@ -196,5 +188,34 @@ export function isBalanceDue(order: any): boolean {
   const pct = Number(order.progress_percent ?? details.progress_percent ?? 0);
   return pct >= 100;
 }
+
+/**
+ * Robust shared LKR number formatter:
+ * Converts input with Number(String(value).replace(/,/g, '')), returns "—" if not a finite number,
+ * otherwise uses toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).
+ */
+export function formatLkr(value: any): string {
+  const num = Number(String(value ?? '').replace(/,/g, ''));
+  if (!isFinite(num)) return '—';
+  return num.toLocaleString('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * Robust shared USD number formatter:
+ * Converts input with Number(String(value).replace(/,/g, '')), returns "—" if not a finite number,
+ * otherwise uses toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).
+ */
+export function formatUsdNum(value: any): string {
+  const num = Number(String(value ?? '').replace(/,/g, ''));
+  if (!isFinite(num)) return '—';
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 
 
