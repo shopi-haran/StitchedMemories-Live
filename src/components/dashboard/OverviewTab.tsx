@@ -1,19 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Crown, 
-  ShieldCheck, 
   Calendar, 
-  AlertTriangle, 
   Loader2, 
   CheckCircle2, 
   X, 
-  Palette, 
-  ShoppingBag, 
-  Package, 
-  Sparkles, 
   RefreshCw,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { 
   supabase, 
@@ -25,8 +21,10 @@ import {
   getEffectiveTier,
   getEffectiveTierLabel,
   getSubscriptionBadge,
+  fetchUserSubscriptionClaim,
   SupabaseProfileRow 
 } from '../../lib/supabase';
+import { RenewSubscriptionModal } from './RenewSubscriptionModal';
 
 interface UserProfile {
   id?: string;
@@ -57,24 +55,27 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [purchasesCount, setPurchasesCount] = useState<number>(0);
   const [customOrdersCount, setCustomOrdersCount] = useState<number>(0);
 
-  // Subscription Cancellation Modal & Action State
+  // Subscription Cancellation & Renewal Modal & Action State
   const [showCancelDialog, setShowCancelDialog] = useState<boolean>(false);
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
+  const [showRenewModal, setShowRenewModal] = useState<boolean>(false);
+  const [renewSuccessMsg, setRenewSuccessMsg] = useState<string | null>(null);
+  const [userSubClaim, setUserSubClaim] = useState<any | null>(null);
 
   const loadOverviewData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch profile
-      const prof = await fetchUserProfile(user.id, user.email);
-      setProfile(prof);
-
-      // Fetch stat counts concurrently
-      const [patternsData, purchases, orders] = await Promise.all([
+      // Fetch profile and bank transfer subscription claim concurrently
+      const [prof, subClaim, patternsData, purchases, orders] = await Promise.all([
+        fetchUserProfile(user.id, user.email),
+        user.id ? fetchUserSubscriptionClaim(user.id) : Promise.resolve(null),
         fetchUserConversionJobs(user.id, user.email, 0, 100),
         fetchUserStoreOrders(user.id, user.email),
         fetchUserStitchOrders(user.id, user.email),
       ]);
+      setProfile(prof);
+      setUserSubClaim(subClaim);
 
       setPatternsCount(patternsData.totalCount || patternsData.jobs?.length || 0);
       setPurchasesCount(purchases.length);
@@ -105,12 +106,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const handleConfirmCancel = async () => {
     setIsCancelling(true);
     setCancelSuccessMsg(null);
+    setRenewSuccessMsg(null);
 
     try {
       const res = await cancelSubscription();
       if (res.success) {
         setCancelSuccessMsg('Your subscription cancellation request has been submitted successfully.');
-        // Optionally update local profile status representation
         setProfile((prev) => prev ? { ...prev, subscription_status: 'canceling' } : null);
       }
     } catch (err) {
@@ -137,10 +138,16 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   };
 
   const effectiveTier = getEffectiveTier(profile);
-  const status = (profile?.subscription_status || 'inactive').toLowerCase();
+  const subscriptionBadge = getSubscriptionBadge(profile);
+  const isActivePaid = effectiveTier !== 'free' && subscriptionBadge.variant === 'active';
+  const isProActive = effectiveTier === 'pro' && subscriptionBadge.variant === 'active';
+  const isStudioActive = effectiveTier === 'studio' && subscriptionBadge.variant === 'active';
+  const isFree = effectiveTier === 'free' || !profile?.subscription_tier || profile.subscription_tier.toLowerCase() === 'free';
+  const isInactiveOrExpired = subscriptionBadge.variant === 'inactive' || subscriptionBadge.variant === 'expired' || (!isFree && !isActivePaid);
+
   const accessUntil = profile?.access_until || profile?.accessUntil || (user as any)?.access_until || (user as any)?.accessUntil;
 
-  const displayTierTitle = status === 'active' 
+  const displayTierTitle = isActivePaid 
     ? getEffectiveTierLabel(profile)
     : (profile?.subscription_tier && profile.subscription_tier.toLowerCase() !== 'free'
         ? `${profile.subscription_tier.charAt(0).toUpperCase() + profile.subscription_tier.slice(1)} (Inactive)`
@@ -191,24 +198,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </h3>
 
               {/* Status Badge */}
-              {(() => {
-                const subscriptionBadge = getSubscriptionBadge(profile);
-                if (!subscriptionBadge.showBadge) return null;
-                return (
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                    subscriptionBadge.variant === 'active'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                      : subscriptionBadge.variant === 'expired'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                      : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${
-                      subscriptionBadge.variant === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                    }`} />
-                    <span>{subscriptionBadge.text}</span>
-                  </span>
-                );
-              })()}
+              {subscriptionBadge.showBadge && (
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                  subscriptionBadge.variant === 'active'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : subscriptionBadge.variant === 'expired'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    subscriptionBadge.variant === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                  }`} />
+                  <span>{subscriptionBadge.text}</span>
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-[#A2B0A0]">
@@ -223,9 +226,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons: Upgrade Plan (Only shown for 'free' or 'pro' effective tiers) & Cancel Subscription */}
+          {/* Action Buttons: Free, Active Pro, Active Studio, or Inactive/Expired */}
           <div className="flex flex-wrap items-center gap-3 self-start md:self-center">
-            {(effectiveTier === 'free' || effectiveTier === 'pro') && onOpenUpgradeModal && (
+            {/* FREE: Show Upgrade plan (opens Pro and Studio) */}
+            {isFree && onOpenUpgradeModal && (
               <button
                 type="button"
                 onClick={() => onOpenUpgradeModal()}
@@ -237,8 +241,42 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </button>
             )}
 
-            {/* Cancel Subscription (Only shown for active paid tiers) */}
-            {effectiveTier !== 'free' && status === 'active' && (
+            {/* ACTIVE PRO: Show Upgrade plan (opens ONLY Studio plan card) and Cancel subscription */}
+            {isProActive && (
+              <>
+                {onOpenUpgradeModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgradeModal('studio')}
+                    className="px-5 py-2.5 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                    <span>Upgrade Plan</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowCancelDialog(true)}
+                  disabled={isCancelling}
+                  className="px-5 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50"
+                >
+                  {isCancelling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-rose-300" />
+                      <span>Cancelling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-rose-300" />
+                      <span>Cancel Subscription</span>
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+
+            {/* ACTIVE STUDIO: Show only Cancel subscription */}
+            {isStudioActive && (
               <button
                 onClick={() => setShowCancelDialog(true)}
                 disabled={isCancelling}
@@ -257,6 +295,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 )}
               </button>
             )}
+
+            {/* INACTIVE or EXPIRED Pro or Studio */}
+            {isInactiveOrExpired && (
+              userSubClaim ? (
+                <div className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 text-blue-200 rounded-full text-xs font-semibold flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-blue-300 shrink-0" />
+                  <span>Bank transfer claim pending</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowRenewModal(true)}
+                  className="px-5 py-2.5 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Renew Subscription</span>
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -267,107 +324,118 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <span>{cancelSuccessMsg}</span>
           </div>
         )}
+
+        {/* Renewal Success Alert */}
+        {renewSuccessMsg && (
+          <div className="mt-6 p-4 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-200 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{renewSuccessMsg}</span>
+          </div>
+        )}
       </div>
 
-      {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        
-        {/* Saved Patterns Stat */}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div 
           onClick={() => onNavigateToTab('patterns')}
-          className="p-6 bg-white border border-[#E8E1D2] hover:border-[#D5CDBC] rounded-3xl transition-all shadow-xs cursor-pointer group"
+          className="bg-white border border-[#E8E1D2] rounded-3xl p-6 shadow-xs hover:border-[#E06C38]/40 transition-all cursor-pointer group"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[#6B7869] uppercase tracking-wider">Saved Patterns</span>
-            <div className="p-2 bg-[#E06C38]/10 text-[#E06C38] rounded-xl group-hover:scale-110 transition-transform">
-              <Palette className="w-5 h-5" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-[#93A28F]/15 text-[#3A4538] flex items-center justify-center group-hover:bg-[#E06C38]/10 group-hover:text-[#E06C38] transition-colors">
+              <Sparkles className="w-5 h-5" />
             </div>
+            <span className="text-xs font-bold text-[#6B7869] bg-[#FAF6EE] px-2.5 py-1 rounded-full border border-[#E8E1D2]">
+              Vault
+            </span>
           </div>
-          <p className="text-3xl font-bold text-[#1D231E]">{patternsCount}</p>
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E8E1D2]/60">
-            <span className="text-[11px] text-[#8A9588]">Patterns created with converter</span>
-            <ArrowRight className="w-3.5 h-3.5 text-[#E06C38] opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
+          <h3 className="text-2xl font-bold text-[#1D231E]">{patternsCount}</h3>
+          <p className="text-xs text-[#6B7869] mt-0.5">Saved Patterns</p>
         </div>
 
-        {/* Purchases Stat */}
         <div 
           onClick={() => onNavigateToTab('purchases')}
-          className="p-6 bg-white border border-[#E8E1D2] hover:border-[#D5CDBC] rounded-3xl transition-all shadow-xs cursor-pointer group"
+          className="bg-white border border-[#E8E1D2] rounded-3xl p-6 shadow-xs hover:border-[#E06C38]/40 transition-all cursor-pointer group"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[#6B7869] uppercase tracking-wider">Purchases</span>
-            <div className="p-2 bg-[#556653]/10 text-[#556653] rounded-xl group-hover:scale-110 transition-transform">
-              <ShoppingBag className="w-5 h-5" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-[#93A28F]/15 text-[#3A4538] flex items-center justify-center group-hover:bg-[#E06C38]/10 group-hover:text-[#E06C38] transition-colors">
+              <Calendar className="w-5 h-5" />
             </div>
+            <span className="text-xs font-bold text-[#6B7869] bg-[#FAF6EE] px-2.5 py-1 rounded-full border border-[#E8E1D2]">
+              Kits & Charts
+            </span>
           </div>
-          <p className="text-3xl font-bold text-[#1D231E]">{purchasesCount}</p>
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E8E1D2]/60">
-            <span className="text-[11px] text-[#8A9588]">Kit & PDF pattern orders</span>
-            <ArrowRight className="w-3.5 h-3.5 text-[#556653] opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
+          <h3 className="text-2xl font-bold text-[#1D231E]">{purchasesCount}</h3>
+          <p className="text-xs text-[#6B7869] mt-0.5">Purchased Kits</p>
         </div>
 
-        {/* Custom Orders Stat */}
         <div 
           onClick={() => onNavigateToTab('orders')}
-          className="p-6 bg-white border border-[#E8E1D2] hover:border-[#D5CDBC] rounded-3xl transition-all shadow-xs cursor-pointer group"
+          className="bg-white border border-[#E8E1D2] rounded-3xl p-6 shadow-xs hover:border-[#E06C38]/40 transition-all cursor-pointer group"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[#6B7869] uppercase tracking-wider">Custom Orders</span>
-            <div className="p-2 bg-amber-500/10 text-amber-700 rounded-xl group-hover:scale-110 transition-transform">
-              <Package className="w-5 h-5" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-[#93A28F]/15 text-[#3A4538] flex items-center justify-center group-hover:bg-[#E06C38]/10 group-hover:text-[#E06C38] transition-colors">
+              <Crown className="w-5 h-5" />
             </div>
+            <span className="text-xs font-bold text-[#6B7869] bg-[#FAF6EE] px-2.5 py-1 rounded-full border border-[#E8E1D2]">
+              Bespoke
+            </span>
           </div>
-          <p className="text-3xl font-bold text-[#1D231E]">{customOrdersCount}</p>
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E8E1D2]/60">
-            <span className="text-[11px] text-[#8A9588]">Bespoke artisan proofs</span>
-            <ArrowRight className="w-3.5 h-3.5 text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
+          <h3 className="text-2xl font-bold text-[#1D231E]">{customOrdersCount}</h3>
+          <p className="text-xs text-[#6B7869] mt-0.5">Custom Orders</p>
         </div>
-
       </div>
 
-      {/* Quick Action Converter Banner */}
-      <div className="p-8 border-2 border-dashed border-[#E8E1D2] rounded-3xl bg-[#FAF6EE]/50 text-center flex flex-col items-center justify-center space-y-3">
-        <div className="w-12 h-12 bg-[#E06C38]/10 text-[#E06C38] rounded-2xl flex items-center justify-center shadow-2xs">
-          <Sparkles className="w-6 h-6" />
+      {/* Quick Actions & Banner */}
+      <div className="bg-white border border-[#E8E1D2] rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#E06C38]">
+            Creative Studio
+          </span>
+          <h3 className="text-xl font-bold text-[#1D231E]">
+            Ready to convert another cherished memory?
+          </h3>
+          <p className="text-xs text-[#5A6659] max-w-xl">
+            Turn any photograph into a professional cross-stitch chart with automated floss calculation and DMC colour palettes instantly.
+          </p>
         </div>
-        <h3 className="text-lg font-bold text-[#1D231E]">Ready for your next craft project?</h3>
-        <p className="text-xs text-[#5A6659] max-w-md mx-auto leading-relaxed">
-          Upload any family portrait, pet photo, or landscape image to generate a customized DMC embroidery pattern chart instantly.
-        </p>
-        <button
-          onClick={onOpenConverter}
-          className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1D231E] hover:bg-[#323D34] text-white text-xs font-bold rounded-full transition-all cursor-pointer shadow-xs"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-[#E06C38]" />
-          <span>Launch Stitchara</span>
-        </button>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={onOpenConverter}
+            className="px-6 py-3 bg-[#E06C38] hover:bg-[#d05c28] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Launch Photo Converter</span>
+          </button>
+        </div>
       </div>
 
-      {/* Confirmation Dialog Modal for Cancel Subscription */}
+      {/* Cancel Subscription Confirmation Modal */}
       {showCancelDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+        <div 
+          data-modal-overlay="true"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn"
+          onClick={() => !isCancelling && setShowCancelDialog(false)}
+        >
           <div 
-            className="relative w-full max-w-md bg-white border border-[#E8E1D2] rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5"
+            className="bg-white border border-[#E8E1D2] rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative space-y-5 text-[#1D231E]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowCancelDialog(false)}
               disabled={isCancelling}
-              className="absolute top-5 right-5 p-2 text-[#6B7869] hover:text-[#1D231E] rounded-full transition-colors cursor-pointer"
+              className="absolute top-5 right-5 p-2 rounded-full text-[#6B7869] hover:text-[#1D231E] hover:bg-[#FAF6EE] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-[#1D231E]">Cancel Subscription?</h3>
-                <p className="text-xs text-[#6B7869]">Confirming your membership cancellation.</p>
+                <h3 className="text-lg font-bold text-[#1D231E]">Cancel Subscription</h3>
+                <p className="text-xs text-[#6B7869]">Review cancellation details</p>
               </div>
             </div>
 
@@ -375,24 +443,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               Are you sure you want to cancel your <strong className="text-[#1D231E]">{displayTierTitle}</strong> subscription? You will retain access until <strong className="text-[#1D231E]">{formatDate(accessUntil)}</strong>, after which your account will revert to the free plan.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-2">
               <button
+                type="button"
                 onClick={() => setShowCancelDialog(false)}
                 disabled={isCancelling}
-                className="w-full sm:w-1/2 py-2.5 bg-[#FAF6EE] hover:bg-[#E8E1D2] text-[#1D231E] border border-[#D5CDBC] text-xs font-bold rounded-full transition-colors cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-[#D5CDBC] text-xs font-bold text-[#5A6659] hover:bg-[#FAF6EE] transition-colors cursor-pointer"
               >
                 Keep Subscription
               </button>
-
               <button
+                type="button"
                 onClick={handleConfirmCancel}
                 disabled={isCancelling}
-                className="w-full sm:w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-full transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isCancelling ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Cancelling...</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Processing...</span>
                   </>
                 ) : (
                   <span>Confirm Cancellation</span>
@@ -403,6 +472,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       )}
 
+      {/* Renew Subscription Modal */}
+      {showRenewModal && (
+        <RenewSubscriptionModal
+          isOpen={showRenewModal}
+          onClose={() => setShowRenewModal(false)}
+          defaultTier={profile?.subscription_tier === 'studio' ? 'studio' : 'pro'}
+          user={user}
+          refreshProfile={loadOverviewData}
+          onSuccess={(newDate) => {
+            setRenewSuccessMsg(`Subscription renewed. Access until ${newDate}`);
+            loadOverviewData();
+          }}
+        />
+      )}
     </div>
   );
 };
