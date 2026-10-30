@@ -30,6 +30,7 @@ import {
 import { useModalStack } from '../hooks/useModalStack';
 import { useAuth } from '../context/AuthContext';
 import { LkrPriceDisplay, formatLkrPrice } from './LkrPriceDisplay';
+import { formatLkr } from '../utils/currency';
 import { startPayHereCheckout, PAYHERE_NOTIFY_URL, PAYHERE_LIMIT_LKR } from '../lib/payhere';
 
 export interface PaymentGatewayModalProps {
@@ -534,10 +535,10 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                   isCustomStitched ? (
                     <div className="text-right">
                       <p className="text-sm font-bold text-[#FAF6EE]">
-                        {isPayingAdvance ? `50% Advance: LKR ${advanceLkr.toLocaleString()}` : `Balance: LKR ${balanceLkr.toLocaleString()}`}
+                        {isPayingAdvance ? `50% Advance: LKR ${formatLkr(advanceLkr)}` : `Balance: LKR ${formatLkr(balanceLkr)}`}
                       </p>
                       <p className="text-[11px] text-[#A5B3A2] mt-0.5">
-                        Paid LKR {amountPaidLkr.toLocaleString()} of LKR {quoteTotalLkr.toLocaleString()} total
+                        Paid LKR {formatLkr(amountPaidLkr)} of LKR {formatLkr(quoteTotalLkr)} total
                       </p>
                     </div>
                   ) : (
@@ -551,7 +552,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 ) : billingCycle === 'annual' ? (
                   <div className="text-right">
                     <p className="text-sm font-bold text-[#FAF6EE]">
-                      {`LKR ${Math.round(annualYearlyLkr / 12).toLocaleString()} × 12 months = LKR ${annualYearlyLkr.toLocaleString('.00', { minimumFractionDigits: 2 })}`}
+                      {`LKR ${formatLkr(Math.round(annualYearlyLkr / 12))} × 12 months = LKR ${formatLkr(annualYearlyLkr)}`}
                     </p>
                     <p className="text-[11px] text-[#E06C38] font-semibold mt-0.5">
                       Annual, billed once (charged today)
@@ -560,7 +561,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
                 ) : (
                   <div className="text-right">
                     <p className="text-sm font-bold text-[#FAF6EE]">
-                      {`LKR ${baseMonthlyLkr.toLocaleString('.00', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} charged today`}
+                      {`LKR ${formatLkr(baseMonthlyLkr)} charged today`}
                     </p>
                     <p className="text-[11px] text-[#A5B3A2] mt-0.5">
                       Monthly, billed monthly
@@ -574,7 +575,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             {isOrderMode && isCustomStitched && (
               <div className="mt-3 pt-3 border-t border-[#323D34] text-xs text-[#A5B3A2] space-y-2">
                 <p className="leading-relaxed">
-                  Pay 50% advance now: <span className="font-bold text-white">LKR {advanceLkr.toLocaleString()}</span>. Balance <span className="font-bold text-white">LKR {balanceLkr.toLocaleString()}</span> due before shipping.
+                  Pay 50% advance now: <span className="font-bold text-white">LKR {formatLkr(advanceLkr)}</span>. Balance <span className="font-bold text-white">LKR {formatLkr(balanceLkr)}</span> due before shipping.
                 </p>
                 {isPayingAdvance && (
                   <label className="flex items-start gap-2.5 pt-1 text-xs text-[#FAF6EE] cursor-pointer">
