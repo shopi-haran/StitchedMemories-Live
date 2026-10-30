@@ -24,6 +24,7 @@ import {
   cancelSubscription, 
   getEffectiveTier,
   getEffectiveTierLabel,
+  getSubscriptionBadge,
   SupabaseProfileRow 
 } from '../../lib/supabase';
 
@@ -190,18 +191,24 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </h3>
 
               {/* Status Badge */}
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold capitalize border ${
-                status === 'active'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  : status === 'canceling' || status === 'canceled'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  status === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                }`} />
-                <span>{status}</span>
-              </span>
+              {(() => {
+                const subscriptionBadge = getSubscriptionBadge(profile);
+                if (!subscriptionBadge.showBadge) return null;
+                return (
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                    subscriptionBadge.variant === 'active'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : subscriptionBadge.variant === 'expired'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      subscriptionBadge.variant === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                    }`} />
+                    <span>{subscriptionBadge.text}</span>
+                  </span>
+                );
+              })()}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-[#A2B0A0]">
