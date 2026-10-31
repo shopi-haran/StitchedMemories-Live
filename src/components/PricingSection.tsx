@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchSubscriptionPlans } from '../lib/supabase';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
-import { Check, Sparkles, Zap, Shield, Image, Percent, RefreshCw, Calculator, ArrowRight, Sliders } from 'lucide-react';
+import { Check, Sparkles, Zap, Shield, Image as ImageIcon, Percent, RefreshCw, Calculator, ArrowRight, Sliders } from 'lucide-react';
 import { DualPrice } from './DualPrice';
 
 interface PricingSectionProps {
@@ -364,7 +364,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
                   <span><strong className="text-[#E06C38]">Studio Image Editor & Tone Shading</strong> (Crop, rotate, scale, brightness, contrast & colour adjustments)</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <Image className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
+                  <ImageIcon className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
                   <span><strong className="text-[#E06C38]">Live Thread Color Editor & Swapper</strong> (customize & swap pattern thread shades in real-time)</span>
                 </li>
                 <li className="flex items-start gap-2.5">

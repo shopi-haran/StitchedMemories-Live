@@ -6,7 +6,7 @@ import {
   Check, 
   Zap, 
   Shield, 
-  Image, 
+  Image as ImageIcon, 
   Percent, 
   RefreshCw, 
   Calculator, 
@@ -199,6 +199,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       // or the response is missing hash, merchant_id, order_id, amount or currency,
       // do NOT start the PayHere checkout. Close loading state and show a clear error message.
       if (error || !data) {
+        let errorPayload: any = null;
         if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
           try {
             const errJson = await error.context.clone().json();
@@ -893,7 +894,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       <span><strong className="text-[#E06C38]">Studio Image Editor & Tone Shading</strong></span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <Image className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
+                      <ImageIcon className="w-4 h-4 text-[#E06C38] shrink-0 mt-0.5" />
                       <span><strong className="text-[#E06C38]">Live Thread Color Editor & Swapper</strong></span>
                     </li>
                     <li className="flex items-start gap-2">

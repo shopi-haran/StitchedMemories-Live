@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   User, 
   Camera, 
-  Lock, 
+  Lock as LockIcon, 
   CreditCard, 
   Save, 
   Loader2, 
@@ -394,7 +394,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ user }) => {
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-[#FAF6EE] border border-[#E8E1D2] focus:border-[#E06C38] focus:bg-white rounded-xl text-xs text-[#1D231E] outline-none transition-all"
                 />
-                <Lock className="w-4 h-4 text-[#8A9588] absolute left-3 top-3" />
+                <LockIcon className="w-4 h-4 text-[#8A9588] absolute left-3 top-3" />
               </div>
             </div>
 
@@ -411,7 +411,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ user }) => {
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-[#FAF6EE] border border-[#E8E1D2] focus:border-[#E06C38] focus:bg-white rounded-xl text-xs text-[#1D231E] outline-none transition-all"
                 />
-                <Lock className="w-4 h-4 text-[#8A9588] absolute left-3 top-3" />
+                <LockIcon className="w-4 h-4 text-[#8A9588] absolute left-3 top-3" />
               </div>
             </div>
 

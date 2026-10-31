@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Lock, ArrowLeft, AlertCircle, CheckCircle2, Loader2, KeyRound } from 'lucide-react';
+import { Sparkles, Lock as LockIcon, ArrowLeft, AlertCircle, CheckCircle2, Loader2, KeyRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ResetPasswordPageProps {
@@ -149,7 +149,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ onGoHome, 
                   New Password (min 8 characters)
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
+                  <LockIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
                   <input
                     type="password"
                     required
@@ -167,7 +167,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ onGoHome, 
                   Confirm New Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
+                  <LockIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
                   <input
                     type="password"
                     required

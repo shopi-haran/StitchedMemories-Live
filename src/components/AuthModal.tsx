@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Mail, Lock, User as UserIcon, Sparkles, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Mail, Lock as LockIcon, User as UserIcon, Sparkles, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase, fetchUserProfile } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
 
@@ -441,7 +441,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   )}
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
+                  <LockIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
                   <input
                     type="password"
                     required

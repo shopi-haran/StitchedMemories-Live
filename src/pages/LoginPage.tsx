@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Mail, Lock, User as UserIcon, ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2, KeyRound } from 'lucide-react';
+import { Sparkles, Mail, Lock as LockIcon, User as UserIcon, ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2, KeyRound } from 'lucide-react';
 import { supabase, fetchUserProfile } from '../lib/supabase';
 
 interface LoginPageProps {
@@ -397,7 +397,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onGoHome }
                     )}
                   </div>
                   <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
+                    <LockIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A9588]" />
                     <input
                       type="password"
                       required

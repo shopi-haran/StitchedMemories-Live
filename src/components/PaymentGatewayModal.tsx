@@ -15,7 +15,8 @@ import {
   Upload,
   FileText,
   Clock,
-  Banknote
+  Banknote,
+  Lock as LockIcon
 } from 'lucide-react';
 import { 
   supabase, 
@@ -25,7 +26,9 @@ import {
   claimSubscriptionTransfer, 
   cancelSubscriptionClaim, 
   fetchUserSubscriptionClaim,
-  uploadPaymentProof 
+  uploadPaymentProof,
+  fetchUserProfile,
+  getEffectiveTier
 } from '../lib/supabase';
 import { useModalStack } from '../hooks/useModalStack';
 import { useAuth } from '../context/AuthContext';
@@ -832,7 +835,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
-              <Lock className="w-4 h-4 text-emerald-600" />
+              <LockIcon className="w-4 h-4 text-emerald-600" />
               <span>256-Bit SSL Encryption</span>
             </span>
           </div>
