@@ -26,7 +26,7 @@ import {
   MessageSquare,
   RotateCcw,
   XCircle,
-  History,
+  History as HistoryIcon,
   ChevronDown,
   ChevronUp,
   X,
@@ -1591,7 +1591,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         className="w-full px-4 py-3 flex items-center justify-between text-xs font-bold text-[#1D231E] hover:bg-[#FAF6EE] transition-colors cursor-pointer"
                       >
                         <span className="flex items-center gap-2">
-                          <History className="w-4 h-4 text-[#E06C38]" />
+                          <HistoryIcon className="w-4 h-4 text-[#E06C38]" />
                           <span>Previous Quote Versions ({order.quote_history.length})</span>
                         </span>
                         <span className="text-[#5A6659] text-[11px] flex items-center gap-1">

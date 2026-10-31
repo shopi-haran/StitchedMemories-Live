@@ -18,7 +18,7 @@ import {
   ShoppingBag,
   ExternalLink,
   MessageSquare,
-  Lock,
+  Lock as LockIcon,
   Edit3,
   X,
   Loader2,
@@ -852,7 +852,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                   <div className="text-xs text-[#5A6659]">
                     {isDelivered && (
                       <span className="flex items-center gap-1.5 font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                        <Lock className="w-3.5 h-3.5" />
+                        <LockIcon className="w-3.5 h-3.5" />
                         <span>Fulfillment Completed & Delivered (Locked)</span>
                       </span>
                     )}
@@ -1052,7 +1052,7 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                 </label>
                 {getStoreStageIndex(editModalOrder.fulfillment_status || editModalOrder.status) === 3 ? (
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 font-semibold flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <LockIcon className="w-4 h-4 text-emerald-700 shrink-0" />
                     <span>Delivered (Final stage — locked from moving backward)</span>
                   </div>
                 ) : (

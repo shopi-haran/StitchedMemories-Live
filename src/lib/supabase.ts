@@ -1673,7 +1673,7 @@ export async function saveAdminOrderGeneratedPattern(
 
     const threadReqs = payload.thread_requirements || currentDetails.thread_requirements || [];
 
-    const updatedDetails = {
+    const updatedDetails: Record<string, any> = {
       ...currentDetails,
       pattern_config: payload.pattern_config,
       pattern_pdf_url: payload.pattern_pdf_url || currentDetails.pattern_pdf_url || '',

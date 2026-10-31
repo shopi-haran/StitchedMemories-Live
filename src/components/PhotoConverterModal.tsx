@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Upload, Sparkles, Sliders, Layers, Check, Download,
-  RefreshCw, Lock, Shield, ArrowRight, Eye, CheckCircle2,
+  RefreshCw, Lock as LockIcon, Shield, ArrowRight, Eye, CheckCircle2,
   Edit3, Trash2, Repeat, Ruler, Calculator, ZoomIn, Info,
   ShoppingBag, Package, Truck, CreditCard, Crown, AlertCircle
 } from 'lucide-react';
@@ -1076,7 +1076,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
                       onClick={() => alert('Studio Image Editor (Crop, Rotate, Flip, Scale & Tone Shading / Colour Adjustments) is exclusive to Studio Plan users. Switch to Studio Plan to unlock advanced tone calibration!')}
                       className="w-full py-2.5 px-4 bg-[#F0EBE1] text-[#7A8877] rounded-xl font-bold text-xs border border-[#DCD2C0] flex items-center justify-center gap-2 cursor-pointer hover:bg-[#E8E1D2]/80 transition-colors"
                     >
-                      <Lock className="w-3.5 h-3.5 text-[#E06C38]" />
+                      <LockIcon className="w-3.5 h-3.5 text-[#E06C38]" />
                       <span>Studio Image Editor & Tone Shading (Studio Plan Exclusive)</span>
                     </button>
                   )}
@@ -1225,7 +1225,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
                     }`}
                   >
                     <span>Anchor</span>
-                    {planTier === 'free' && <Lock className="w-2.5 h-2.5 text-[#E06C38]" />}
+                    {planTier === 'free' && <LockIcon className="w-2.5 h-2.5 text-[#E06C38]" />}
                   </button>
                 </div>
               </div>

@@ -18,7 +18,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught rendering error:', error, errorInfo);
+    console.error('[ErrorBoundary] Caught rendering error:', error);
+    if (errorInfo && errorInfo.componentStack) {
+      console.error('[ErrorBoundary] Component Stack:\n' + errorInfo.componentStack);
+    }
   }
 
   public render() {

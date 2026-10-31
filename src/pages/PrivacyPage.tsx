@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ArrowLeft, Shield, Lock, Eye, Database, FileCheck, CheckCircle2, Mail, Scissors, Server, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Shield, Lock as LockIcon, Eye, Database, FileCheck, CheckCircle2, Mail, Scissors, Server, RotateCcw } from 'lucide-react';
 
 interface PrivacyPageProps {
   onGoHome: () => void;
@@ -76,7 +76,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onGoHome, onNavigateTo
           <aside className="lg:col-span-4 hidden lg:block">
             <div className="sticky top-24 bg-white rounded-2xl p-5 border border-[#E8E1D2] shadow-xs space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#6B7869] flex items-center gap-2">
-                <Lock className="w-3.5 h-3.5 text-[#E06C38]" /> Privacy Topics
+                <LockIcon className="w-3.5 h-3.5 text-[#E06C38]" /> Privacy Topics
               </h3>
               <nav className="space-y-1 text-xs text-[#5A6659]">
                 <button onClick={() => scrollToAnchor('info-collect')} className="block w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-[#FAF6EE] hover:text-[#1D231E] transition-colors font-medium">
