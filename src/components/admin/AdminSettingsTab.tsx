@@ -23,6 +23,7 @@ interface AdminSettingsTabProps {
   lastUpdatedAt: string | null;
   rateError: string | null;
   onRefresh: () => void;
+  showToast?: (msg: string) => void;
 }
 
 const PRESET_RATES = [295, 300, 305, 310, 315, 320];
@@ -35,6 +36,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   lastUpdatedAt,
   rateError,
   onRefresh,
+  showToast,
 }) => {
   const [testLkrInput, setTestLkrInput] = useState<string>('23340');
   const parsedRate = parseFloat(currentRateInput) || 300;
@@ -293,12 +295,12 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
       </div>
 
       {/* Bank Transfer Details Settings Card */}
-      <BankTransferSettingsCard />
+      <BankTransferSettingsCard showToast={showToast} />
     </div>
   );
 };
 
-function BankTransferSettingsCard() {
+function BankTransferSettingsCard({ showToast }: { showToast?: (msg: string) => void }) {
   const [detailsInput, setDetailsInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -316,9 +318,10 @@ function BankTransferSettingsCard() {
     setIsSaving(false);
     if (res.success) {
       setLastUpdated(new Date().toLocaleTimeString());
-      alert('Bank transfer details saved successfully!');
+      if (showToast) showToast('Saved');
     } else {
-      alert('Failed to save bank transfer details.');
+      const errMsg = res.error ? (typeof res.error === 'string' ? res.error : res.error.message || JSON.stringify(res.error)) : 'Failed to save bank transfer details';
+      if (showToast) showToast(errMsg);
     }
   };
 

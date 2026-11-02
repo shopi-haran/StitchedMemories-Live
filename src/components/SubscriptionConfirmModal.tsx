@@ -4,7 +4,7 @@ import { X, Sparkles, Shield, Loader2, AlertCircle, Upload, FileText, Banknote, 
 import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { supabase, fetchUserProfile } from '../lib/supabase';
-import { startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
+import { startPayHereCheckout, PAYHERE_NOTIFY_URL, requiresBankTransfer } from '../lib/payhere';
 
 export interface SubscriptionConfirmModalProps {
   isOpen: boolean;
@@ -53,9 +53,9 @@ export const SubscriptionConfirmModal: React.FC<SubscriptionConfirmModalProps> =
     setErrorMessage(null);
     setPendingNotice(null);
 
-    // Pre-call limit check: if price exceeds PayHere limit (50,000 LKR),
+    // Pre-call limit check: if price reaches or exceeds PayHere limit (LKR 50,000 or more),
     // show bank transfer panel without calling the Edge Function.
-    if (priceLkr > 50000) {
+    if (requiresBankTransfer(priceLkr)) {
       setShowSubscriptionBankTransfer(true);
       setSubscriptionBankTransferAmountLkr(priceLkr);
       setIsProcessing(false);

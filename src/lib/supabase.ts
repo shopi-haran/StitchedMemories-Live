@@ -2980,12 +2980,14 @@ export async function fetchSubscriptionPlans(): Promise<SubscriptionPlanRow[]> {
 /**
  * Bank transfer & subscription claim helper functions
  */
+export const BANK_TRANSFER_DETAILS_KEY = 'bank_transfer_details';
+
 export async function fetchBankTransferDetails(): Promise<string> {
   try {
     const { data, error } = await supabase
       .from('app_settings')
       .select('value')
-      .eq('key', 'bank_transfer_details')
+      .eq('key', BANK_TRANSFER_DETAILS_KEY)
       .maybeSingle();
     if (error || !data) return '';
     return data.value || '';
@@ -2994,16 +2996,22 @@ export async function fetchBankTransferDetails(): Promise<string> {
   }
 }
 
-export async function updateBankTransferDetailsInDb(details: string): Promise<{ success: boolean; error?: any }> {
+export async function updateBankTransferDetailsInDb(details: string): Promise<{ success: boolean; error?: any; data?: any }> {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('app_settings')
-      .update({ value: details, updated_at: new Date().toISOString() })
-      .eq('key', 'bank_transfer_details');
-    if (error) return { success: false, error };
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err };
+      .upsert(
+        { key: BANK_TRANSFER_DETAILS_KEY, value: details, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      )
+      .select()
+      .single();
+    if (error || !data) {
+      return { success: false, error: error?.message || 'No row returned' };
+    }
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: err?.message || err };
   }
 }
 

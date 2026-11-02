@@ -150,7 +150,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const displayTierTitle = isActivePaid 
     ? getEffectiveTierLabel(profile)
     : (profile?.subscription_tier && profile.subscription_tier.toLowerCase() !== 'free'
-        ? `${profile.subscription_tier.charAt(0).toUpperCase() + profile.subscription_tier.slice(1)} (Inactive)`
+        ? `${profile.subscription_tier.charAt(0).toUpperCase() + profile.subscription_tier.slice(1)}`
         : 'Free Crafter');
 
   return (
