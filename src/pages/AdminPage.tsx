@@ -1488,6 +1488,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({
                 lastUpdatedAt={rateLastUpdatedAt}
                 rateError={rateFetchError}
                 onRefresh={loadExchangeRate}
+                showToast={showToast}
               />
             )}
           </>

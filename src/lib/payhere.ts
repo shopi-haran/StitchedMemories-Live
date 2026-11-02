@@ -14,6 +14,10 @@ export const PAYHERE_EDGE_FUNCTION_URL = supabaseUrl
 
 export const PAYHERE_LIMIT_LKR = 50000;
 
+export function requiresBankTransfer(amount: number): boolean {
+  return amount >= PAYHERE_LIMIT_LKR;
+}
+
 export type PayHereHashRequest =
   | { kind: 'subscription'; tier: 'pro' | 'studio' | string }
   | { kind: 'order'; orderRowId: string | number };

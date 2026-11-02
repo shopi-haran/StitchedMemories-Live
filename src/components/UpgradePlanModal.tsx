@@ -27,7 +27,7 @@ import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { useAuth } from '../context/AuthContext';
 import { supabase, fetchUserProfile, updateUserPlanSelection, fetchSubscriptionPlans } from '../lib/supabase';
-import { startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../lib/payhere';
+import { startPayHereCheckout, PAYHERE_NOTIFY_URL, requiresBankTransfer } from '../lib/payhere';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -173,7 +173,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         ? planPrices[plan]?.yearly_price_lkr
         : planPrices[plan]?.price_lkr;
 
-    if (selectedPriceLkr != null && selectedPriceLkr > 50000) {
+    if (selectedPriceLkr != null && requiresBankTransfer(selectedPriceLkr)) {
       setShowSubscriptionBankTransfer(true);
       setSubscriptionBankTransferPlan(plan);
       setSubscriptionBankTransferPeriod(
@@ -480,7 +480,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <div className="flex-1">
                   <h4 className="text-sm font-bold text-[#1D231E]">Pay by Bank Transfer</h4>
                   <p className="text-xs text-[#5A6659] mt-0.5">
-                    This subscription amount exceeds our online payment limit (LKR 50,000). Please pay via bank transfer instead.
+                    This subscription amount is LKR 50,000 or more. Please pay via bank transfer instead.
                   </p>
                 </div>
               </div>
