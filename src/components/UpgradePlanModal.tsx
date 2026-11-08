@@ -27,7 +27,7 @@ import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
 import { useAuth } from '../context/AuthContext';
 import { supabase, fetchUserProfile, updateUserPlanSelection, fetchSubscriptionPlans } from '../lib/supabase';
-import { startPayHereCheckout, PAYHERE_NOTIFY_URL, requiresBankTransfer } from '../lib/payhere';
+import { PaymentGatewayModal } from './PaymentGatewayModal';
 
 export interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -68,11 +68,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
     (planPrices.studio?.yearly_price_lkr != null && planPrices.studio.yearly_price_lkr > 0)
   );
 
-  // Bank transfer state for amounts exceeding PayHere limit
-  const [showSubscriptionBankTransfer, setShowSubscriptionBankTransfer] = useState<boolean>(false);
-  const [subscriptionBankTransferPlan, setSubscriptionBankTransferPlan] = useState<'pro' | 'studio' | null>(null);
-  const [subscriptionBankTransferPeriod, setSubscriptionBankTransferPeriod] = useState<'monthly' | 'annual'>('monthly');
-  const [subscriptionBankTransferAmountLkr, setSubscriptionBankTransferAmountLkr] = useState<number>(0);
+  const [gatewayPlan, setGatewayPlan] = useState<'pro' | 'studio' | null>(null);
 
   useEffect(() => {
     if (!hasAnnual && billingCycle === 'annual') {
@@ -160,208 +156,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       onSelectPlan(plan, billingCycle);
       return;
     }
-
-    setIsProcessingPayment(true);
-    setSelectedPlanInProgress(plan);
-    setPaymentError(null);
-    setVerificationPendingMsg(null);
-
-    // Pre-call limit check: if price exceeds PayHere limit (50,000 LKR),
-    // show bank transfer panel without calling the Edge Function.
-    const selectedPriceLkr =
-      hasAnnual && billingCycle === 'annual'
-        ? planPrices[plan]?.yearly_price_lkr
-        : planPrices[plan]?.price_lkr;
-
-    if (selectedPriceLkr != null && requiresBankTransfer(selectedPriceLkr)) {
-      setShowSubscriptionBankTransfer(true);
-      setSubscriptionBankTransferPlan(plan);
-      setSubscriptionBankTransferPeriod(
-        hasAnnual && billingCycle === 'annual' ? 'annual' : 'monthly'
-      );
-      setSubscriptionBankTransferAmountLkr(selectedPriceLkr);
-      setIsProcessingPayment(false);
-      setSelectedPlanInProgress(null);
-      return;
-    }
-
-    try {
-      // 1. Call create-payhere-hash with exactly { kind: 'subscription', tier, period }
-      const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
-        body: {
-          kind: 'subscription',
-          tier: plan,
-          period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly',
-        },
-      });
-
-      // If the create-payhere-hash call returns an error or a non-2xx response,
-      // or the response is missing hash, merchant_id, order_id, amount or currency,
-      // do NOT start the PayHere checkout. Close loading state and show a clear error message.
-      if (error || !data) {
-        let errorPayload: any = null;
-        if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
-          try {
-            const errJson = await error.context.clone().json();
-            errorPayload = { status: error.context.status, body: errJson, error };
-          } catch {
-            errorPayload = { status: error.context.status, error };
-          }
-        }
-        console.error('[create-payhere-hash error response]:', errorPayload);
-        setIsProcessingPayment(false);
-        setSelectedPlanInProgress(null);
-        setPaymentError({
-          type: 'error',
-          message: 'Could not start payment, please try again',
-          plan,
-        });
-        return;
-      }
-      // Safety net: if amount exceeds PayHere limit, do not open PayHere.
-      // Do not use hash, merchant_id or order_id (they are null). Show bank transfer panel instead.
-      if (data.amount_exceeds_50k) {
-        setIsProcessingPayment(false);
-        setSelectedPlanInProgress(null);
-        setShowSubscriptionBankTransfer(true);
-        setSubscriptionBankTransferPlan(plan);
-        setSubscriptionBankTransferPeriod(
-          hasAnnual && billingCycle === 'annual' ? 'annual' : 'monthly'
-        );
-        setSubscriptionBankTransferAmountLkr(Number(data.amount || 0));
-        return;
-      }
-
-      // If the response is missing required fields (and not due to amount limit), show error.
-      if (
-        !data.hash ||
-        !data.merchant_id ||
-        !data.order_id ||
-        !data.amount ||
-        !data.currency
-      ) {
-        let errorPayload = error || data;
-        if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
-          try {
-            const errJson = await error.context.clone().json();
-            errorPayload = { status: error.context.status, body: errJson, error };
-          } catch {
-            errorPayload = { status: error.context.status, error };
-          }
-        }
-        console.error('[create-payhere-hash error response]:', errorPayload);
-        setIsProcessingPayment(false);
-        setSelectedPlanInProgress(null);
-        setPaymentError({
-          type: 'error',
-          message: 'Could not start payment, please try again',
-          plan,
-        });
-        return;
-      }
-
-      const nameParts = (user.name || 'Crafter Member').trim().split(/\s+/);
-      const firstName = nameParts[0] || 'Crafter';
-      const lastName = nameParts.slice(1).join(' ') || 'Member';
-
-      // 2. Open PayHere checkout using returned merchant_id, order_id, amount, currency, and hash exactly as given
-      await startPayHereCheckout(
-        {
-          sandbox: true,
-          merchant_id: String(data.merchant_id),
-          order_id: String(data.order_id),
-          items: `StitchedMemories ${plan === 'pro' ? 'Pro Crafter' : 'Studio'} Membership (${billingCycle})`,
-          amount: String(data.amount),
-          currency: String(data.currency),
-          hash: String(data.hash),
-          first_name: firstName,
-          last_name: lastName,
-          email: user.email,
-          phone: '0771234567',
-          address: 'Digital Crafter Membership',
-          city: 'Colombo',
-          country: 'Sri Lanka',
-          return_url: window.location.href,
-          cancel_url: window.location.href,
-          notify_url: PAYHERE_NOTIFY_URL,
-        },
-        {
-          onCompleted: async (completedOrderId) => {
-            console.log('[UpgradePlanModal] PayHere onCompleted:', completedOrderId);
-            setIsVerifying(true);
-            setIsProcessingPayment(true);
-            setPaymentError(null);
-            setVerificationPendingMsg(null);
-
-            // Poll/refetch the user's profile every 2 seconds for up to 30 seconds
-            // until subscription_status is 'active' and subscription_tier matches the purchased tier
-            const pollIntervalMs = 2000;
-            const maxAttempts = 15; // 15 * 2s = 30 seconds
-            let confirmed = false;
-
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-              try {
-                const latestProfile = await fetchUserProfile(user.id);
-                const currentTier = (latestProfile?.subscription_tier || '').toLowerCase();
-                const currentStatus = (latestProfile?.subscription_status || '').toLowerCase();
-
-                if (currentStatus === 'active' && (currentTier === plan || (plan === 'pro' && currentTier === 'studio'))) {
-                  confirmed = true;
-                  await refreshProfile();
-                  break;
-                }
-              } catch (pollErr) {
-                console.warn('[UpgradePlanModal] Error polling profile:', pollErr);
-              }
-            }
-
-            setIsVerifying(false);
-            if (confirmed) {
-              setIsSuccess(true);
-              await refreshProfile();
-              window.dispatchEvent(new CustomEvent('tierChanged'));
-              setTimeout(() => {
-                setIsProcessingPayment(false);
-                setSelectedPlanInProgress(null);
-                if (onClose) onClose();
-              }, 1200);
-            } else {
-              setIsProcessingPayment(false);
-              setSelectedPlanInProgress(null);
-              setVerificationPendingMsg(
-                'Payment not confirmed yet, check your dashboard shortly'
-              );
-            }
-          },
-          onDismissed: () => {
-            console.log('[UpgradePlanModal] PayHere onDismissed');
-            // Close checkout without changing state or showing success
-            setIsProcessingPayment(false);
-            setSelectedPlanInProgress(null);
-            setIsVerifying(false);
-            setVerificationPendingMsg(null);
-          },
-          onError: (error) => {
-            console.error('[UpgradePlanModal] PayHere onError:', error);
-            // Close checkout without changing state or showing success
-            setIsProcessingPayment(false);
-            setSelectedPlanInProgress(null);
-            setIsVerifying(false);
-            setVerificationPendingMsg(null);
-          },
-        }
-      );
-    } catch (err: any) {
-      console.error('[create-payhere-hash error response]:', err);
-      setIsProcessingPayment(false);
-      setSelectedPlanInProgress(null);
-      setPaymentError({
-        type: 'error',
-        message: 'Could not start payment, please try again',
-        plan,
-      });
-    }
+    setGatewayPlan(plan);
   };
 
   const proPriceLkr = planPrices.pro ?? 2700;
@@ -472,92 +267,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               </div>
             </div>
           )}
-          {/* Subscription Bank Transfer Panel (when amount exceeds PayHere limit)} */}
-          {showSubscriptionBankTransfer && subscriptionBankTransferPlan && (
-            <div className="p-6 sm:p-8 bg-blue-50 border border-blue-200 rounded-3xl space-y-4 animate-fadeIn">
-              <div className="flex items-start gap-3">
-                <Banknote className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-bold text-[#1D231E]">Pay by Bank Transfer</h4>
-                  <p className="text-xs text-[#5A6659] mt-0.5">
-                    This subscription amount is LKR 50,000 or more. Please pay via bank transfer instead.
-                  </p>
-                </div>
-              </div>
 
-              <div className="space-y-3">
-                <label className="block text-xs font-bold text-[#1D231E] mb-1">Plan</label>
-                <div className="flex items-center gap-2 text-xs text-[#1D231E]">
-                  <span className="font-bold">{subscriptionBankTransferPlan === 'pro' ? 'Pro Plan' : 'Studio Plan'}</span>
-                  <span className="text-[#5A6659]">({subscriptionBankTransferPeriod === 'annual' ? 'Annual' : 'Monthly'})</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-[#1D231E] mb-1">Amount Due</label>
-                <LkrPriceDisplay
-                  priceLkr={subscriptionBankTransferAmountLkr}
-                  layout="inline"
-                  lkrClassName="font-bold text-[#1D231E] text-lg"
-                  usdClassName="text-xs text-[#5A6659]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-[#1D231E] mb-1">Payment Reference</label>
-                <div className="flex items-center gap-2 bg-[#FAF6EE] border border-[#E8E1D2] rounded-xl p-2">
-                  <span className="font-mono text-xs font-bold text-[#1D231E]">
-                    SM-SUB-{String(subscriptionBankTransferPlan).toUpperCase().slice(0, 4)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `SM-SUB-${String(subscriptionBankTransferPlan).toUpperCase().slice(0, 4)}`
-                      );
-                    }}
-                    className="p-1 text-[#5A6659] hover:text-[#1D231E] hover:bg-[#E8E1D2] rounded transition-colors"
-                    title="Copy reference"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </button>
-                </div>
-                <p className="text-[10px] text-[#5A6659] mt-0.5">
-                  Write this reference in the transfer remarks.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-[#1D231E] mb-1">
-                  Optional Note (transfer date or bank reference)
-                </label>
-                <textarea
-                  value=""
-                  onChange={() => {}}
-                  maxLength={500}
-                  rows={2}
-                  className="w-full px-3 py-2 bg-white border border-[#D5CDBC] rounded-xl text-xs text-[#1D231E] focus:outline-none focus:ring-2 focus:ring-[#E06C38]/40"
-                  placeholder="e.g. Transfer on 15 Oct from Commercial Bank..."
-                ></textarea>
-                <p className="text-[10px] text-[#5A6659]">
-                  0/500 characters
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowSubscriptionBankTransfer(false)}
-                className="w-full py-3 px-4 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-[#E06C38] hover:bg-[#d05c28] text-white cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
-              >
-                <Banknote className="w-3 h-3" />
-                <span>I've Made the Transfer</span>
-              </button>
-
-              <p className="text-[10px] text-[#6B7869] text-center mt-1">
-                We'll verify your transfer and activate your subscription once the payment reaches our account.
-              </p>
-            </div>
-          )}
 
           {isVerifying && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 animate-fadeIn">
@@ -938,6 +648,20 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           </div>
         </div>
       </div>
+      {/* Payment Gateway Modal */}
+      <PaymentGatewayModal
+        isOpen={Boolean(gatewayPlan)}
+        onClose={() => setGatewayPlan(null)}
+        plan={gatewayPlan || 'pro'}
+        billingCycle={billingCycle}
+        user={user}
+        onPaymentSuccess={async () => {
+          setGatewayPlan(null);
+          if (onClose) onClose();
+          await refreshProfile();
+          window.dispatchEvent(new CustomEvent('tierChanged'));
+        }}
+      />
     </div>,
     document.body
   );
