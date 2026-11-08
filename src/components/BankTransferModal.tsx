@@ -43,6 +43,7 @@ export const BankTransferModal: React.FC<BankTransferModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      console.log('[pay] bank window opened', { paymentRef, amountLkr, isOrderMode, tier, period });
       setNote('');
       setSlipFile(null);
       setErrorMsg(null);

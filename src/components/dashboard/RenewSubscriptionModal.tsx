@@ -77,6 +77,8 @@ export const RenewSubscriptionModal: React.FC<RenewSubscriptionModalProps> = ({
   const formattedAccessDate = accessUntilDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const handleContinueToPayment = () => {
+    console.log('[pay] entry renew', { tier, period, activePriceLkr });
+    console.log('[pay] amount due', activePriceLkr);
     setIsPaymentOpen(true);
   };
 

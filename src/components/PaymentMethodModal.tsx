@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ShieldCheck, CreditCard, Banknote } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
@@ -30,6 +30,12 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
   isNonRefundableChecked = false,
   onNonRefundableCheckChange,
 }) => {
+  useEffect(() => {
+    if (isOpen) {
+      console.log('[pay] chooser opened', { title, amountLkr });
+    }
+  }, [isOpen]);
+
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'payment-method-modal' });
 
   if (!isOpen || typeof document === 'undefined') return null;

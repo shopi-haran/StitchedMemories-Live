@@ -118,9 +118,13 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   // Initialize activeSubModal on open
   useEffect(() => {
     if (isOpen) {
+      console.log('[pay] entry', { isOrderMode, plan, billingCycle, order, quote });
+      console.log('[pay] amount due', amountDueNow, { exceedsLimit });
       if (exceedsLimit) {
+        console.log('[pay] bank window opened', { amountDueNow, exceedsLimit });
         setActiveSubModal('bank');
       } else {
+        console.log('[pay] chooser opened', { amountDueNow, exceedsLimit });
         setActiveSubModal('method');
       }
     }
@@ -147,6 +151,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         : { kind: 'subscription', tier: plan, period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly' };
 
       const itemTitle = isOrderMode ? orderTitle : `StitchedMemories ${planName} (${billingCycle})`;
+      console.log('[pay] payhere start', { requestPayload, itemTitle, amountDueNow });
 
       const result = await startCheckoutSession(
         {
