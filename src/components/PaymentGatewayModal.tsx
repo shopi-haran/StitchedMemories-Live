@@ -9,7 +9,7 @@ import {
   fetchUserProfile, 
   getEffectiveTier 
 } from '../lib/supabase';
-import { startPayHereCheckout, PAYHERE_NOTIFY_URL, PAYHERE_LIMIT_LKR, requiresBankTransfer } from '../lib/payhere';
+import { PAYHERE_LIMIT_LKR, requiresBankTransfer, startCheckoutSession, PayHereHashRequest } from '../lib/payhere';
 import { PaymentMethodModal } from './PaymentMethodModal';
 import { BankTransferModal } from './BankTransferModal';
 
@@ -142,46 +142,17 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     setPaymentError(null);
 
     try {
-      const requestPayload = isOrderMode
+      const requestPayload: PayHereHashRequest = isOrderMode
         ? { kind: 'order', orderRowId: order?.raw_order_id || order?.id }
         : { kind: 'subscription', tier: plan, period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly' };
 
-      const { data, error } = await supabase.functions.invoke('create-payhere-hash', {
-        body: requestPayload,
-      });
+      const itemTitle = isOrderMode ? orderTitle : `StitchedMemories ${planName} (${billingCycle})`;
 
-      if (error || !data || !data.hash || !data.merchant_id || !data.order_id || !data.amount || !data.currency || data.amount_exceeds_50k) {
-        if (data?.amount_exceeds_50k) {
-          setIsProcessing(false);
-          setActiveSubModal('bank');
-          return;
-        }
-        throw new Error('Could not start payment, please try again');
-      }
-
-      const nameParts = (user?.name || 'Crafter Member').trim().split(/\s+/);
-      const firstName = nameParts[0] || 'Crafter';
-      const lastName = nameParts.slice(1).join(' ') || 'Member';
-
-      await startPayHereCheckout(
+      const result = await startCheckoutSession(
         {
-          sandbox: true,
-          merchant_id: String(data.merchant_id),
-          order_id: String(data.order_id),
-          items: isOrderMode ? orderTitle : `StitchedMemories ${planName} (${billingCycle})`,
-          amount: String(data.amount),
-          currency: String(data.currency),
-          hash: String(data.hash),
-          first_name: firstName,
-          last_name: lastName,
-          email: user?.email || '',
-          phone: '0771234567',
-          address: 'Digital Crafter Membership',
-          city: 'Colombo',
-          country: 'Sri Lanka',
-          return_url: window.location.href,
-          cancel_url: window.location.href,
-          notify_url: PAYHERE_NOTIFY_URL,
+          request: requestPayload,
+          user,
+          itemTitle,
         },
         {
           onCompleted: async (completedOrderId) => {
@@ -204,6 +175,15 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
           },
         }
       );
+
+      if (!result.success) {
+        setIsProcessing(false);
+        if (result.exceedsLimit) {
+          setActiveSubModal('bank');
+        } else {
+          setPaymentError(result.error || 'Could not start payment, please try again');
+        }
+      }
     } catch (err: any) {
       console.error('[PaymentGatewayModal] PayHere error:', err);
       setIsProcessing(false);

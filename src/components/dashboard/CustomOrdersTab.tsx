@@ -52,7 +52,6 @@ import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue } f
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import { PaymentGatewayModal } from '../PaymentGatewayModal';
-import { createPayHereHash, startPayHereCheckout, PAYHERE_NOTIFY_URL } from '../../lib/payhere';
 import { useCurrency } from '../../context/CurrencyContext';
 
 interface UserProfile {
@@ -470,8 +469,9 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
     };
   }, [user.id, user.email, loadOrders]);
 
-  const handleConfirmQuote = async (order: SupabaseStitchOrderRow) => {
-    const realOrderId = order.raw_order_id || order.id;
+  const [gatewayOrder, setGatewayOrder] = useState<any | null>(null);
+
+  const handleConfirmQuote = (order: SupabaseStitchOrderRow) => {
     const quoteObj: any = order.quote || order.request_details?.quote;
 
     // Reject legacy quotes without LKR currency
@@ -483,117 +483,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
       return;
     }
 
-    setConfirmingOrderId(realOrderId);
-    setPaymentErrorOrderId(null);
-
-    try {
-      // 1. Call create-payhere-hash with ONLY { kind: 'order', orderRowId }
-      // Never send order_id, amount, or currency
-      const hashRes = await createPayHereHash({
-        kind: 'order',
-        orderRowId: realOrderId,
-      });
-
-      const nameParts = (order.customer_name || user?.name || 'Crafter').trim().split(/\s+/);
-      const firstName = nameParts[0] || 'Crafter';
-      const lastName = nameParts.slice(1).join(' ') || 'Customer';
-
-      // 2. Open PayHere checkout with returned values exactly as given
-      await startPayHereCheckout(
-        {
-          sandbox: true,
-          merchant_id: hashRes.merchant_id,
-          order_id: hashRes.order_id,
-          items: order.title || `Custom Keepsake #${realOrderId}`,
-          amount: hashRes.amount,
-          currency: hashRes.currency,
-          hash: hashRes.hash,
-          first_name: firstName,
-          last_name: lastName,
-          email: order.customer_email || user?.email || '',
-          phone: order.customer_phone || '0771234567',
-          address: order.shipping_address || 'Online Order',
-          city: 'Colombo',
-          country: 'Sri Lanka',
-          return_url: window.location.href,
-          cancel_url: window.location.href,
-          notify_url: PAYHERE_NOTIFY_URL,
-        },
-        {
-          onCompleted: async (completedOrderId) => {
-            console.log('[CustomOrdersTab] PayHere onCompleted:', completedOrderId);
-            setFeedbackMsg({
-              text: 'Confirming payment... please wait while we verify your transaction.',
-              type: 'info',
-            });
-
-            // Poll/refetch the order every 2s for up to 30s until payment_status === 'paid'
-            const pollIntervalMs = 2000;
-            const maxAttempts = 15; // 30 seconds
-            let confirmed = false;
-
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-              try {
-                const refreshedOrders = await fetchUserStitchOrders(user.id, user.email);
-                const currentOrder = refreshedOrders.find(
-                  (o) => String(o.raw_order_id || o.id) === String(realOrderId)
-                );
-                if (
-                  currentOrder &&
-                  (currentOrder.payment_status === 'paid' ||
-                    currentOrder.fulfillment_status === 'processing')
-                ) {
-                  confirmed = true;
-                  break;
-                }
-              } catch (pollErr) {
-                console.warn('[CustomOrdersTab] Error polling order status:', pollErr);
-              }
-            }
-
-            await loadOrders(true);
-            setConfirmingOrderId(null);
-
-            if (confirmed) {
-              setFeedbackMsg({
-                text: `Payment completed successfully for Order #${realOrderId}! Your order is now in production.`,
-                type: 'success',
-              });
-              // 6. After order payment confirms, navigate to the dashboard's Custom Orders tab
-              window.dispatchEvent(new CustomEvent('navigate-dashboard-tab', { detail: 'orders' }));
-            } else {
-              setFeedbackMsg({
-                text: 'payment not confirmed yet, check your dashboard shortly',
-                type: 'info',
-              });
-            }
-          },
-          onDismissed: () => {
-            console.log('[CustomOrdersTab] PayHere onDismissed');
-            // Close checkout without changing state or showing success
-            setConfirmingOrderId(null);
-          },
-          onError: (error) => {
-            console.error('[CustomOrdersTab] PayHere onError:', error);
-            // Close checkout without changing state or showing success
-            setConfirmingOrderId(null);
-          },
-        }
-      );
-    } catch (err: any) {
-      console.error('[CustomOrdersTab] Checkout error:', err);
-      setConfirmingOrderId(null);
-      setPaymentErrorOrderId(realOrderId);
-      const errStr = String(err?.message || err || '');
-      const errMsg = errStr.includes('Balance is not due yet')
-        ? 'The balance is not payable yet'
-        : `Unable to open checkout: ${err?.message || 'Error occurred'}. Please retry.`;
-      setFeedbackMsg({
-        text: errMsg,
-        type: 'error',
-      });
-    }
+    setGatewayOrder(order);
   };
 
   const handleCopyTracking = (trackingNumber: string) => {
@@ -2023,6 +1913,23 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
           }}
         />
       )}
+
+      {/* Payment Gateway Modal */}
+      <PaymentGatewayModal
+        isOpen={Boolean(gatewayOrder)}
+        onClose={() => setGatewayOrder(null)}
+        order={gatewayOrder}
+        user={user}
+        onOrderPaymentSuccess={() => {
+          setGatewayOrder(null);
+          loadOrders(true);
+          setFeedbackMsg({
+            text: 'Payment completed successfully! Your order is now in production.',
+            type: 'success',
+          });
+          window.dispatchEvent(new CustomEvent('navigate-dashboard-tab', { detail: 'orders' }));
+        }}
+      />
 
     </div>
   );

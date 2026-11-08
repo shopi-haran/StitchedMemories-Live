@@ -19,7 +19,7 @@ export function requiresBankTransfer(amount: number): boolean {
 }
 
 export type PayHereHashRequest =
-  | { kind: 'subscription'; tier: 'pro' | 'studio' | string }
+  | { kind: 'subscription'; tier: 'pro' | 'studio' | string; period?: string }
   | { kind: 'order'; orderRowId: string | number };
 
 export interface PayHereHashResult {
@@ -238,3 +238,57 @@ export async function startPayHereCheckout(
   // Launch checkout popup
   payhere.startPayment(paymentParams);
 }
+
+export interface CheckoutSessionParams {
+  request: PayHereHashRequest;
+  user: { name?: string; email?: string } | null;
+  itemTitle: string;
+}
+
+export async function startCheckoutSession(
+  params: CheckoutSessionParams,
+  callbacks: PayHereCallbacks
+): Promise<{ success: boolean; error?: string; exceedsLimit?: boolean; amount?: number }> {
+  try {
+    const data = await createPayHereHash(params.request);
+    if (data.amount_exceeds_50k) {
+      return { success: false, exceedsLimit: true, amount: Number(data.amount || 0) };
+    }
+    if (!data.hash || !data.merchant_id || !data.order_id || !data.amount || !data.currency) {
+      return { success: false, error: 'Could not start payment, please try again' };
+    }
+
+    const nameParts = (params.user?.name || 'Crafter Member').trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Crafter';
+    const lastName = nameParts.slice(1).join(' ') || 'Member';
+
+    await startPayHereCheckout(
+      {
+        sandbox: true,
+        merchant_id: String(data.merchant_id),
+        order_id: String(data.order_id),
+        items: params.itemTitle,
+        amount: String(data.amount),
+        currency: String(data.currency),
+        hash: String(data.hash),
+        first_name: firstName,
+        last_name: lastName,
+        email: params.user?.email || '',
+        phone: '0771234567',
+        address: 'Digital Crafter Membership',
+        city: 'Colombo',
+        country: 'Sri Lanka',
+        return_url: window.location.href,
+        cancel_url: window.location.href,
+        notify_url: PAYHERE_NOTIFY_URL,
+      },
+      callbacks
+    );
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[startCheckoutSession] error:', err);
+    return { success: false, error: err?.message || 'Could not start payment, please try again' };
+  }
+}
+
