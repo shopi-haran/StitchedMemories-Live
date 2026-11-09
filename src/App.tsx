@@ -23,6 +23,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { AuthModal } from './components/AuthModal';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
+import { LandingConfirmModal } from './components/LandingConfirmModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
 import { fetchUserProfile, updateUserPlanSelection, getEffectiveTier, fetchSubscriptionPlans } from './lib/supabase';
@@ -601,15 +602,17 @@ export default function App() {
         />
 
         {/* Confirmation Dialog for Logged-In Users Upgrading from Landing Page */}
-        <PaymentGatewayModal
+        <LandingConfirmModal
           isOpen={confirmModal.isOpen}
           onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
           plan={confirmModal.plan}
-          billingCycle={confirmModal.period}
-          user={user}
-          onPaymentSuccess={async () => {
+          period={confirmModal.period}
+          planPrices={planPrices}
+          onConfirm={() => {
+            setPricingPlan(confirmModal.plan);
+            setPricingCycle(confirmModal.period);
             setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-            await handlePaymentSuccess();
+            setIsPaymentModalOpen(true);
           }}
         />
       </ErrorBoundary>

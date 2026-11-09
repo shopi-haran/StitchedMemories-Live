@@ -116,7 +116,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   // Initialize activeSubModal on open
   useEffect(() => {
     if (isOpen) {
-      console.log('[pay] entry', { isOrderMode, plan, billingCycle, order, quote });
+      console.log('[pay] entry', { tier: plan, period: billingCycle, amountDueNow });
       console.log('[pay] amount due', amountDueNow, { exceedsLimit });
       if (exceedsLimit) {
         console.log('[pay] bank window opened', { amountDueNow, exceedsLimit });
