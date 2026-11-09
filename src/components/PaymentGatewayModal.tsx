@@ -87,8 +87,6 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     };
   }, [isOpen, user]);
 
-  if (!isOpen || typeof document === 'undefined') return null;
-
   const isOrderMode = Boolean(quote || order);
   const activeQuote = quote || order?.quote;
   const quoteTotalLkr = Number(activeQuote?.total_amount ?? order?.total_amount ?? order?.quoted_price ?? 0);
@@ -129,6 +127,8 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
       }
     }
   }, [isOpen, amountDueNow, exceedsLimit]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const modalTitle = isOrderMode ? orderTitle : `${planName} (${billingCycle === 'annual' && hasAnnual ? 'Annual' : 'Monthly'})`;
   const modalSubtitle = isOrderMode 
