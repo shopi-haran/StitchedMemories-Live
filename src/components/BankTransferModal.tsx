@@ -184,6 +184,14 @@ export const BankTransferModal: React.FC<BankTransferModalProps> = ({
                   usdClassName="text-xs text-[#5A6659]"
                 />
               </div>
+              {tier && (
+                <div className="flex items-center justify-between pt-2 border-t border-[#E8E1D2]">
+                  <span className="text-xs text-[#5A6659]">Plan & Billing Period</span>
+                  <span className="text-xs font-bold text-[#1D231E] capitalize">
+                    {tier} ({period || 'monthly'})
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between pt-2 border-t border-[#E8E1D2]">
                 <span className="text-xs text-[#5A6659]">Payment Reference Code</span>
                 <div className="flex items-center gap-2">
