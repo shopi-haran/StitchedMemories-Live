@@ -249,9 +249,12 @@ export async function startCheckoutSession(
   params: CheckoutSessionParams,
   callbacks: PayHereCallbacks
 ): Promise<{ success: boolean; error?: string; exceedsLimit?: boolean; amount?: number }> {
+  console.log('[pay] entry startCheckoutSession', params);
   try {
     const data = await createPayHereHash(params.request);
+    console.log('[pay] amount due', data.amount);
     if (data.amount_exceeds_50k) {
+      console.log('[pay] bank window opened', data.amount);
       return { success: false, exceedsLimit: true, amount: Number(data.amount || 0) };
     }
     if (!data.hash || !data.merchant_id || !data.order_id || !data.amount || !data.currency) {
@@ -262,28 +265,28 @@ export async function startCheckoutSession(
     const firstName = nameParts[0] || 'Crafter';
     const lastName = nameParts.slice(1).join(' ') || 'Member';
 
-    await startPayHereCheckout(
-      {
-        sandbox: true,
-        merchant_id: String(data.merchant_id),
-        order_id: String(data.order_id),
-        items: params.itemTitle,
-        amount: String(data.amount),
-        currency: String(data.currency),
-        hash: String(data.hash),
-        first_name: firstName,
-        last_name: lastName,
-        email: params.user?.email || '',
-        phone: '0771234567',
-        address: 'Digital Crafter Membership',
-        city: 'Colombo',
-        country: 'Sri Lanka',
-        return_url: window.location.href,
-        cancel_url: window.location.href,
-        notify_url: PAYHERE_NOTIFY_URL,
-      },
-      callbacks
-    );
+    const paymentParams: PayHerePaymentParams = {
+      sandbox: true,
+      merchant_id: String(data.merchant_id),
+      order_id: String(data.order_id),
+      items: params.itemTitle,
+      amount: String(data.amount),
+      currency: String(data.currency),
+      hash: String(data.hash),
+      first_name: firstName,
+      last_name: lastName,
+      email: params.user?.email || '',
+      phone: '0771234567',
+      address: 'Digital Crafter Membership',
+      city: 'Colombo',
+      country: 'Sri Lanka',
+      return_url: window.location.href,
+      cancel_url: window.location.href,
+      notify_url: PAYHERE_NOTIFY_URL,
+    };
+
+    console.log('[pay] payhere start', paymentParams);
+    await startPayHereCheckout(paymentParams, callbacks);
 
     return { success: true };
   } catch (err: any) {
