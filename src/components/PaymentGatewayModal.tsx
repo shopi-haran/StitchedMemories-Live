@@ -39,6 +39,11 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'payment-gateway-modal' });
   const { refreshProfile } = useAuth();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(initialBillingCycle);
+
+  useEffect(() => {
+    setBillingCycle(initialBillingCycle);
+  }, [initialBillingCycle]);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
@@ -112,21 +117,29 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
 
   const amountDueNow = isOrderMode ? expectedPayAmount : activePriceLkr;
   const exceedsLimit = requiresBankTransfer(amountDueNow);
+  const periodVal = billingCycle === 'annual' ? 'yearly' : 'monthly';
+  const kindVal = isOrderMode ? 'order' : 'subscription';
+  const tierVal = isOrderMode ? undefined : plan;
 
   // Initialize activeSubModal on open
   useEffect(() => {
     if (isOpen) {
-      console.log('[pay] entry', { tier: plan, period: billingCycle, amountDueNow });
+      console.log('[pay] entry', {
+        kind: kindVal,
+        tier: tierVal,
+        period: isOrderMode ? undefined : periodVal,
+        amountDue: amountDueNow,
+      });
       console.log('[pay] amount due', amountDueNow, { exceedsLimit });
       if (exceedsLimit) {
-        console.log('[pay] bank window opened', { amountDueNow, exceedsLimit });
+        console.log('[pay] bank window opened', { amountDueNow, exceedsLimit, period: periodVal });
         setActiveSubModal('bank');
       } else {
-        console.log('[pay] chooser opened', { amountDueNow, exceedsLimit });
+        console.log('[pay] chooser opened', { amountDueNow, exceedsLimit, period: periodVal });
         setActiveSubModal('method');
       }
     }
-  }, [isOpen, amountDueNow, exceedsLimit]);
+  }, [isOpen, amountDueNow, exceedsLimit, periodVal, isOrderMode, tierVal, kindVal]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -148,7 +161,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
     try {
       const requestPayload: PayHereHashRequest = isOrderMode
         ? { kind: 'order', orderRowId: order?.raw_order_id || order?.id }
-        : { kind: 'subscription', tier: plan, period: hasAnnual && billingCycle === 'annual' ? 'yearly' : 'monthly' };
+        : { kind: 'subscription', tier: plan, period: periodVal };
 
       const itemTitle = isOrderMode ? orderTitle : `StitchedMemories ${planName} (${billingCycle})`;
       console.log('[pay] payhere start', { requestPayload, itemTitle, amountDueNow });
@@ -243,7 +256,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
           onClose={onClose}
           user={user}
           tier={plan}
-          period={hasAnnual && billingCycle === 'annual' ? 'annual' : 'monthly'}
+          period={periodVal}
           order={order}
           amountLkr={amountDueNow}
           onSuccess={handleBankTransferSuccess}
