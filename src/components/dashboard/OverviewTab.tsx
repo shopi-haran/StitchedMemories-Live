@@ -21,6 +21,7 @@ import {
   getEffectiveTier,
   getEffectiveTierLabel,
   getSubscriptionBadge,
+  getSubscriptionDashboardStatus,
   fetchUserSubscriptionClaim,
   SupabaseProfileRow 
 } from '../../lib/supabase';
@@ -137,13 +138,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     }
   };
 
-  const effectiveTier = getEffectiveTier(profile);
-  const subscriptionBadge = getSubscriptionBadge(profile);
-  const isActivePaid = effectiveTier !== 'free' && subscriptionBadge.variant === 'active';
-  const isProActive = effectiveTier === 'pro' && subscriptionBadge.variant === 'active';
-  const isStudioActive = effectiveTier === 'studio' && subscriptionBadge.variant === 'active';
-  const isFree = effectiveTier === 'free' || !profile?.subscription_tier || profile.subscription_tier.toLowerCase() === 'free';
-  const isInactiveOrExpired = subscriptionBadge.variant === 'inactive' || subscriptionBadge.variant === 'expired' || (!isFree && !isActivePaid);
+  const subStatus = getSubscriptionDashboardStatus(profile);
+  const { isFree, isActivePro, isActiveStudio, isInactivePaid, badge: subscriptionBadge } = subStatus;
+  const isActivePaid = isActivePro || isActiveStudio;
 
   const accessUntil = profile?.access_until || profile?.accessUntil || (user as any)?.access_until || (user as any)?.accessUntil;
 
@@ -242,7 +239,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             )}
 
             {/* ACTIVE PRO: Show Upgrade plan (opens ONLY Studio plan card) and Cancel subscription */}
-            {isProActive && (
+            {isActivePro && (
               <>
                 {onOpenUpgradeModal && (
                   <button
@@ -276,7 +273,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             )}
 
             {/* ACTIVE STUDIO: Show only Cancel subscription */}
-            {isStudioActive && (
+            {isActiveStudio && (
               <button
                 onClick={() => setShowCancelDialog(true)}
                 disabled={isCancelling}
@@ -296,8 +293,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </button>
             )}
 
-            {/* INACTIVE or EXPIRED Pro or Studio */}
-            {isInactiveOrExpired && (
+            {/* INACTIVE Pro or Studio: Hide Upgrade plan and Cancel subscription completely, show only Renew subscription */}
+            {isInactivePaid && (
               userSubClaim ? (
                 <div className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 text-blue-200 rounded-full text-xs font-semibold flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-blue-300 shrink-0" />
