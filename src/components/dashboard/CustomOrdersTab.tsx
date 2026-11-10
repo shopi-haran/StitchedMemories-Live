@@ -48,7 +48,7 @@ import {
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue } from '../../utils/currency';
+import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue, canShowPrices } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import { PaymentGatewayModal } from '../PaymentGatewayModal';
@@ -1036,29 +1036,12 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                         <span className="text-xs font-medium text-gray-400">Order cancelled</span>
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
-                        <span className="text-xs font-bold text-amber-900 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 inline-flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-[#5A6659]">Status:</span>
+                        <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 inline-flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                          Your quote is being prepared
+                          Pending quote
                         </span>
-                        {(() => {
-                          const threadReqs = details.thread_requirements || order.thread_requirements || [];
-                          if (threadReqs.length === 0) return null;
-                          return (
-                            <div className="text-[11px] text-[#5A6659] space-y-1 mt-1">
-                              <span className="font-semibold text-[#1D231E]">Thread Colours & Quantities ({threadReqs.length}):</span>
-                              <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1.5 bg-[#FAF6EE] rounded-xl border border-[#E8E1D2]">
-                                {threadReqs.map((th: any, ti: number) => (
-                                  <div key={ti} className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-[#E8E1D2] text-[10px]">
-                                    {th.hex && <span className="w-2.5 h-2.5 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: th.hex }} />}
-                                    <span className="font-semibold text-[#1D231E]">{th.name || th.dmc_code || `Thread #${ti+1}`}</span>
-                                    <span className="text-[#8A9588]">({th.quantity || th.count || th.skeins || 1})</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
                       </div>
                     )}
                   </div>
@@ -1278,49 +1261,72 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
               {/* ================================================================= */}
               {/* CASE 1: PENDING QUOTE (NO QUOTE DATA YET) */}
               {/* ================================================================= */}
-              {!isDeclined && !isStoreOrder && isPendingQuote && !hasQuoteData ? (
-                <div className="p-6 sm:p-7 bg-[#FAF6EE] border-2 border-dashed border-[#D5CDBC] rounded-3xl space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 shadow-2xs">
-                      <Clock className="w-5 h-5 animate-pulse" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#1D231E]">
-                        Your quote is being prepared
-                      </h4>
-                      <p className="text-xs text-[#5A6659] mt-0.5">
-                        Our studio artisans are calculating exact thread requirements, materials, and delivery. All pricing will appear here once published by our team.
-                      </p>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const threadReqs = details.thread_requirements || order.thread_requirements || [];
-                    if (threadReqs.length === 0) return null;
-                    return (
-                      <div className="space-y-2 pt-3 border-t border-[#E8E1D2]">
-                        <span className="text-xs font-bold text-[#1D231E] block">
-                          Thread Colours & Quantities ({threadReqs.length}):
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-3 bg-white rounded-2xl border border-[#E8E1D2]">
-                          {threadReqs.map((th: any, ti: number) => (
-                            <div key={ti} className="flex items-center justify-between p-2 bg-[#FAF6EE] rounded-xl border border-[#E8E1D2] text-xs">
-                              <div className="flex items-center gap-2">
-                                {th.hex && <span className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0 shadow-2xs" style={{ backgroundColor: th.hex }} />}
-                                <div>
-                                  <span className="font-semibold text-[#1D231E] block leading-tight">{th.name || th.dmc_code || `Thread #${ti+1}`}</span>
-                                  {th.dmc_code && <span className="text-[10px] text-[#8A9588]">DMC #{th.dmc_code}</span>}
-                                </div>
-                              </div>
-                              <span className="font-mono font-bold text-[#5A6659] bg-white px-2 py-0.5 rounded-lg border border-[#E8E1D2] text-[11px]">
-                                Qty: {th.quantity || th.count || th.skeins || 1}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+              {!isDeclined && !canShowPrices(order) ? (
+                <div className="space-y-5">
+                  <div className="p-6 sm:p-7 bg-[#FAF6EE] border-2 border-dashed border-[#D5CDBC] rounded-3xl space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 shadow-2xs">
+                        <Clock className="w-5 h-5 animate-pulse" />
                       </div>
-                    );
-                  })()}
+                      <div>
+                        <h4 className="text-sm font-bold text-[#1D231E]">
+                          Your quote is being prepared
+                        </h4>
+                        <p className="text-xs text-[#5A6659] mt-0.5">
+                          Our studio artisans are currently preparing your custom specifications, thread requirements, and fabric details.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-3 border-t border-[#E8E1D2] text-xs">
+                      <div className="flex justify-between items-center bg-white p-3 rounded-2xl border border-[#E8E1D2]">
+                        <span className="font-bold text-[#5A6659]">Order Type:</span>
+                        <span className="font-semibold text-[#1D231E] capitalize">{String(order.order_type || 'Custom Order').replace(/_/g, ' ')}</span>
+                      </div>
+                      <div className="flex justify-between items-center bg-white p-3 rounded-2xl border border-[#E8E1D2]">
+                        <span className="font-bold text-[#5A6659]">Fabric Selection:</span>
+                        <span className="font-semibold text-[#1D231E]">
+                          {typeof details.fabric_details === 'string' 
+                            ? details.fabric_details 
+                            : details.fabric_details?.name || details.size || details.product_style || 'Standard Aida Fabric'}
+                        </span>
+                      </div>
+                      {details.color_count && (
+                        <div className="flex justify-between items-center bg-white p-3 rounded-2xl border border-[#E8E1D2]">
+                          <span className="font-bold text-[#5A6659]">Color Count:</span>
+                          <span className="font-semibold text-[#1D231E]">{details.color_count} colors</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {(() => {
+                      const threadReqs = details.thread_requirements || order.thread_requirements || [];
+                      if (threadReqs.length === 0) return null;
+                      return (
+                        <div className="space-y-2 pt-3 border-t border-[#E8E1D2]">
+                          <span className="text-xs font-bold text-[#1D231E] block">
+                            Thread Colours & Quantities ({threadReqs.length}):
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-3 bg-white rounded-2xl border border-[#E8E1D2]">
+                            {threadReqs.map((th: any, ti: number) => (
+                              <div key={ti} className="flex items-center justify-between p-2 bg-[#FAF6EE] rounded-xl border border-[#E8E1D2] text-xs">
+                                <div className="flex items-center gap-2">
+                                  {th.hex && <span className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0 shadow-2xs" style={{ backgroundColor: th.hex }} />}
+                                  <div>
+                                    <span className="font-semibold text-[#1D231E] block leading-tight">{th.name || th.dmc_code || `Thread #${ti+1}`}</span>
+                                    {th.dmc_code && <span className="text-[10px] text-[#8A9588]">DMC #{th.dmc_code}</span>}
+                                  </div>
+                                </div>
+                                <span className="font-mono font-bold text-[#5A6659] bg-white px-2 py-0.5 rounded-lg border border-[#E8E1D2] text-[11px]">
+                                  Qty: {th.quantity || th.count || th.skeins || 1}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               ) : !isDeclined && isStoreOrder ? (
                 /* ================================================================= */
