@@ -249,13 +249,34 @@ export async function startCheckoutSession(
   params: CheckoutSessionParams,
   callbacks: PayHereCallbacks
 ): Promise<{ success: boolean; error?: string; exceedsLimit?: boolean; amount?: number }> {
-  console.log('[pay] entry startCheckoutSession', params);
+  const req = params.request;
+  const kind = req.kind;
+  const tier = kind === 'subscription' ? req.tier : undefined;
+  const period = kind === 'subscription' ? req.period : undefined;
+
+  if (kind === 'subscription') {
+    if (period !== 'monthly' && period !== 'yearly') {
+      console.error('[pay] missing period', params);
+      try {
+        callbacks.onError?.('Missing or invalid subscription period');
+      } catch {}
+      return { success: false, error: 'Missing or invalid subscription period' };
+    }
+  }
+
   try {
-    const data = await createPayHereHash(params.request);
+    const data = await createPayHereHash(req);
+    const amountDue = Number(data.amount || 0);
+    console.log('[pay] entry', {
+      kind,
+      tier,
+      period,
+      amountDue,
+    });
     console.log('[pay] amount due', data.amount);
     if (data.amount_exceeds_50k) {
-      console.log('[pay] bank window opened', data.amount);
-      return { success: false, exceedsLimit: true, amount: Number(data.amount || 0) };
+      console.log('[pay] bank window opened', { amount: data.amount, period });
+      return { success: false, exceedsLimit: true, amount: amountDue };
     }
     if (!data.hash || !data.merchant_id || !data.order_id || !data.amount || !data.currency) {
       return { success: false, error: 'Could not start payment, please try again' };
