@@ -655,6 +655,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         plan={gatewayPlan || 'pro'}
         billingCycle={billingCycle}
         user={user}
+        planPrices={planPrices}
         onPaymentSuccess={async () => {
           setGatewayPlan(null);
           if (onClose) onClose();

@@ -23,6 +23,7 @@ export interface PaymentGatewayModalProps {
   order?: any;
   quote?: any;
   onOrderPaymentSuccess?: (orderId: string | number) => void;
+  planPrices?: Record<string, { price_lkr: number; yearly_price_lkr: number | null }>;
 }
 
 export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
@@ -35,6 +36,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   order,
   quote,
   onOrderPaymentSuccess,
+  planPrices: planPricesProp,
 }) => {
   const { zIndex, modalId } = useModalStack(isOpen, { onClose, id: 'payment-gateway-modal' });
   const { refreshProfile } = useAuth();
@@ -48,10 +50,12 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Dynamic plan prices from database
-  const [planPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
+  const [localPlanPrices, setPlanPrices] = useState<Record<string, { price_lkr: number; yearly_price_lkr: number | null }>>({
     pro: { price_lkr: 2700, yearly_price_lkr: null },
     studio: { price_lkr: 5700, yearly_price_lkr: null },
   });
+
+  const effectivePlanPrices = planPricesProp || localPlanPrices;
 
   const [isNonRefundableChecked, setIsNonRefundableChecked] = useState(false);
 
@@ -82,15 +86,17 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
         console.warn('[PaymentGatewayModal] Error loading initial prices:', e);
       }
     }
-    if (isOpen) {
+    if (isOpen && !planPricesProp) {
       loadPrices();
+    }
+    if (isOpen) {
       setIsNonRefundableChecked(false);
       setPaymentError(null);
     }
     return () => {
       active = false;
     };
-  }, [isOpen, user]);
+  }, [isOpen, user, planPricesProp]);
 
   const isOrderMode = Boolean(quote || order);
   const activeQuote = quote || order?.quote;
@@ -109,7 +115,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
   const expectedPayAmount = isCustomStitched ? (isPayingAdvance ? advanceLkr : balanceLkr) : Math.max(0, quoteTotalLkr - amountPaidLkr);
 
   const planName = plan === 'pro' ? 'Pro Plan' : 'Studio Plan';
-  const planPricing = planPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: null } : { price_lkr: 5700, yearly_price_lkr: null });
+  const planPricing = effectivePlanPrices[plan] || (plan === 'pro' ? { price_lkr: 2700, yearly_price_lkr: null } : { price_lkr: 5700, yearly_price_lkr: null });
   const baseMonthlyLkr = planPricing.price_lkr;
   const annualYearlyLkr = planPricing.yearly_price_lkr;
   const hasAnnual = Boolean(annualYearlyLkr != null && annualYearlyLkr > 0);
