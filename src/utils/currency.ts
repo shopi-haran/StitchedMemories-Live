@@ -217,5 +217,37 @@ export function formatUsdNum(value: any): string {
   });
 }
 
+/**
+ * Shared helper to check if prices can be shown to viewer
+ */
+export function canShowPrices(order: any, viewerRole?: string): boolean {
+  if (!order) return false;
+  if (viewerRole === 'admin' || order.role === 'admin' || order.viewerRole === 'admin') {
+    return true;
+  }
+  const rawStatus = (order.fulfillment_status || order.status || 'pending_quote').toLowerCase();
+  const paymentStatus = (order.payment_status || '').toLowerCase();
+  const isStore = (order.order_type || '').toLowerCase() === 'store' || (order.request_details?.order_type || '').toLowerCase() === 'store';
+  
+  if (isStore) return true;
+
+  const isPublishedOrPaid = 
+    rawStatus === 'quoted' ||
+    rawStatus === 'awaiting_payment' ||
+    rawStatus === 'confirmed' ||
+    rawStatus === 'in_production' ||
+    rawStatus === 'in_progress' ||
+    rawStatus === 'quality_check' ||
+    rawStatus === 'shipped' ||
+    rawStatus === 'delivered' ||
+    paymentStatus === 'paid' ||
+    paymentStatus === 'deposit_paid' ||
+    paymentStatus === 'confirmed' ||
+    Boolean(order.quoted_price && Number(order.quoted_price) > 0) ||
+    Boolean(order.quote?.total_amount && Number(order.quote.total_amount) > 0);
+
+  return Boolean(isPublishedOrPaid);
+}
+
 
 
