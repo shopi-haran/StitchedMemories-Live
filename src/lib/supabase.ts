@@ -2300,6 +2300,121 @@ export function getSubscriptionBadge(
   }
 }
 
+export interface DashboardSubscriptionStatus {
+  tier: 'free' | 'pro' | 'studio';
+  isFree: boolean;
+  isActivePro: boolean;
+  isActiveStudio: boolean;
+  isInactivePaid: boolean;
+  badge: {
+    showBadge: boolean;
+    text: string;
+    variant: 'active' | 'inactive' | 'expired';
+  };
+}
+
+export function getSubscriptionDashboardStatus(
+  profile?: { 
+    subscription_tier?: string | null; 
+    subscription_status?: string | null;
+    access_until?: string | null;
+    accessUntil?: string | null;
+  } | null
+): DashboardSubscriptionStatus {
+  if (!profile) {
+    return {
+      tier: 'free',
+      isFree: true,
+      isActivePro: false,
+      isActiveStudio: false,
+      isInactivePaid: false,
+      badge: { showBadge: false, text: '', variant: 'inactive' },
+    };
+  }
+
+  const rawTier = (profile.subscription_tier || '').toLowerCase().trim();
+  const isFree = !rawTier || rawTier === 'free';
+  if (isFree) {
+    return {
+      tier: 'free',
+      isFree: true,
+      isActivePro: false,
+      isActiveStudio: false,
+      isInactivePaid: false,
+      badge: { showBadge: false, text: '', variant: 'inactive' },
+    };
+  }
+
+  const tier: 'pro' | 'studio' = rawTier.includes('studio') ? 'studio' : 'pro';
+  const rawStatus = (profile.subscription_status || '').toLowerCase().trim();
+  const rawAccess = profile.access_until || profile.accessUntil;
+
+  let isPast = false;
+  let isFutureOrToday = true;
+  let formattedDate = rawAccess || '';
+
+  if (rawAccess) {
+    try {
+      const target = new Date(rawAccess);
+      if (!isNaN(target.getTime())) {
+        const day = target.getDate();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[target.getMonth()];
+        const year = target.getFullYear();
+        formattedDate = `${day} ${month} ${year}`;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const targetDay = new Date(target);
+        targetDay.setHours(0, 0, 0, 0);
+
+        if (targetDay.getTime() < today.getTime()) {
+          isFutureOrToday = false;
+          isPast = true;
+        }
+      }
+    } catch {}
+  }
+
+  const isActive = rawStatus === 'active' && (rawAccess ? isFutureOrToday : true);
+
+  if (isActive) {
+    return {
+      tier,
+      isFree: false,
+      isActivePro: tier === 'pro',
+      isActiveStudio: tier === 'studio',
+      isInactivePaid: false,
+      badge: {
+        showBadge: true,
+        text: 'Active',
+        variant: 'active',
+      },
+    };
+  } else {
+    let badgeText = 'Inactive';
+    if (rawAccess) {
+      if (isPast) {
+        badgeText = `Inactive, expired on ${formattedDate}`;
+      } else {
+        badgeText = `Inactive, Access until ${formattedDate}`;
+      }
+    }
+    return {
+      tier,
+      isFree: false,
+      isActivePro: false,
+      isActiveStudio: false,
+      isInactivePaid: true,
+      badge: {
+        showBadge: true,
+        text: badgeText,
+        variant: isPast ? 'expired' : 'inactive',
+      },
+    };
+  }
+}
+
 
 export async function cancelSubscription(): Promise<{ success: boolean; message?: string }> {
   // Placeholder function for cancelling subscription
