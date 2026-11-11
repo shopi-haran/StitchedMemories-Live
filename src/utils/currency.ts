@@ -311,5 +311,15 @@ export function sanitizeOrderForCustomer(order: any): any {
   return sanitized;
 }
 
+/**
+ * Returns the short order reference (last 8 characters of UUID in uppercase).
+ */
+export function shortOrderRef(id: string | number | undefined | null): string {
+  if (!id) return '00000000';
+  const clean = String(id).replace(/^order_/, '').trim();
+  if (clean.length <= 8) return clean.toUpperCase();
+  return clean.slice(-8).toUpperCase();
+}
+
 
 

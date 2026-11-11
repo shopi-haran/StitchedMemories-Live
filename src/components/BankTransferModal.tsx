@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Banknote, CheckCircle2, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
 import { useModalStack } from '../hooks/useModalStack';
 import { LkrPriceDisplay } from './LkrPriceDisplay';
+import { shortOrderRef } from '../utils/currency';
 import { fetchBankTransferDetails, setBankTransferClaim, claimSubscriptionTransfer, uploadPaymentProof } from '../lib/supabase';
 
 export interface BankTransferModalProps {
@@ -36,10 +37,10 @@ export const BankTransferModal: React.FC<BankTransferModalProps> = ({
   const [copiedRef, setCopiedRef] = useState(false);
 
   const isOrderMode = Boolean(order);
-  const orderRawId = String(order?.raw_order_id || order?.id || '').replace('order_', '');
+  const orderRawId = order?.raw_order_id || order?.id;
   const paymentRef = isOrderMode
-    ? `SM-${orderRawId.slice(0, 8).toUpperCase()}`
-    : `SM-SUB-${String(user?.id || '').slice(0, 8).toUpperCase()}`;
+    ? `SM-${shortOrderRef(orderRawId)}`
+    : `SM-SUB-${shortOrderRef(user?.id)}`;
 
   useEffect(() => {
     if (isOpen) {
