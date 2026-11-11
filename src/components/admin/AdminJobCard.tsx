@@ -20,10 +20,11 @@ import {
   ShieldCheck,
   Receipt,
   Check,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import { SupabaseStitchOrderRow } from '../../lib/supabase';
-import { resolveQuoteAmountToLkr } from '../../utils/currency';
+import { resolveQuoteAmountToLkr, shortOrderRef } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 
@@ -135,9 +136,25 @@ export const AdminJobCard: React.FC<AdminJobCardProps> = ({
                   ? 'Custom Order Pattern'
                   : order.order_type || 'Custom Order'}
               </span>
-              <span className="text-xs font-mono font-bold text-[#1D231E]">
-                #{order.id}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-[#1D231E]">
+                  #{shortOrderRef(order.raw_order_id || order.id)}
+                </span>
+                <span className="text-[10px] font-mono text-[#1D231E]/40" title="Full UUID">
+                  ({order.raw_order_id || order.id})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(String(order.raw_order_id || order.id));
+                    alert('Order UUID copied to clipboard!');
+                  }}
+                  className="p-1 hover:bg-[#FAF6EE] text-[#5A6659] rounded transition-colors cursor-pointer"
+                  title="Copy Full UUID"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              </div>
               <span className="text-xs text-[#1D231E]/40">•</span>
               <span className="text-[11px] text-[#1D231E]/60">
                 {order.created_at

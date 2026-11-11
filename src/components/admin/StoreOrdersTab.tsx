@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { shortOrderRef } from '../../utils/currency';
 import {
   Package,
   Clock,
@@ -148,7 +149,10 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
         const items = (Array.isArray(order.items) ? order.items : details.items) || [];
         const itemsText = items.map((it: any) => `${it.title || ''} ${it.name || ''}`).join(' ');
 
-        const matchId = String(order.id || '').toLowerCase().includes(q) || String(order.raw_order_id || '').toLowerCase().includes(q);
+        const cleanQ = q.replace(/^#/, '');
+        const realId = String(order.id || order.raw_order_id || '').toLowerCase();
+        const shortRef = shortOrderRef(order.id || order.raw_order_id).toLowerCase();
+        const matchId = realId.includes(cleanQ) || shortRef.includes(cleanQ);
         const matchName = String(order.customer_name || details.customer_name || details.name || '').toLowerCase().includes(q);
         const matchEmail = String(order.customer_email || order.user_id || details.customer_email || '').toLowerCase().includes(q);
         const matchAddress = String(details.delivery_address || details.address || '').toLowerCase().includes(q);
@@ -564,8 +568,8 @@ export const StoreOrdersTab: React.FC<StoreOrdersTabProps> = ({
                 {/* Order Top Bar: ID, Date, Badges & Edit Button */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F0EBE1]">
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <span className="font-mono text-sm font-bold text-[#1D231E] bg-[#FAF6EE] px-3 py-1 rounded-xl border border-[#E8E1D2]">
-                      #{order.id}
+                    <span className="font-mono text-sm font-bold text-[#1D231E] bg-[#FAF6EE] px-3 py-1 rounded-xl border border-[#E8E1D2]" title={`Full ID: ${order.raw_order_id || order.id}`}>
+                      #{shortOrderRef(order.raw_order_id || order.id)}
                     </span>
                     <span className="text-xs text-[#70806E] flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
