@@ -48,7 +48,7 @@ import {
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue, canShowPrices } from '../../utils/currency';
+import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue, canShowPrices, sanitizeOrderForCustomer } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import { PaymentGatewayModal } from '../PaymentGatewayModal';
@@ -331,7 +331,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
     setError(null);
     try {
       const data = await fetchUserStitchOrders(user.id, user.email);
-      setOrders(data);
+      setOrders(data.map(sanitizeOrderForCustomer));
     } catch (err) {
       console.error('Failed to load stitch orders:', err);
       if (!silent) setError('Unable to load custom orders from Supabase.');
@@ -396,7 +396,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
           else if (updatedRow.order_type === 'custom_stitched') title = `Custom Stitched Keepsake - ${details.size || 'Standard'}`;
           else if (updatedRow.order_type) title = `${updatedRow.order_type.replace(/_/g, ' ')}`;
 
-          const updatedOrder: SupabaseStitchOrderRow = {
+          const updatedOrder: SupabaseStitchOrderRow = sanitizeOrderForCustomer({
             ...existing,
             ...updatedRow,
             id: existing.id,
@@ -415,7 +415,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
             status_note: updatedRow.status_note || details.status_note || existing.status_note,
             admin_notes: quoteObj?.admin_notes || updatedRow.admin_notes || existing.admin_notes,
             estimated_completion: updatedRow.estimated_completion || details.estimated_completion || existing.estimated_completion,
-          };
+          });
 
           const next = [...prevOrders];
           next[index] = updatedOrder;

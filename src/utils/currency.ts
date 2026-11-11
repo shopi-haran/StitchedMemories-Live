@@ -249,5 +249,67 @@ export function canShowPrices(order: any, viewerRole?: string): boolean {
   return Boolean(isPublishedOrPaid);
 }
 
+/**
+ * Sanitizes an order for customer view when quote is not yet published.
+ */
+export function sanitizeOrderForCustomer(order: any): any {
+  if (!order) return order;
+  if (canShowPrices(order)) {
+    return order; // Published or paid -> return unchanged
+  }
+  
+  const sanitized = JSON.parse(JSON.stringify(order));
+  
+  sanitized.total_amount = null;
+  sanitized.quoted_price = null;
+  sanitized.item_price = null;
+  sanitized.delivery_charge = null;
+  sanitized.quoted_amount = null;
+  sanitized.amount_paid_lkr = null;
+  
+  if (sanitized.quote && typeof sanitized.quote === 'object') {
+    sanitized.quote.items_subtotal = undefined;
+    sanitized.quote.delivery_charge = undefined;
+    sanitized.quote.crafting_charge = undefined;
+    sanitized.quote.discount_amount = undefined;
+    sanitized.quote.discount_percent = undefined;
+    sanitized.quote.total_amount = undefined;
+    sanitized.quote.item_price = undefined;
+    
+    if (Array.isArray(sanitized.quote.line_items)) {
+      sanitized.quote.line_items = sanitized.quote.line_items.map((item: any) => ({
+        id: item.id,
+        description: item.description,
+        dmc_code: item.dmc_code,
+        hex: item.hex,
+        quantity: item.quantity,
+        unit: item.unit,
+        reference_qty: item.reference_qty,
+      }));
+    }
+  }
+  
+  if (sanitized.quote_history && Array.isArray(sanitized.quote_history)) {
+    sanitized.quote_history = sanitized.quote_history.map((hist: any) => ({
+      ...hist,
+      total_amount: null,
+      quoted_price: null,
+      delivery_charge: null,
+      items_subtotal: null,
+      line_items: Array.isArray(hist.line_items) ? hist.line_items.map((it: any) => ({
+        id: it.id,
+        description: it.description,
+        dmc_code: it.dmc_code,
+        hex: it.hex,
+        quantity: it.quantity,
+        unit: it.unit,
+        reference_qty: it.reference_qty,
+      })) : []
+    }));
+  }
+
+  return sanitized;
+}
+
 
 
