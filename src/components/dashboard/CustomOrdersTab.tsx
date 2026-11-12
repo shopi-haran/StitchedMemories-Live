@@ -48,7 +48,7 @@ import {
 } from '../../lib/supabase';
 import { StitchTrackerModal } from './StitchTrackerModal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue, canShowPrices, sanitizeOrderForCustomer } from '../../utils/currency';
+import { formatDualPrice, formatLkrPrice, formatOrderDualPrice, isBalanceDue, canShowPrices, sanitizeOrderForCustomer, isQuotePublished } from '../../utils/currency';
 import { DualPrice } from '../DualPrice';
 import { LkrPriceDisplay } from '../LkrPriceDisplay';
 import { PaymentGatewayModal } from '../PaymentGatewayModal';
@@ -161,6 +161,18 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
 
   // Lock body scroll when any modal is open in CustomOrdersTab
   useBodyScrollLock(Boolean(selectedDetailOrder || revisionModalOrder || cancelModalOrder || payingOrder));
+
+  useEffect(() => {
+    if (selectedDetailOrder) {
+      console.log('[quote-view]', {
+        id: selectedDetailOrder.raw_order_id || selectedDetailOrder.id,
+        fulfillment_status: selectedDetailOrder.fulfillment_status,
+        payment_status: selectedDetailOrder.payment_status,
+        quoted_at: selectedDetailOrder.quote?.quoted_at,
+        published: isQuotePublished(selectedDetailOrder)
+      });
+    }
+  }, [selectedDetailOrder]);
 
   // Customer View-Only Stitch Tracker state
   const [viewOnlyTrackerOrder, setViewOnlyTrackerOrder] = useState<SupabaseStitchOrderRow | null>(null);
@@ -1261,7 +1273,7 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
               {/* ================================================================= */}
               {/* CASE 1: PENDING QUOTE (NO QUOTE DATA YET) */}
               {/* ================================================================= */}
-              {!isDeclined && !canShowPrices(order) ? (
+              {!isDeclined && !isQuotePublished(order) ? (
                 <div className="space-y-5">
                   <div className="p-6 sm:p-7 bg-[#FAF6EE] border-2 border-dashed border-[#D5CDBC] rounded-3xl space-y-4">
                     <div className="flex items-center gap-3">
@@ -1270,10 +1282,10 @@ export const CustomOrdersTab: React.FC<CustomOrdersTabProps> = ({ user, onOpenCo
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-[#1D231E]">
-                          Your quote is being prepared
+                          Your order
                         </h4>
                         <p className="text-xs text-[#5A6659] mt-0.5">
-                          Our studio artisans are currently preparing your custom specifications, thread requirements, and fabric details.
+                          Your quote is being prepared. We'll show the prices once your quote is ready.
                         </p>
                       </div>
                     </div>

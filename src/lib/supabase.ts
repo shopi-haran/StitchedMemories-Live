@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { BlogPost, BlogPostSection, ContactMessage, ContentSection, Product } from '../types';
 import { createScaledThumbnail, PatternConfig } from '../utils/patternEngine';
 import { generateLkrQuote, DEFAULT_THREAD_SKEIN_PRICE_LKR, DEFAULT_AIDA_FABRIC_BASE_PRICE_LKR, DEFAULT_CRAFTING_CHARGE_LKR, DEFAULT_DELIVERY_CHARGE_LKR } from '../utils/pricingConstants';
+import { sanitizeOrderForCustomer } from '../utils/currency';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -1244,7 +1245,7 @@ export async function fetchUserStitchOrders(
     return timeB - timeA;
   });
 
-  return allResults;
+  return allResults.map(sanitizeOrderForCustomer);
 }
 
 export async function fetchAllAdminOrders(): Promise<SupabaseStitchOrderRow[]> {
