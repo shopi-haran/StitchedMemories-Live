@@ -930,6 +930,7 @@ export interface CreateOrderRequestParams {
   userId?: string;
   userEmail?: string;
   orderType: 'custom_kit_converter' | 'custom_kit_assisted' | 'custom_stitched' | string;
+  pattern_config?: any;
   requestDetails: {
     photo_url?: string;
     pattern_result_url?: string;
@@ -945,6 +946,7 @@ export interface CreateOrderRequestParams {
     framing_option?: string;
     customer_name?: string;
     customer_email?: string;
+    pattern_config?: any;
     [key: string]: any;
   };
 }
@@ -967,10 +969,13 @@ export async function createOrderRequest(params: CreateOrderRequestParams): Prom
       sizePreference: params.requestDetails?.size,
     });
 
+    const patternConfigParam = params.pattern_config || params.requestDetails?.pattern_config || null;
+
     const payload: Record<string, any> = {
       user_id: effectiveUserId,
       order_type: params.orderType,
       request_details: params.requestDetails,
+      pattern_config: patternConfigParam,
       quote: initialQuote,
       quoted_price: initialQuote.total_amount,
       total_amount: initialQuote.total_amount,

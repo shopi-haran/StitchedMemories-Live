@@ -163,6 +163,22 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
   const [orderSuccess, setOrderSuccess] = useState<boolean>(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [pendingOrderSubmit, setPendingOrderSubmit] = useState<boolean>(false);
+  const [customerConfig, setCustomerConfig] = useState<any>(null);
+
+  const handleResetToCustomerChoices = () => {
+    if (!customerConfig) return;
+    setGridWidth(customerConfig.gridWidth ?? customerConfig.widthStitches ?? customerConfig.grid_width ?? 60);
+    setFabricCount(customerConfig.fabricCount ?? customerConfig.fabric_count ?? 14);
+    setColorLimit(customerConfig.colorLimit ?? customerConfig.color_count ?? 18);
+    setDithering(customerConfig.dithering ?? 'none');
+    setBrightness(customerConfig.brightness ?? 0);
+    setContrast(customerConfig.contrast ?? 0);
+    setSaturation(customerConfig.saturation ?? 0);
+    setBrand(customerConfig.brand ?? 'DMC');
+    if (customerConfig.showGridLines !== undefined) setShowGridLines(customerConfig.showGridLines);
+    if (customerConfig.showSymbols !== undefined) setShowSymbolsOnColor(customerConfig.showSymbols);
+    if (customerConfig.showSymbolsOnColor !== undefined) setShowSymbolsOnColor(customerConfig.showSymbolsOnColor);
+  };
 
   // Reset converter state to defaults for a new conversion session
   const resetSessionState = () => {
@@ -171,6 +187,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
     setSelectedPhotoUrl('');
     setOriginalPhotoUrl('');
     setCustomPhotoName('');
+    setCustomerConfig(null);
     setIsImageEditorOpen(false);
     setGridWidth(60);
     setFabricCount(14);
@@ -268,10 +285,28 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
         fabric_type: `${fabricCount}-Count Aida Cloth`,
       };
 
+      const patternConfig = {
+        gridWidth,
+        gridHeight: pattern?.heightStitches || gridWidth,
+        colorLimit,
+        fabricCount,
+        dithering,
+        brightness,
+        contrast,
+        saturation,
+        brand,
+        showGridLines,
+        showSymbolsOnColor,
+        showSymbols: showSymbolsOnColor,
+        photo_url: photoUrl,
+        original_photo_url: originalPhotoUrl || photoUrl,
+      };
+
       const result = await createOrderRequest({
         userId: activeUserId,
         userEmail: activeUserEmail,
         orderType: 'custom_kit_converter',
+        pattern_config: patternConfig,
         requestDetails: {
           photo_url: photoUrl,
           pattern_result_url: patternResultUrl,
@@ -287,6 +322,7 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
           customer_email: activeUserEmail || '',
           thread_requirements: threadRequirements,
           fabric_details: fabricDetails,
+          pattern_config: patternConfig,
         }
       });
 
@@ -585,17 +621,20 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
       setCustomPhotoName(adminOrder.title || `Order #${adminOrder.id} Pattern`);
 
       // If existing pattern_config, pre-populate
-      const savedConfig = adminOrder.pattern_config || adminOrder.request_details?.pattern_config;
-      if (savedConfig) {
-        if (savedConfig.gridWidth) setGridWidth(savedConfig.gridWidth);
-        if (savedConfig.fabricCount) setFabricCount(savedConfig.fabricCount);
-        if (savedConfig.colorLimit) setColorLimit(savedConfig.colorLimit);
-        if (savedConfig.dithering) setDithering(savedConfig.dithering);
-        if (savedConfig.brightness !== undefined) setBrightness(savedConfig.brightness);
-        if (savedConfig.contrast !== undefined) setContrast(savedConfig.contrast);
-        if (savedConfig.saturation !== undefined) setSaturation(savedConfig.saturation);
-        if (savedConfig.brand) setBrand(savedConfig.brand);
-      }
+      const savedConfig = adminOrder.pattern_config || adminOrder.request_details?.pattern_config || {};
+      setCustomerConfig(savedConfig);
+
+      setGridWidth(savedConfig.gridWidth ?? savedConfig.widthStitches ?? savedConfig.grid_width ?? (adminOrder.request_details?.stitch_count ? Math.round(Math.sqrt(Number(adminOrder.request_details.stitch_count))) : 60));
+      setFabricCount(savedConfig.fabricCount ?? savedConfig.fabric_count ?? adminOrder.request_details?.fabric_count ?? 14);
+      setColorLimit(savedConfig.colorLimit ?? savedConfig.color_count ?? adminOrder.request_details?.color_count ?? 18);
+      setDithering(savedConfig.dithering ?? 'none');
+      setBrightness(savedConfig.brightness ?? 0);
+      setContrast(savedConfig.contrast ?? 0);
+      setSaturation(savedConfig.saturation ?? 0);
+      setBrand(savedConfig.brand ?? 'DMC');
+      if (savedConfig.showGridLines !== undefined) setShowGridLines(savedConfig.showGridLines);
+      if (savedConfig.showSymbols !== undefined) setShowSymbolsOnColor(savedConfig.showSymbols);
+      if (savedConfig.showSymbolsOnColor !== undefined) setShowSymbolsOnColor(savedConfig.showSymbolsOnColor);
     } else if (isOpen && !adminOrder && !prevIsOpenRef.current) {
       resetSessionState();
     }
@@ -984,6 +1023,21 @@ export const PhotoConverterModal: React.FC<PhotoConverterModalProps> = ({
             </button>
           </div>
         </div>
+
+        {isAdminOrderMode && customerConfig && (
+          <div className="mx-6 mt-3 p-3 bg-[#FAF6EE] border border-[#E8E1D2] rounded-xl flex items-center justify-between gap-3 text-xs shadow-2xs shrink-0">
+            <span className="text-[#1D231E]">
+              Customer's choices: <strong className="font-bold text-[#E06C38]">{customerConfig.gridWidth || customerConfig.widthStitches || customerConfig.grid_width || 60} stitches wide</strong>, <strong className="font-bold text-[#E06C38]">{customerConfig.colorLimit || customerConfig.color_count || 18} colours</strong> ({customerConfig.fabricCount || customerConfig.fabric_count || 14}ct Aida)
+            </span>
+            <button
+              type="button"
+              onClick={handleResetToCustomerChoices}
+              className="px-3 py-1 bg-white hover:bg-[#E8E1D2] text-[#1D231E] text-xs font-bold rounded-lg border border-[#D5CDBC] transition-colors cursor-pointer shrink-0 shadow-2xs"
+            >
+              Reset to customer's choices
+            </button>
+          </div>
+        )}
 
         {/* Free Plan Limit Notice Banner if in Free Mode */}
         {!isAdminOrderMode && planTier === 'free' && (
